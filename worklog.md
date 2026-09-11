@@ -107,3 +107,29 @@ Stage Summary:
 - Toàn bộ mã nguồn website thi Biohub Cell Tracking đã lên https://github.com/vietnq130593-code/Biohub-Cell-Tracking (branch main, 5 commit)
 - LICENSE gốc của repo được bảo toàn nhờ merge lịch sử không liên quan
 - Local và remote đã đồng bộ hoàn toàn (main...origin/main không lệch)
+
+---
+Task ID: 10 (main)
+Agent: main
+Task: Xử lý lỗi runtime TypeError "Cannot read properties of undefined (reading 'gtEdges')" trong tracking-demo.tsx
+
+Work Log:
+- Truy vết nguyên nhân: fd = an.frames[f]! (dòng 1054) undefined vì f = NaN — analysis.frames luôn có đủ 60 phần tử nên chỉ có thể do chỉ số không hợp lệ
+- Chuỗi lỗi: speed/Slider trả NaN → timeRef.current = NaN → Math.floor/Math.min truyền NaN qua → an.frames[NaN] = undefined → fd.gtEdges crash trong rAF loop
+- clamp cũ (Math.min(hi, Math.max(lo, v))) KHÔNG chặn NaN vì Math.max(0, NaN) = NaN
+- Vá 6 điểm phòng thủ:
+  * clamp() trả về lo khi v không finite (dòng 107)
+  * draw() sanitize tau (NaN/âm → 0) trước khi tính f (dòng 1012-1017)
+  * fd = an.frames[f] ?? EMPTY_FRAME_VIEW thay cho non-null assertion (dòng 1059)
+  * rAF loop reset timeRef khi !Number.isFinite, clamp fi 2 chiều [0, LAST_FRAME] (dòng 1351-1361)
+  * Speed toggle chỉ setSpeed khi Number.isFinite(n) && n > 0 (dòng 1508-1511)
+  * Thêm hằng số EMPTY_FRAME_VIEW kiểu Analysis['frames'][number]
+- E2E verified bằng agent-browser: pause/play, slider keyboard Home/End/Arrow, slider mouse drag toàn dải 0→59→0, speed 2x→0.5x→1x→deselect, 3 preset, reseed, toggle nhãn node — KHÔNG có page error, KHÔNG có console error
+- VLM xác nhận screenshot: canvas hiển thị tế bào sáng, có tracks, có nhãn ID node, không lỗi layout
+- Pixel check: canvas 1230x692, 3052 mẫu sáng
+- lint sạch, tsc src/ sạch, dev.log sạch
+- Commit cdf5b46, push lên GitHub
+
+Stage Summary:
+- Lỗi crash canvas đã được vá tận gốc bằng 6 lớp phòng thủ NaN — không thể tái phát qua bất kỳ đường vào nào (speed, slider, scrub, HMR)
+- Đã push commit fix lên github.com/vietnq130593-code/Biohub-Cell-Tracking
