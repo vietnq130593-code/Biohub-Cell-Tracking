@@ -6,19 +6,16 @@ import {
   BookOpen,
   Database,
   Gauge,
-  BarChart3,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OverviewTab } from "@/components/competition/overview-tab";
 import { DataTab } from "@/components/competition/data-tab";
 import { EvaluationTab } from "@/components/competition/evaluation-tab";
-import { LeaderboardTab } from "@/components/competition/leaderboard-tab";
 
 const TABS = [
   { value: "overview", label: "Tổng quan", icon: BookOpen },
   { value: "data", label: "Dữ liệu & Nộp bài", icon: Database },
   { value: "evaluation", label: "Đánh giá", icon: Gauge },
-  { value: "leaderboard", label: "Xếp hạng", icon: BarChart3 },
 ];
 
 export function ContentTabs() {
@@ -39,13 +36,13 @@ export function ContentTabs() {
           Tìm hiểu đề bài chi tiết
         </h2>
         <p className="mx-auto mt-2 max-w-2xl text-balance text-sm leading-relaxed text-muted-foreground sm:text-base">
-          Mọi thứ bạn cần biết trước khi bắt tay vào làm: nhiệm vụ, dữ liệu,
-          cách chấm điểm và mức độ cạnh tranh hiện tại.
+          Mọi thứ bạn cần biết trước khi bắt tay vào làm: nhiệm vụ, dữ liệu và
+          cách chấm điểm.
         </p>
       </motion.div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="mx-auto mb-8 grid h-auto w-full max-w-2xl grid-cols-2 gap-1 rounded-xl p-1 sm:grid-cols-4">
+        <TabsList className="mx-auto mb-8 grid h-auto w-full max-w-xl grid-cols-3 gap-1 rounded-xl p-1">
           {TABS.map((tab) => (
             <TabsTrigger
               key={tab.value}
@@ -70,9 +67,6 @@ export function ContentTabs() {
           </TabsContent>
           <TabsContent value="evaluation" className="mt-0">
             <EvaluationTab />
-          </TabsContent>
-          <TabsContent value="leaderboard" className="mt-0">
-            <LeaderboardTab />
           </TabsContent>
         </motion.div>
       </Tabs>

@@ -15,7 +15,7 @@ export default function Home() {
       <main className="flex-1">
         <Hero />
 
-        {/* Trình mô phỏng — trái tim của giao diện bài thi */}
+        {/* Trình mô phỏng & chấm điểm — trái tim của giao diện bài thi */}
         <section
           id="demo"
           className="mx-auto w-full max-w-7xl scroll-mt-24 px-4 py-14 sm:px-6 sm:py-20"
@@ -30,17 +30,22 @@ export default function Home() {
               id="demo-heading"
               className="text-2xl font-extrabold tracking-tight sm:text-3xl"
             >
-              "Bài thi" trông như thế nào?
+              Tự tay &quot;chấm&quot; một bài nộp
             </h2>
-            <p className="mt-2 max-w-2xl text-balance text-sm leading-relaxed text-muted-foreground sm:text-base">
-              Trình mô phỏng dưới đây tái hiện đúng dạng dữ liệu mà bạn sẽ xử
-              lý: video 3D+time phôi cá ngựa vằn nhuộm huỳnh quang, trong đó
-              các <strong className="text-foreground">node</strong> là tế bào,
-              các <strong className="text-foreground">cạnh</strong> liên kết
-              tế bào qua thời gian và{" "}
-              <strong className="text-foreground">phân bào</strong> đánh dấu
-              thời điểm tế bào mẹ tách đôi. Hãy thử kéo thanh thời gian và bật
-              "Chế độ GT thưa" để cảm nhận độ khó của chú thích thưa!
+            <p className="mt-2 max-w-3xl text-balance text-sm leading-relaxed text-muted-foreground sm:text-base">
+              Bản mô phỏng dưới đây tái hiện một mẫu dữ liệu cuộc thi: lớp{" "}
+              <strong className="text-foreground">ground-truth</strong> (đốm
+              emerald — &quot;đáp án&quot;) đối chiếu với lớp{" "}
+              <strong className="text-foreground">dự đoán</strong> (vòng teal)
+              do thuật toán nearest-neighbor giả lập sinh ra. Hệ thống tự ghép
+              node tối ưu trong ngưỡng 7.0 µm, đếm cạnh{" "}
+              <strong className="text-foreground">TP/FP/FN</strong>, phát hiện{" "}
+              <strong className="text-foreground">phân bào</strong> và tính điểm
+              đúng công thức{" "}
+              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em]">
+                adj_edge + 0.1 × division
+              </code>
+              . Hãy kéo các thanh tham số để xem điểm số thay đổi tức thì!
             </p>
           </div>
           <TrackingDemo />

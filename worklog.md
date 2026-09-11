@@ -64,3 +64,28 @@ Stage Summary:
 - Website hoàn chỉnh tại / gồm: hero + đếm ngược, trình mô phỏng tracking tương tác (60 frame, 6 phân bào, GT thưa), 4 tab nội dung đề bài, lộ trình 5 bước, footer sticky, light/dark mode, responsive
 - Đã fix bug canvas đen, verified E2E trên desktop + mobile + dark mode
 - Không dùng màu blue/indigo làm primary (emerald/teal/amber)
+
+---
+Task ID: 8 (main)
+Agent: main
+Task: Xóa 4 phần nội dung theo yêu cầu; viết lại tracking-demo thành trình mô phỏng & chấm điểm bài nộp; kiểm tra link Kaggle notebook
+
+Work Log:
+- Kiểm tra link https://www.kaggle.com/code/vietnguyen130593/cell-tracking-getting-started-w-nearest-neighbor/edit → notebook PRIVATE (profile có thật nhưng không có notebook công khai), không xem được — đã báo user
+- Xóa khỏi overview-tab.tsx: Mốc thời gian, Cơ cấu giải thưởng, Quy định nộp bài; xóa tab Bảng xếp hạng (content-tabs.tsx còn 3 tab, xóa file leaderboard-tab.tsx)
+- VIẾT LẠI tracking-demo.tsx (~1200 dòng) thành "Trình mô phỏng & chấm điểm bài nộp":
+  * Lớp GT (đốm emerald, ghost nét đứt cho tế bào chưa gắn nhãn) + lớp dự đoán (vòng teal, node giả ✕ rose)
+  * Thuật toán giả lập nearest-neighbor tracker với 4 tham số tùy chỉnh (recall, FP rate, nhiễu định vị µm, ngưỡng liên kết µm) + switch phát hiện phân bào + 6 preset + nút dữ liệu mới (reseed)
+  * Metric đúng tinh thần cuộc thi: Hungarian assignment ngưỡng 7.0 µm (khoảng cách vật lý, z×1.625), cạnh TP/FP/FN (FN vẽ amber dashed), adj edge jaccard = TP/(TP+FP+FN+node thừa), division jaccard TP/FP/FN, combined = adj + 0.1×div
+  * Bảng chấm điểm: điểm tổng lớn + công thức + 3 thanh (node recall, edge jaccard adj, division jaccard) + chips đếm
+  * Chips thống kê theo frame hiện tại, 5 toggle lớp (GT/dự đoán/cạnh lỗi/nhãn node/GT thưa), HUD giữ nguyên
+- Sửa next.config.ts: allowedDevOrigins bỏ protocol, thêm *.space-z.ai + *.z.ai (hết cảnh báo blocked)
+- E2E verified bằng agent-browser + VLM:
+  * Điểm mặc định 0.898; Lý tưởng = 1.100 (>1.0 đúng như cuộc thi cảnh báo); Thiếu phát hiện 0.532; Nhiễu cao 0.387; Bỏ phân bào 0.820 (-0.078 ≈ 10%×0.714); recall=0.5 → 0.265
+  * Toggle pred OFF → teal pixels 183→11; GT thưa OFF → dense GT node 35; reseed 0.898→0.854; 3 tab click hoạt động
+  * Mobile 390px: không tràn ngang, canvas 712x400, điều khiển stack dọc
+  * Lint sạch, tsc src/ sạch, dev.log sạch
+
+Stage Summary:
+- Giao diện giờ tập trung hoàn toàn vào trải nghiệm "thi": mô phỏng dữ liệu + công cụ đo lường metric đầy đủ + tham số tùy chỉnh realtime + đánh giá trực quan từng loại lỗi
+- Kaggle notebook của user đang private — cần Public hoặc dán code để tôi đọc tiếp
