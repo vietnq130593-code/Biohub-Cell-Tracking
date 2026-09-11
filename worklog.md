@@ -133,3 +133,26 @@ Work Log:
 Stage Summary:
 - Lỗi crash canvas đã được vá tận gốc bằng 6 lớp phòng thủ NaN — không thể tái phát qua bất kỳ đường vào nào (speed, slider, scrub, HMR)
 - Đã push commit fix lên github.com/vietnq130593-code/Biohub-Cell-Tracking
+
+---
+Task ID: 11 (main)
+Agent: main
+Task: Viết notebook cải tiến Stage 0+2 hoàn chỉnh, kiểm chứng bằng dữ liệu tổng hợp, push GitHub
+
+Work Log:
+- Viết download/stage0plus2-cells.py (nguồn jupytext percent, 15 cells) và sinh download/stage0plus2-cell-tracking.ipynb (nbformat 4, 8 md + 7 code)
+- Notebook giữ nguyên khung đọc Zarr + format submission của baseline, nâng cấp 4 điểm:
+  * Detection: downsample bất đối xứng z×2/xy×4, centroid center-of-mass theo cường độ, lọc MIN/MAX_NVOXELS
+  * Linking: motion model (vận tốc EMA), Hungarian trên vị trí dự đoán, gate thích ứng 2.5×median-step (kẹp 5–12 µm)
+  * Division: cạnh thứ 2 với DIV_PARENT_GATE 10 µm + DIV_SIBLING_GATE 12 µm + bảo toàn độ sáng (0.55–1.8)
+  * Frame-skip: nối lại track qua 1 khung mất nhưng KHÔNG phát cạnh nhảy (cạnh t→t+2 luôn FP theo metric — phân tích kỹ trong markdown)
+- Dựng dữ liệu tổng hợp mô phỏng đúng cấu trúc Zarr (chunk 0/c/{t}/0/0/0 nén blosc2 + zarr.json): 2 phôi, 7+2 tế bào + mẹ phân bào t=8 (2 con tách dần) + 1 tế bào nhấp nháy mất đúng khung t=5
+- Debug 2 vòng: (1) blob σ quá to → 5 cell dính 1 component, thu σ còn (1.2,1.6,1.6); (2) phát hiện insight quan trọng: uniform_filter(3)+ngưỡng làm 2 con gái gộp component tới khi cách ~8-10 µm → DIV_SIBLING_GATE_UM phải 12 µm (đã ghi chú trong notebook)
+- Test E2E 9/9 nhóm ĐẠT: format cột đúng, node_id toàn cục duy nhất, mọi cạnh nối khung liên tiếp + node tồn tại, 1 phân bào được phát hiện (2 đích cùng khung), 181/181 node trong 7 µm (worst 5.36 µm), số node/edge đúng kỳ vọng, unit test frame-skip (không phát cạnh nhảy), unit test phân bào, unit test chống phân bào giả (node xa bị từ chối)
+- Commit 6075af3, push lên GitHub
+
+Stage Summary:
+- Sản phẩm: download/stage0plus2-cell-tracking.ipynb — upload thẳng lên Kaggle (File → Import Notebook)
+- Đã kiểm chứng thuật toán end-to-end trên dữ liệu tổng hợp (không thể test data thật 87 GB tại sandbox)
+- Insight rút ra: 2 con gái mới phân bào bị threshold gộp 1 component tới ~4σ (~8-10 µm) — sibling gate phải rộng hơn gate linking
+- Bước tiếp theo cho user: submit bản này lấy điểm sàn → local scorer → Stage 1 (ngưỡng cục bộ/watershed) → Stage 3 (U-Net)
