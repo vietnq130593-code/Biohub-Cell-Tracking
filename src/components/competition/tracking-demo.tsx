@@ -105,7 +105,7 @@ function gauss(rng: () => number): number {
 }
 
 const clamp = (v: number, lo: number, hi: number): number =>
-  Math.min(hi, Math.max(lo, v))
+  Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : lo
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t
 
 /** Khoảng cách vật lý 3D giữa 2 điểm (xy µm, z theo voxel) */
@@ -569,6 +569,9 @@ interface Analysis {
   metrics: Metrics
 }
 
+/** Khung rỗng dự phòng — chống crash khi index ngoài phạm vi */
+const EMPTY_FRAME_VIEW: Analysis['frames'][number] = { gtEdges: [], predEdges: [] }
+
 function analyze(
   sim: SimData,
   p: Params,
@@ -1006,7 +1009,9 @@ export default function TrackingDemo() {
 
     const st = stateRef.current
     const { sim: sm, analysis: an } = data
-    const tau = timeRef.current
+    // Vô hiệu hoá NaN/âm (state bị nhiễu) → luôn cho ra chỉ số khung hợp lệ
+    const tauRaw = timeRef.current
+    const tau = Number.isFinite(tauRaw) ? Math.max(0, tauRaw) : 0
     const fi = Math.floor(tau)
     const f = Math.min(fi, LAST_FRAME)
     const u = f === LAST_FRAME ? 0 : tau - fi
@@ -1051,7 +1056,7 @@ export default function TrackingDemo() {
     }
 
     // --- cạnh ---
-    const fd = an.frames[f]!
+    const fd = an.frames[f] ?? EMPTY_FRAME_VIEW
     const line = (
       x1: number, y1: number, x2: number, y2: number,
       color: string, lw: number, dash?: number[],
@@ -1345,10 +1350,15 @@ export default function TrackingDemo() {
       const st = stateRef.current
       if (st.playing) {
         timeRef.current += dt * BASE_FPS * st.speed
-        if (timeRef.current >= LAST_FRAME) timeRef.current = 0
+        if (!Number.isFinite(timeRef.current) || timeRef.current >= LAST_FRAME) {
+          timeRef.current = 0
+        }
       }
       draw()
-      const fi = Math.min(LAST_FRAME, Math.floor(timeRef.current))
+      const tauNow = timeRef.current
+      const fi = Number.isFinite(tauNow)
+        ? Math.min(LAST_FRAME, Math.max(0, Math.floor(tauNow)))
+        : 0
       if (fi !== frameRef.current) {
         frameRef.current = fi
         setFrame(fi)
@@ -1496,7 +1506,8 @@ export default function TrackingDemo() {
             size="sm"
             value={String(speed)}
             onValueChange={(v) => {
-              if (v !== '') setSpeed(Number(v))
+              const n = v === '' ? Number.NaN : Number(v)
+              if (Number.isFinite(n) && n > 0) setSpeed(n)
             }}
             aria-label="Tốc độ phát"
           >
