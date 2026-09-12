@@ -16,7 +16,112 @@
 # ============================================================
 # Hotfix 13/09: cấu trúc 26-liên kết tạo TRỰC TIẾP trong detect_nodes —
 # Cell 3 tự chứa, dán thiếu dòng đầu không còn gây NameError.
+# Hotfix 14/09: TỰ CHỨA HOÀN TOÀN — cell 3 tự import (maximum_filter & co.)
+# và tự kèm bộ cấu hình mặc định ver 4 → dán đè ĐƠN LẼ cell 3 vào notebook
+# đang giữ cell 1/cell 2 BẢN CŨ vẫn chạy đúng (lỗi thực tế trên Kaggle:
+# cell 1 cũ thiếu `maximum_filter` → NameError ngay khung đầu tiên).
+# Cell 2 ver-4 đã chạy thì núm tune ở đó vẫn thắng (xem khối 0b bên dưới).
 # ============================================================
+
+# ---------- 0) IMPORT TỰ CHỮA ----------
+# Import lại là vô hại (module đã load thì Python lấy từ cache) — cell 1
+# ver-4 có dòng import trùng cũng không đổi hành vi gì.
+import itertools
+import json
+import os
+import time
+
+import numpy as np
+import pandas as pd
+from scipy.ndimage import center_of_mass, label, maximum_filter, uniform_filter
+from scipy.optimize import linear_sum_assignment
+from scipy.spatial.distance import cdist
+
+try:
+    import blosc2
+except ImportError as _e:
+    raise ImportError(
+        'Chưa có blosc2 — hãy chạy Cell 1 (pip install) trước rồi chạy lại '
+        'cell này, hoặc gõ  !pip install -q blosc2  trong 1 cell riêng.'
+    ) from _e
+
+# ---------- 0b) CẤU HÌNH MẶC ĐỊNH ver 4 (phòng khi chỉ dán đè cell 3) ----------
+# CHỈ áp khi cell 2 ver-4 CHƯA chạy trong notebook này (chưa có
+# PIPELINE_CONFIG_VERSION) — cell 2 ver-4 đã chạy thì giữ nguyên núm của nó
+# (tune ở cell 2). DATA_DIR đã được ai đó đặt sẵn (bản chạy-train, test cục
+# bộ) cũng được tôn trọng. Bộ giá trị bên dưới PHẢI GIỮ ĐỒNG BỘ với cell 2.
+if globals().get('PIPELINE_CONFIG_VERSION', 0) < 4:
+    if 'DATA_DIR' not in globals():
+        TEST_DIR = '/kaggle/input/competitions/biohub-cell-tracking-during-development/test'
+        # bản nộp bài đọc test; muốn chấm bằng local scorer thì trỏ sang train
+        DATA_DIR = TEST_DIR
+
+    # Thang vật lý (Z, Y, X) — µm/voxel, theo đề bài
+    SCALE = np.array([1.625, 0.40625, 0.40625], dtype=np.float64)
+
+    # --- Tầng 1 · DETECTION ---
+    DS_Z, DS_Y, DS_X = 2, 4, 4       # downsample bất đối xứng: z giữ kỹ hơn
+    SMOOTH_SIZE = 3                  # uniform_filter, trong không gian downsample
+    PERCENTILE = 90.0                # bắt thêm nhân mờ (recall > precision)
+    MIN_NVOXELS = 4                  # bỏ component li ti (nhiễu)
+    MAX_NVOXELS = 3000               # blob gộp vẫn nhận, tách ở tầng 1b
+    CONN26 = True                    # liên kết 26-ô: chống tách nhân giữa các lát z
+
+    # --- Tầng 1b · TÁCH BLOB GỘP ---
+    SPLIT_MIN_NVOXELS = 90           # component ds lớn hơn mới xét tách
+    PEAK_SIZE = (3, 5, 5)            # maximum_filter tìm đỉnh cục bộ (z,y,x ds)
+    MIN_PEAK_DIST_DS = 4.0           # 2 đỉnh cách ≥ 4 voxel ds
+    PEAK_MIN_BRIGHT = 1.15           # đỉnh sáng hơn ngưỡng ít nhất 15%
+
+    # --- Tầng 2 · LINKING (ver 4: GATE_MIN 5 → 7) ---
+    BASE_GATE_UM = 9.0
+    GATE_MEDIAN_MULT = 2.5
+    GATE_MIN_UM, GATE_MAX_UM = 7.0, 14.0   # p99 bước GT 6,9µm — min 5 giết bước hợp lệ
+    VEL_SMOOTH = 0.5                 # vận tốc EMA: v ← 0.5·mới + 0.5·cũ
+    BRIGHT_WEIGHT = 0.0              # phạt chênh độ sáng trong cost (tắt)
+
+    # --- Frame-skip + nội suy (ver 4: MAX_SKIP 2 → 3) ---
+    ALLOW_FRAME_SKIP = True
+    SKIP_GATE_UM = 12.0
+    MAX_SKIP_FRAMES = 3
+    INTERPOLATE_MISSED_FRAMES = True  # GT 100% cạnh liền khung → nội suy bắt buộc
+    TIME_LIMIT_HOURS = 11.0
+
+    # --- ver 4 · STITCHING HẬU KIỂM (chạy trong cell 3) ---
+    STITCH_ENABLED = True
+    STITCH_GAP_MAX = 5               # nối lại track đứt cách ≤ 5 khung
+    STITCH_GATE_UM = 10.0            # gate tại gap=1: bắt bước 7–10µm
+    STITCH_GATE_PER_GAP = 2.0        # gate(g) = 10 + 2·(g−1) µm (g=5 → 18)
+    STITCH_MAX_LOGMASS = 1.1         # |ln(m_start/m_end)| ≤ 1,1 (~3×)
+    STITCH_COLLISION_UM = 0.0        # 0 = tắt: hành lang nối blob-break đi đúng
+                                     # qua node CoM của track bạn đồng hành
+
+    # --- Tầng 3 · PHÂN BÀO THEO PROFILE ĐỘ SÁNG ---
+    DIVISION_ENABLED = True
+    DIV_PARENT_GATE_UM = 12.0        # cửa sổ tìm kiếm (base rate 24:1)
+    DIV_SIBLING_GATE_UM = 14.5       # p99 sister sep 13,9, max 14,65
+    DIV_MIN_CHILD_FRAC = 0.15
+    DIV_BRIGHTNESS_CHECK = True
+    DIV_BRIGHTNESS_RATIO = (0.55, 1.8)
+    DIV_CONFIRM_FRAMES = 3
+    DIV_SEP_GROWTH = 1.15
+    MASS_HISTORY = 12
+    MASS_SKIP_LAST = 2
+    DIV_MOM_MAX_RISE = 1.7
+    DIV_MOM_MIN_FRAC = 0.5
+    DIV_MOM_BRIGHT_BONUS = 1.05
+    MASS_BASE_MIN_FRAMES = 4
+
+    # --- Soát bằng mắt (vẽ 1 khung đầu tiên) — tôn trọng ai đã tắt trước đó ---
+    RUN_PREVIEW = globals().get('RUN_PREVIEW', True)
+
+    # --- Chẩn đoán ---
+    DIAGNOSE = True
+
+    NODE_ID = itertools.count(1)     # node_id duy nhất toàn cục
+    BIG = 1e9
+
+    PIPELINE_CONFIG_VERSION = 4      # đánh dấu đã áp cấu hình ver-4
 
 T_START = time.time()
 

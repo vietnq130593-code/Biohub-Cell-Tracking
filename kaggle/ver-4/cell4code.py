@@ -2,6 +2,8 @@
 # Dán đè Cell 4 của notebook Kaggle.
 # ============================================================
 
+import pandas as pd  # tự chữa (hotfix 14/09): notebook giữ cell 1 cũ vẫn đủ pandas
+
 COLS = ['dataset', 'row_type', 'node_id', 't', 'z', 'y', 'x', 'source_id', 'target_id']
 submission = pd.DataFrame(all_rows, columns=COLS)
 submission.index.name = 'id'

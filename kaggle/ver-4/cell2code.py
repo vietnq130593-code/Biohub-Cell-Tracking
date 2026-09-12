@@ -83,3 +83,8 @@ DIAGNOSE = True
 
 NODE_ID = itertools.count(1)      # node_id duy nhất toàn cục
 BIG = 1e9
+
+# Tín hiệu cho cell 3: cell 2 ver-4 đã chạy trong notebook này → cell 3 dùng
+# đúng núm ở trên (cell 3 có sẵn bộ mặc định y hệt, phòng khi bị dán đè đơn lẻ
+# vào notebook chưa từng chạy cell 1/cell 2 ver-4 — hotfix 14/09).
+PIPELINE_CONFIG_VERSION = 4
