@@ -249,3 +249,22 @@ Stage Summary:
 - Ver 2 sẵn sàng: dán 4 cell vào notebook Kaggle (hoặc import ipynb); kỳ vọng tăng recall + chặn phân bào giả
 - QUY TRÌNH MỚI: chạy pipeline ver 2 → local scorer chấm trên train (không tốn quota) → chỉ submit khi tốt hơn
 - Sản phẩm: kaggle/ver-2/* (16/16 pass), kaggle/scorer/* (31/31 pass), download/*.ipynb, README registry cập nhật, submission-lab.tsx
+
+---
+Task ID: 15
+Agent: main
+Task: Đọc Kaggle discussion 740573 ("Division steps are not long steps") và tổng kết bài học
+
+Work Log:
+- page_reader chỉ lấy được vỏ SPA (html len 0/17846 = shell) → dùng agent-browser render JS, extract innerText main (10,733 ký tự, đã scroll kiểm tra không sót comment)
+- Nội dung: tác giả Lê Quang Cảnh (hạng 40) đo thống kê bước di chuyển trên 73 file nhãn train (36 phân bào, 25,661 cạnh continuation, 572 track); hengck23 góp ý về ultrack, external data, appearance
+- Số liệu chốt: continuation median 1.72µm p99 6.9; division step median 4.57 IQR 3.3-6.2 max 12.3; sister separation median 8.85 IQR 7.2-10.2 max 14.65; base rate gate ≥5µm = 24:1, ≥10µm = 38:1 (khoảng cách mẹ-con KHÔNG phân biệt được phân bào)
+- Bẫy đo trên node dự đoán: 8.47µm median vs 6.36µm trên nhãn (sai số detector cộng dọn) → tune gate phải trên nhãn thật
+- Appearance: peak intensity AUC 0.73 (mẹ tại khung t); elongation KHÔNG phân biệt (chance); hengck23: đường sáng mảnh (anaphase) xuất hiện vài khung TRƯỚC tách
+- GT: mọi cạnh đúng 1 khung; nhãn theo segment (572 track, median 35 khung); nhiều phân bào chưa được gắn nhãn
+- External data khớp voxel Kaggle: https://public.czbiohub.org/royerlab/ultrack/zebrafish_embryo.ome.zarr/ scale (1.625, 0.40625, 0.40625) shape (522,1,505,2217,2170) uint16
+- Ultrack config: max_distance 10.0, max_neighbors 5, penalty appear/disappear/division 0.001-0.1 (fork công khai penalty 1.2/1.5 không tối ưu)
+- Trang hiển thị "17 DAYS TO GO" → deadline gần
+
+Stage Summary:
+- Bài học đã tổng hợp gửi user (chat): khoảng cách KHÔNG phải tín hiệu phân bào (base rate); sister separation + brightness là tín hiệu; nội suy đúng hướng (GT không skip edge); division nên thận trọng (GT thưa, nhiều phân bào thật không nhãn → FP); đề xuất ver 3: thêm temporal brightness profile + cân nhắc SIBLING_GATE 12→14µm + dữ liệu ultrack ngoài để train detector
