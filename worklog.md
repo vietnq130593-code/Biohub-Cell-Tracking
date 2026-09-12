@@ -156,3 +156,29 @@ Stage Summary:
 - Đã kiểm chứng thuật toán end-to-end trên dữ liệu tổng hợp (không thể test data thật 87 GB tại sandbox)
 - Insight rút ra: 2 con gái mới phân bào bị threshold gộp 1 component tới ~4σ (~8-10 µm) — sibling gate phải rộng hơn gate linking
 - Bước tiếp theo cho user: submit bản này lấy điểm sàn → local scorer → Stage 1 (ngưỡng cục bộ/watershed) → Stage 3 (U-Net)
+
+---
+Task ID: 12
+Agent: main
+Task: Rà soát thuật toán Stage 0+2, tìm thiếu sót/nâng cấp, xuất notebook 4 cells khớp notebook Kaggle gốc (cell1code..cell4code) + kiểm chứng + push GitHub
+
+Work Log:
+- Đối chiếu metric chính thức (src/lib/competition-data.ts): cạnh TP yêu cầu 2 đầu khớp GT ≤ 7 µm VÀ GT nối TRỰC TIẾP bằng cạnh (→ cạnh nhảy t→t+2 luôn FP); phạt node dự đoán thừa; division chặn theo thành phần liên thông phủ giai đoạn trước tách + chạm 2 dòng con
+- Rà soát download/stage0plus2-cells.py (bản 15-cell của Task 11), phát hiện 6 thiếu sót:
+  1) chunk hardcode 0/0/0 — rủi ro mất dữ liệu nếu test ẩn chia nhỏ chunk
+  2) label() 6-connectivity — nhân nằm chéo giữa các lát z dễ bị tách đôi
+  3) centroid int dùng cho cả tracking — nhiễu lượng tử hoá 0.5 voxel vào vận tốc/gate
+  4) frame-skip KHÔNG phát cạnh → mỗi gap vẫn mất 2 FN
+  5) division không chặn blob nhiễu li ti nhận làm con thứ 2 (mass ratio [0.55,1.8] cho qua blob 1% độ sáng mẹ)
+  6) không có progress print / guard thời gian (Kaggle 12h)
+- Viết download/stage0plus2-kaggle-4cells.py (4 cells, jupytext): giữ tham số đã kiểm chứng của Task 11, nâng cấp: đọc lắp ghép đủ chunk (đường nhanh 1 chunk như gốc), CONN26, tâm float nội bộ + int khi xuất, INTERPOLATE_MISSED_FRAMES (node nội suy giữa + 2 cạnh liền khung tại gap — thay cho bỏ trống), DIV_MIN_CHILD_FRAC=0.15, BRIGHT_WEIGHT (mặc định tắt), TIME_LIMIT_HOURS=11, progress print 50 khung
+- Sinh download/stage0plus2-kaggle-4cells.ipynb (nbformat 4, 1 md + 4 code) để import thẳng vào Kaggle
+- Kiểm chứng bằng /home/z/test4cells.py trên Zarr tổng hợp (2 phôi: 1 chunk/khung + đa chunk có chunk biên; 8 tế bào, 1 phân bào t=7 tách theo Y, 1 tế bào mờ đúng khung t=6; bộ kiểm khoảng cách cặp ≥40 voxel fail-fast). 3 vòng debug: (1) tế bào quá gần bị gộp component → mất phân bào — dàn lại bố cục; (2) blob dẹt z (σ_z=2, σ_yx=3.5 như PSF light-sheet) + MIN_PAIR_DIST=40; (3) phát hiện quan trọng: PERCENTILE phụ thuộc mật độ nhân — blob tổng hợp chỉ 2.7% thể tích → percentile 92 rơi vào đuôi nhiễu gây nổ 1037 node/phôi; ghi đè 97.5 cho dữ liệu tổng hợp (Kaggle thật giữ 92, nghìn nhân)
+- KẾT QUẢ 6/6 NHÓM ĐẠT: format cột + index; ràng buộc node/edge + tọa độ nguyên; mọi cạnh liền khung (không cạnh nhảy); 2 phân bào đúng khung t∈[7..12] (≥1/phôi); node recall 236/236 ≤ 7 µm (worst 3.66 µm); node nội suy t=6 khớp ≤ 7 µm + có cạnh vào
+- Commit ed9918c, push lên GitHub
+
+Stage Summary:
+- Sản phẩm chính: 4 cell copy-paste (cell1code..cell4code) cho notebook Kaggle gốc; file: download/stage0plus2-kaggle-4cells.py + .ipynb
+- Nâng cấp đáng kể nhất của đợt rà soát: nội suy node tại khung mất (thay skip-edge chắc chắn FP) — có cờ INTERPOLATE_MISSED_FRAMES để A/B
+- Insight metric: PERCENTILE là núm nhạy nhất (phạt node thừa) — phải scan 88-96 khi có local scorer
+- Bước tiếp theo: user copy 4 cell lên Kaggle chạy thử + submit lấy điểm sàn; sau đó viết local scorer trên train để tune offline
