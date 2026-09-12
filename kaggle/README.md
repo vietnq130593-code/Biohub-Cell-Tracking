@@ -17,6 +17,33 @@ notebook Kaggle gốc rồi **Save & Run All → Submit**.
 | 2 | Chống gộp blob + phân bào xác nhận | soạn thảo ✓ | — |
 | 3 | Phân bào theo profile độ sáng (từ discussion #740573) | soạn thảo ✓ | — |
 
+## Hotfix — NameError STRUCT26 (rơi trên Kaggle 13/09/2026)
+
+**Hiện tượng**: Cell 3 báo `NameError: name 'STRUCT26' is not defined` tại
+`label(mask, structure=STRUCT26 if CONN26 else None)` trong `detect_nodes`.
+
+**Gốc rễ**: `STRUCT26 = np.ones((3, 3, 3), dtype=bool)` từng nằm ở **dòng đầu
+tiên của Cell 3** — khi dán đè cell, dòng đầu dễ bị rơi (chọn nhầm vùng dán /
+clipboard cắt đầu) → biến toàn cục biến mất nhưng vẫn được tham chiếu sâu bên
+trong `detect_nodes`. Số dòng traceback lệch đúng 18 dòng so với file gốc
+chứng tỏ bản dán thiếu đầu cell.
+
+**Vá**: xoá biến toàn cục `STRUCT26`, chuyển cấu trúc 26-liên kết vào **trực
+tiếp** trong lệnh `label()` của `detect_nodes`:
+```python
+labeled, n = label(mask, structure=np.ones((3, 3, 3), dtype=bool) if CONN26 else None)
+```
+Áp dụng cho `ver-1/`, `ver-2/`, `ver-3/` và `download/stage0plus2-kaggle-4cells.py`;
+regenerate 3 file ipynb (ver2/ver3/stage0plus2). Kiểm chứng lại: ver-3
+**21/21 ĐẠT** + ver-2 **ĐẠT TẤT CẢ** — Cell 3 giờ **tự chứa**, dán thiếu dòng
+đầu không còn gây NameError.
+
+**Vá nhanh trên notebook đang chạy** (không cần dán lại): thêm 1 dòng vào đầu
+Cell 3:
+```python
+STRUCT26 = np.ones((3, 3, 3), dtype=bool)
+```
+
 Top 1 (Sergio Alvarez) = **0.97** · top 10 ≈ 0.957 — khoảng cách còn rất lớn.
 
 **Nguyên tắc rút ra từ điểm 0.198 + đọc kỹ metric chính thức** (repo

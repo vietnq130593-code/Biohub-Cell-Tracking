@@ -293,3 +293,22 @@ Stage Summary:
 - Sản phẩm: kaggle/ver-3/* (21/21 pass + đối chứng ver 2 minh hoạ FP/miss), kaggle/ver-2/cell3code.py vá bug vận tốc (regression pass), download/ver3-cell-tracking.ipynb, README registry đầy đủ insight, tracking-pipeline.ts 4 phiên bản, tracking-demo.tsx so sánh 4 cột
 - Kiến trúc delta chính của ver 3 so với ver 2: KHÔNG dùng khoảng cách làm tín hiệu (chỉ là cửa sổ), thay bằng (a) mass stability p25/12-khung chặn blob 2×, (b) mẹ sáng dần ưu tiên, (c) gate rộng theo phân bố thật, (d) con kế thừa vận tốc mẹ
 - Bước tiếp theo cho user: dán 4 cell ver 3 vào notebook Kaggle (hoặc import ipynb) → chạy local scorer trên train trước khi submit
+
+---
+Task ID: 17
+Agent: main
+Task: Hotfix lỗi NameError STRUCT26 trên notebook Kaggle của user (Cell 3) + push code
+
+Work Log:
+- Chẩn đoán từ traceback: label() tại dòng 93 và vòng lặp chính tại dòng 531 lệch đúng 18 dòng so với kaggle/ver-3/cell3code.py (111/549) → notebook user là ver-3 bị mất đúng khối đầu cell (17 dòng comment + trống) VÀ dòng STRUCT26 ngay sau đó → biến toàn cục STRUCT26 biến mất trong khi detect_nodes vẫn tham chiếu. CONN26 (cell 2) còn nguyên vì Python đánh giá điều kiện trước — NameError bắn trên STRUCT26 chứng tỏ CONN26 = True
+- Gốc rễ thiết kế: đặt biến cấu hình dùng sâu trong hàm ở đầu cell = điểm mỏng khi user dán đè cell
+- VÁ: xoá STRUCT26 toàn cục, đưa cấu trúc 26-liên kết vào thẳng lệnh label() trong detect_nodes: structure=np.ones((3,3,3), dtype=bool) if CONN26 else None — Cell 3 tự chứa. Áp dụng cho ver-1, ver-2, ver-3, download/stage0plus2-kaggle-4cells.py (đều thêm ghi chú hotfix ở ver-3)
+- Regenerate 3 ipynb: ver3 (chạy make-ver3-ipynb.py), ver2 + stage0plus2 (script nhỏ thay source 4 code cell, giữ nguyên markdown)
+- Kiểm chứng: py_compile 4 file .py sạch; ast.parse mọi code cell của 3 ipynb sạch; test-ver3-synth.py ĐẠT TẤT CẢ (kèm đối chứng ver 2); test-ver2-synth.py ĐẠT TẤT CẢ — các test này exec chính file cell hiện tại mà không định nghĩa STRUCT26 đâu cả = chứng minh pipeline tự chứa
+- Cập nhật kaggle/README.md: mục "Hotfix — NameError STRUCT26" (hiện tượng/gốc rễ/vá/vá nhanh 1 dòng cho notebook đang chạy)
+- Commit + push GitHub
+
+Stage Summary:
+- Bug user gặp KHÔNG phải logic thuật toán mà là dán đè Cell 3 làm rơi dòng STRUCT26 đầu cell
+- Hướng dẫn user 2 lối: (1) vá nhanh — thêm STRUCT26 = np.ones((3,3,3), dtype=bool) vào đầu Cell 3 rồi chạy lại từ Cell 3; (2) dán lại Cell 3 mới từ kaggle/ver-3/cell3code.py (hoặc import lại download/ver3-cell-tracking.ipynb)
+- Tất cả cell3code ver-1/2/3 + stage0plus2 giờ tự chứa cấu trúc liên kết — lỗi này không thể tái diễn

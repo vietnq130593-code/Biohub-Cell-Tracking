@@ -2,7 +2,6 @@
 # Dán đè Cell 3 của notebook Kaggle (toàn bộ thuật toán nằm ở đây).
 # ============================================================
 
-STRUCT26 = np.ones((3, 3, 3), dtype=bool)
 T_START = time.time()
 
 
@@ -98,7 +97,7 @@ def detect_nodes(vol):
     smoothed = uniform_filter(ds, size=SMOOTH_SIZE)
     thr = np.percentile(smoothed, PERCENTILE)
     mask = smoothed > thr
-    labeled, n = label(mask, structure=STRUCT26 if CONN26 else None)
+    labeled, n = label(mask, structure=np.ones((3, 3, 3), dtype=bool) if CONN26 else None)
     if n == 0:
         return []
 

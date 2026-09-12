@@ -15,8 +15,11 @@
 #   * DIV_PARENT_GATE 12µm — khoảng cách chỉ là cửa sổ tìm kiếm (base rate
 #     24:1), không còn là tín hiệu.
 # ============================================================
+# Hotfix: cấu trúc 26-liên kết được tạo TRỰC TIẾP trong detect_nodes
+# (np.ones((3,3,3))) — Cell 3 tự chứa, không còn phụ thuộc biến toàn
+# cục STRUCT26 ở đầu cell (dán thiếu dòng đầu không còn gây NameError).
+# ============================================================
 
-STRUCT26 = np.ones((3, 3, 3), dtype=bool)
 T_START = time.time()
 
 
@@ -108,7 +111,7 @@ def detect_nodes(vol):
     smoothed = uniform_filter(ds, size=SMOOTH_SIZE)
     thr = np.percentile(smoothed, PERCENTILE)
     mask = smoothed > thr
-    labeled, n = label(mask, structure=STRUCT26 if CONN26 else None)
+    labeled, n = label(mask, structure=np.ones((3, 3, 3), dtype=bool) if CONN26 else None)
     if n == 0:
         return []
 

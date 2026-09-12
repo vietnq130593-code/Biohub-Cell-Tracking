@@ -72,7 +72,6 @@ BIG = 1e9
 
 # %% CELL 3 — PIPELINE: ĐỌC ZARR → DETECTION → TRACKING → PHÂN BÀO
 # ============================================================
-STRUCT26 = np.ones((3, 3, 3), dtype=bool)
 T_START = time.time()
 
 
@@ -155,7 +154,7 @@ def detect_nodes(vol):
         return []
     smoothed = uniform_filter(ds, size=SMOOTH_SIZE)
     thr = np.percentile(smoothed, PERCENTILE)
-    labeled, n = label(smoothed > thr, structure=STRUCT26 if CONN26 else None)
+    labeled, n = label(smoothed > thr, structure=np.ones((3, 3, 3), dtype=bool) if CONN26 else None)
     if n == 0:
         return []
 
