@@ -1,9 +1,10 @@
 import { SiteHeader } from "@/components/competition/site-header";
 import { Hero } from "@/components/competition/hero";
 import TrackingDemo from "@/components/competition/tracking-demo";
+import SubmissionLab from "@/components/competition/submission-lab";
 import { ContentTabs } from "@/components/competition/content-tabs";
 import { GettingStarted } from "@/components/competition/getting-started";
-import { FlaskConical, Dna, ExternalLink } from "lucide-react";
+import { FlaskConical, Dna, ExternalLink, Ruler } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { COMPETITION_URL } from "@/lib/competition-data";
 
@@ -51,6 +52,33 @@ export default function Home() {
             </p>
           </div>
           <TrackingDemo />
+        </section>
+
+        {/* Phòng đo lường & quy chuẩn — sau khi submit ver 1 */}
+        <section
+          id="lab"
+          className="mx-auto w-full max-w-7xl scroll-mt-24 px-4 py-14 sm:px-6 sm:py-20"
+          aria-labelledby="lab-heading"
+        >
+          <div className="mb-8 flex flex-col items-center text-center">
+            <span className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-teal-500/30 bg-teal-500/10 px-3 py-1 text-xs font-semibold text-teal-700 dark:text-teal-300">
+              <Ruler className="h-3.5 w-3.5" aria-hidden />
+              Đo đạc · quy chuẩn · chẩn đoán
+            </span>
+            <h2
+              id="lab-heading"
+              className="text-2xl font-extrabold tracking-tight sm:text-3xl"
+            >
+              Phòng đo lường &amp; quy chuẩn
+            </h2>
+            <p className="mt-2 max-w-3xl text-balance text-sm leading-relaxed text-muted-foreground sm:text-base">
+              Sau khi ver 1 đạt <strong className="text-foreground">0.198</strong> trên
+              leaderboard, mọi cải tiến từ giờ phải được đo trước khi tốn quota
+              submit: registry phiên bản, máy tính điểm what-if và trình kiểm tra
+              submission.csv — cả ba chạy hoàn toàn trong trình duyệt.
+            </p>
+          </div>
+          <SubmissionLab />
         </section>
 
         <div className="border-t bg-muted/30">

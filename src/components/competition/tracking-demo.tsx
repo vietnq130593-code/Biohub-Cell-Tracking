@@ -24,6 +24,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react'
 import {
@@ -424,6 +425,20 @@ export default function TrackingDemo() {
   const [showPred, setShowPred] = useState(true)
   const [showEdges, setShowEdges] = useState(true)
   const [showLabels, setShowLabels] = useState(false)
+
+  // Thời gian chạy (ms) do performance.now() đo — khác nhau giữa Node (SSR) và
+  // browser (hydrate). useSyncExternalStore trả về false trong SSR / lần render
+  // hydrate đầu tiên (server snapshot) và true ngay sau đó — text hai phía khớp
+  // nhau, tránh lỗi hydration mismatch mà không cần setState trong effect.
+  const msReady = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  )
+  const fmtMs = useCallback(
+    (v: number) => (msReady ? `${Math.round(v)} ms` : '… ms'),
+    [msReady],
+  )
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const wrapRef = useRef<HTMLDivElement | null>(null)
@@ -1193,9 +1208,9 @@ export default function TrackingDemo() {
                   const run = mode === 'ver0' ? pipelines!.ver0 : pipelines!.ver1
                   const st = run.stats
                   return [
-                    `[mô phỏng] 30/60 khung · ${st.nodes30} node · ${st.edges30} cạnh · ${st.div30} phân bào · ${Math.round(st.ms30)} ms`,
-                    `[mô phỏng] 60/60 khung · ${st.nodes} node · ${st.edges} cạnh · ${st.divisions} phân bào · ${Math.round(st.ms)} ms`,
-                    `== mô phỏng · ${MODE_LABEL[mode]}: ${st.nodes} nodes · ${st.edges} edges · ${st.divisions} phân bào (${Math.round(st.ms)} ms)`,
+                    `[mô phỏng] 30/60 khung · ${st.nodes30} node · ${st.edges30} cạnh · ${st.div30} phân bào · ${fmtMs(st.ms30)}`,
+                    `[mô phỏng] 60/60 khung · ${st.nodes} node · ${st.edges} cạnh · ${st.divisions} phân bào · ${fmtMs(st.ms)}`,
+                    `== mô phỏng · ${MODE_LABEL[mode]}: ${st.nodes} nodes · ${st.edges} edges · ${st.divisions} phân bào (${fmtMs(st.ms)})`,
                   ].join('\n')
                 })()}
               </pre>
@@ -1273,8 +1288,8 @@ export default function TrackingDemo() {
                         },
                         {
                           label: 'Thời gian chạy 60 khung',
-                          v0: `${Math.round(pipelines!.ver0.stats.ms)} ms`,
-                          v1: `${Math.round(pipelines!.ver1.stats.ms)} ms`,
+                          v0: fmtMs(pipelines!.ver0.stats.ms),
+                          v1: fmtMs(pipelines!.ver1.stats.ms),
                         },
                         {
                           label: 'Điểm tổng (mô phỏng)',

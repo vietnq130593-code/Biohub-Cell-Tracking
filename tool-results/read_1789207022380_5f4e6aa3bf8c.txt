@@ -1,0 +1,1368 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→/**
+     4→     4→ * Trình mô phỏng & chấm điểm bài nộp
+     5→     5→ * Kaggle: "Biohub - Cell Tracking During Development"
+     6→     6→ *
+     7→     7→ * Chạy THẬT hai phiên bản thuật toán nộp bài (port JS trung thành notebook,
+     8→     8→ * xem src/lib/tracking-pipeline.ts) trên thể tích 3D tổng hợp render từ GT:
+     9→     9→ *  - ver 0 · Baseline (notebook getting-started Kaggle)
+    10→    10→ *  - ver 1 · Stage 0+2 (CoM, 26-conn, motion model, gate thích ứng, phân bào,
+    11→    11→ *    nội suy khung mất — đúng cell2code/cell3code đã nộp)
+    12→    12→ * rồi chấm điểm bằng đúng tinh thần metric cuộc thi:
+    13→    13→ *   + Ghép node tối ưu (Hungarian) trong ngưỡng 7.0 µm theo khoảng cách vật lý
+    14→    14→ *   + Cạnh TP/FP/FN, Edge Jaccard điều chỉnh (phạt node dự đoán thừa)
+    15→    15→ *   + Division Jaccard theo dòng con (lineage)
+    16→    16→ *   + score = adj_edge_jaccard + 0.1 × division_jaccard (có thể vượt 1.0)
+    17→    17→ * Ngoài ra còn chế độ "Tùy chỉnh" — mô hình tham số giả lập tracker
+    18→    18→ * nearest-neighbor để thí nghiệm các loại lỗi.
+    19→    19→ */
+    20→    20→
+    21→    21→import {
+    22→    22→  useCallback,
+    23→    23→  useEffect,
+    24→    24→  useMemo,
+    25→    25→  useRef,
+    26→    26→  useState,
+    27→    27→  type ReactNode,
+    28→    28→} from 'react'
+    29→    29→import {
+    30→    30→  Activity,
+    31→    31→  CircleDot,
+    32→    32→  Crosshair,
+    33→    33→  Dices,
+    34→    34→  Gauge,
+    35→    35→  GitBranch,
+    36→    36→  Microscope,
+    37→    37→  Pause,
+    38→    38→  Play,
+    39→    39→  RotateCcw,
+    40→    40→  Spline,
+    41→    41→  Target,
+    42→    42→  Wand2,
+    43→    43→} from 'lucide-react'
+    44→    44→
+    45→    45→import { Badge } from '@/components/ui/badge'
+    46→    46→import { Button } from '@/components/ui/button'
+    47→    47→import {
+    48→    48→  Card,
+    49→    49→  CardAction,
+    50→    50→  CardDescription,
+    51→    51→  CardHeader,
+    52→    52→  CardTitle,
+    53→    53→} from '@/components/ui/card'
+    54→    54→import { Label } from '@/components/ui/label'
+    55→    55→import { Progress } from '@/components/ui/progress'
+    56→    56→import { Slider } from '@/components/ui/slider'
+    57→    57→import { Switch } from '@/components/ui/switch'
+    58→    58→import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+    59→    59→
+    60→    60→import {
+    61→    61→  buildGtGraph,
+    62→    62→  buildSimulation,
+    63→    63→  clamp,
+    64→    64→  dist3,
+    65→    65→  gauss,
+    66→    66→  lerp,
+    67→    67→  mulberry32,
+    68→    68→  runBothPipelines,
+    69→    69→  scoreDetections,
+    70→    70→  T,
+    71→    71→  LAST_FRAME,
+    72→    72→  WORLD_W,
+    73→    73→  WORLD_H,
+    74→    74→  type Analysis,
+    75→    75→  type Det,
+    76→    76→  type EdgeRef,
+    77→    77→  type GtGraph,
+    78→    78→  type PipelineRun,
+    79→    79→  type SimData,
+    80→    80→} from '@/lib/tracking-pipeline'
+    81→    81→
+    82→    82→/** Tốc độ phát cơ bản (khung hình/giây ở 1×) */
+    83→    83→const BASE_FPS = 2.5
+    84→    84→
+    85→    85→/** Thời gian mô phỏng: 2.5 hpf + 1.5 phút/khung hình */
+    86→    86→const MPF_BASE = 150
+    87→    87→const MPF_PER_FRAME = 1.5
+    88→    88→
+    89→    89→// ---------------------------------------------------------------------------
+    90→    90→// Chế độ "Tùy chỉnh": giả lập nearest-neighbor tracker bằng tham số
+    91→    91→// ---------------------------------------------------------------------------
+    92→    92→
+    93→    93→interface Params {
+    94→    94→  recall: number
+    95→    95→  fpRate: number
+    96→    96→  jitter: number
+    97→    97→  linkUm: number
+    98→    98→  division: boolean
+    99→    99→}
+   100→   100→
+   101→   101→const DEFAULT_PARAMS: Params = {
+   102→   102→  recall: 0.92,
+   103→   103→  fpRate: 0.02,
+   104→   104→  jitter: 0.7,
+   105→   105→  linkUm: 8,
+   106→   106→  division: true,
+   107→   107→}
+   108→   108→
+   109→   109→const PRESETS: { name: string; p: Params }[] = [
+   110→   110→  { name: 'Mặc định', p: DEFAULT_PARAMS },
+   111→   111→  {
+   112→   112→    name: 'Lý tưởng',
+   113→   113→    p: { recall: 1, fpRate: 0, jitter: 0, linkUm: 8, division: true },
+   114→   114→  },
+   115→   115→  {
+   116→   116→    name: 'Thiếu phát hiện',
+   117→   117→    p: { recall: 0.72, fpRate: 0.02, jitter: 0.7, linkUm: 8, division: true },
+   118→   118→  },
+   119→   119→  {
+   120→   120→    name: 'Nhiễu cao',
+   121→   121→    p: { recall: 0.92, fpRate: 0.02, jitter: 3.2, linkUm: 8, division: true },
+   122→   122→  },
+   123→   123→  {
+   124→   124→    name: 'Liên kết lỏng',
+   125→   125→    p: { recall: 0.92, fpRate: 0.02, jitter: 0.7, linkUm: 14, division: true },
+   126→   126→  },
+   127→   127→  {
+   128→   128→    name: 'Bỏ phân bào',
+   129→   129→    p: { recall: 0.92, fpRate: 0.02, jitter: 0.7, linkUm: 8, division: false },
+   130→   130→  },
+   131→   131→]
+   132→   132→
+   133→   133→function genDetections(sim: SimData, p: Params, seed: number): Det[][] {
+   134→   134→  const rng = mulberry32(seed ^ 0x51ab3f)
+   135→   135→  const out: Det[][] = []
+   136→   136→  for (let t = 0; t < T; t++) {
+   137→   137→    const dets: Det[] = []
+   138→   138→    for (const tr of sim.tracks) {
+   139→   139→      if (tr.start > t || tr.end < t) continue
+   140→   140→      if (rng() > p.recall) continue
+   141→   141→      const f = tr.frames[t - tr.start]
+   142→   142→      dets.push({
+   143→   143→        x: clamp(f.x + gauss(rng) * p.jitter, 3, WORLD_W - 3),
+   144→   144→        y: clamp(f.y + gauss(rng) * p.jitter, 3, WORLD_H - 3),
+   145→   145→        z: clamp(f.z + gauss(rng) * p.jitter * 0.5, 1, 62),
+   146→   146→        r: f.r,
+   147→   147→        i: f.i,
+   148→   148→        mass: Math.round(f.i * 27),
+   149→   149→        src: tr.id,
+   150→   150→      })
+   151→   151→    }
+   152→   152→    // node giả (false positive) rải ngẫu nhiên
+   153→   153→    const nSpur = Math.round(dets.length * p.fpRate * (0.6 + rng() * 0.8))
+   154→   154→    for (let k = 0; k < nSpur; k++) {
+   155→   155→      dets.push({
+   156→   156→        x: 8 + rng() * (WORLD_W - 16),
+   157→   157→        y: 6 + rng() * (WORLD_H - 12),
+   158→   158→        z: 2 + rng() * 58,
+   159→   159→        r: 1.6 + rng() * 1.6,
+   160→   160→        i: 500 + Math.round(rng() * 1500),
+   161→   161→        mass: 18000,
+   162→   162→        src: null,
+   163→   163→      })
+   164→   164→    }
+   165→   165→    out.push(dets)
+   166→   166→  }
+   167→   167→  return out
+   168→   168→}
+   169→   169→
+   170→   170→/** Chấm điểm chế độ tùy chỉnh: greedy nearest-neighbor + phân bào giả lập */
+   171→   171→function analyzeCustom(
+   172→   172→  sim: SimData,
+   173→   173→  gt: GtGraph,
+   174→   174→  p: Params,
+   175→   175→  seed: number,
+   176→   176→): Analysis {
+   177→   177→  const det = genDetections(sim, p, seed)
+   178→   178→  const edgeRefs: EdgeRef[] = []
+   179→   179→  for (let t = 0; t < T - 1; t++) {
+   180→   180→    const A = det[t]!
+   181→   181→    const B = det[t + 1]!
+   182→   182→    const pairs: { ai: number; bi: number; d: number }[] = []
+   183→   183→    for (let ai = 0; ai < A.length; ai++) {
+   184→   184→      for (let bi = 0; bi < B.length; bi++) {
+   185→   185→        const da = A[ai]!
+   186→   186→        const db = B[bi]!
+   187→   187→        const d = dist3(da.x, da.y, da.z, db.x, db.y, db.z)
+   188→   188→        if (d <= p.linkUm) pairs.push({ ai, bi, d })
+   189→   189→      }
+   190→   190→    }
+   191→   191→    pairs.sort((x, y) => x.d - y.d)
+   192→   192→    const usedA = new Set<number>()
+   193→   193→    const usedB = new Set<number>()
+   194→   194→    const primary = new Map<number, number>()
+   195→   195→    for (const pr of pairs) {
+   196→   196→      if (usedA.has(pr.ai) || usedB.has(pr.bi)) continue
+   197→   197→      usedA.add(pr.ai)
+   198→   198→      usedB.add(pr.bi)
+   199→   199→      primary.set(pr.ai, pr.bi)
+   200→   200→      edgeRefs.push({ at: t, ai: pr.ai, bt: t + 1, bi: pr.bi })
+   201→   201→    }
+   202→   202→    // phát hiện phân bào: cho phép 1 node nối thêm "con thứ 2" nằm gần
+   203→   203→    if (p.division) {
+   204→   204→      for (const [ai, bi1] of primary) {
+   205→   205→        const da = A[ai]!
+   206→   206→        const db1 = B[bi1]!
+   207→   207→        for (let bi = 0; bi < B.length; bi++) {
+   208→   208→          if (usedB.has(bi)) continue
+   209→   209→          const db = B[bi]!
+   210→   210→          const d2 = dist3(da.x, da.y, da.z, db.x, db.y, db.z)
+   211→   211→          const d3v = dist3(db1.x, db1.y, db1.z, db.x, db.y, db.z)
+   212→   212→          if (d2 <= p.linkUm && d3v <= p.linkUm) {
+   213→   213→            usedB.add(bi)
+   214→   214→            edgeRefs.push({ at: t, ai, bt: t + 1, bi })
+   215→   215→          }
+   216→   216→        }
+   217→   217→      }
+   218→   218→    }
+   219→   219→  }
+   220→   220→  return scoreDetections(sim, gt, det, edgeRefs)
+   221→   221→}
+   222→   222→
+   223→   223→/** Khung rỗng dự phòng — chống crash khi index ngoài phạm vi */
+   224→   224→const EMPTY_FRAME_VIEW: Analysis['frames'][number] = { gtEdges: [], predEdges: [] }
+   225→   225→
+   226→   226→// ---------------------------------------------------------------------------
+   227→   227→// nhiễu sensor (canvas pattern)
+   228→   228→// ---------------------------------------------------------------------------
+   229→   229→
+   230→   230→function createNoiseCanvas(): HTMLCanvasElement {
+   231→   231→  const nc = document.createElement('canvas')
+   232→   232→  nc.width = 128
+   233→   233→  nc.height = 128
+   234→   234→  const nctx = nc.getContext('2d')
+   235→   235→  if (nctx !== null) {
+   236→   236→    const img = nctx.createImageData(128, 128)
+   237→   237→    const nrng = mulberry32(0x1234abcd)
+   238→   238→    for (let k = 0; k < img.data.length; k += 4) {
+   239→   239→      const val = 8 + Math.floor(nrng() * 14)
+   240→   240→      img.data[k] = val
+   241→   241→      img.data[k + 1] = val + 4
+   242→   242→      img.data[k + 2] = val
+   243→   243→      img.data[k + 3] = 255
+   244→   244→    }
+   245→   245→    nctx.putImageData(img, 0, 0)
+   246→   246→  }
+   247→   247→  return nc
+   248→   248→}
+   249→   249→
+   250→   250→// ---------------------------------------------------------------------------
+   251→   251→// UI nhỏ: chip thống kê & thanh metric & thanh tham số
+   252→   252→// ---------------------------------------------------------------------------
+   253→   253→
+   254→   254→function StatChip({
+   255→   255→  icon,
+   256→   256→  label,
+   257→   257→  value,
+   258→   258→  tone,
+   259→   259→}: {
+   260→   260→  icon: ReactNode
+   261→   261→  label: string
+   262→   262→  value: string
+   263→   263→  tone: 'emerald' | 'teal' | 'amber' | 'rose'
+   264→   264→}) {
+   265→   265→  const tones: Record<string, string> = {
+   266→   266→    emerald: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+   267→   267→    teal: 'border-teal-500/30 bg-teal-500/10 text-teal-700 dark:text-teal-300',
+   268→   268→    amber: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+   269→   269→    rose: 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300',
+   270→   270→  }
+   271→   271→  return (
+   272→   272→    <span
+   273→   273→      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[11px] font-semibold tabular-nums ${tones[tone]}`}
+   274→   274→    >
+   275→   275→      <span className="[&_svg]:size-3">{icon}</span>
+   276→   276→      {label}: {value}
+   277→   277→    </span>
+   278→   278→  )
+   279→   279→}
+   280→   280→
+   281→   281→function MetricBar({ label, value }: { label: string; value: number }) {
+   282→   282→  return (
+   283→   283→    <div>
+   284→   284→      <div className="mb-1 flex items-baseline justify-between gap-2">
+   285→   285→        <span className="text-xs font-medium">{label}</span>
+   286→   286→        <span className="font-mono text-xs font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
+   287→   287→          {value.toFixed(3)}
+   288→   288→        </span>
+   289→   289→      </div>
+   290→   290→      <Progress
+   291→   291→        value={clamp(value, 0, 1) * 100}
+   292→   292→        className="h-2"
+   293→   293→        aria-label={`${label}: ${(value * 100).toFixed(1)}%`}
+   294→   294→      />
+   295→   295→    </div>
+   296→   296→  )
+   297→   297→}
+   298→   298→
+   299→   299→function ParamSlider({
+   300→   300→  label,
+   301→   301→  hint,
+   302→   302→  value,
+   303→   303→  min,
+   304→   304→  max,
+   305→   305→  step,
+   306→   306→  fmt,
+   307→   307→  onChange,
+   308→   308→}: {
+   309→   309→  label: string
+   310→   310→  hint: string
+   311→   311→  value: number
+   312→   312→  min: number
+   313→   313→  max: number
+   314→   314→  step: number
+   315→   315→  fmt: (v: number) => string
+   316→   316→  onChange: (v: number) => void
+   317→   317→}) {
+   318→   318→  return (
+   319→   319→    <div className="space-y-2">
+   320→   320→      <div className="flex items-baseline justify-between gap-2">
+   321→   321→        <Label className="text-xs font-medium">{label}</Label>
+   322→   322→        <span className="font-mono text-xs font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
+   323→   323→          {fmt(value)}
+   324→   324→        </span>
+   325→   325→      </div>
+   326→   326→      <Slider
+   327→   327→        value={[value]}
+   328→   328→        min={min}
+   329→   329→        max={max}
+   330→   330→        step={step}
+   331→   331→        onValueChange={(v) => onChange(v[0] ?? value)}
+   332→   332→        aria-label={label}
+   333→   333→      />
+   334→   334→      <p className="text-[11px] leading-snug text-muted-foreground">{hint}</p>
+   335→   335→    </div>
+   336→   336→  )
+   337→   337→}
+   338→   338→
+   339→   339→// ---------------------------------------------------------------------------
+   340→   340→// Component chính
+   341→   341→// ---------------------------------------------------------------------------
+   342→   342→
+   343→   343→interface RuntimeState {
+   344→   344→  playing: boolean
+   345→   345→  speed: number
+   346→   346→  showGt: boolean
+   347→   347→  showPred: boolean
+   348→   348→  showEdges: boolean
+   349→   349→  showLabels: boolean
+   350→   350→  sparse: boolean
+   351→   351→}
+   352→   352→
+   353→   353→type Mode = 'ver0' | 'ver1' | 'custom'
+   354→   354→
+   355→   355→const MODE_LABEL: Record<Mode, string> = {
+   356→   356→  ver0: 'Ver 0 · Baseline',
+   357→   357→  ver1: 'Ver 1 · Stage 0+2',
+   358→   358→  custom: 'Tùy chỉnh',
+   359→   359→}
+   360→   360→
+   361→   361→/** Pipeline steps hiển thị cho từng phiên bản (đúng notebook kaggle/ver-1) */
+   362→   362→const VERSION_INFO: Record<'ver0' | 'ver1', string[]> = {
+   363→   363→  ver0: [
+   364→   364→    'P90', 'liên kết 6 ô', 'tâm hình học', 'Hungarian gate 15 µm',
+   365→   365→    'không phân bào', 'không frame-skip',
+   366→   366→  ],
+   367→   367→  ver1: [
+   368→   368→    'P92', 'liên kết 26 ô', 'CoM theo cường độ', 'MIN/MAX 4–1000 voxels',
+   369→   369→    'motion model EMA', 'gate thích ứng 5–12 µm', 'phân bào 10/12 µm',
+   370→   370→    'nội suy khung mất',
+   371→   371→  ],
+   372→   372→}
+   373→   373→
+   374→   374→/** Cache pipeline theo (seed, sparse) — module scope, dữ liệu deterministic */
+   375→   375→const PIPELINE_CACHE = new Map<string, { ver0: PipelineRun; ver1: PipelineRun }>()
+   376→   376→
+   377→   377→export default function TrackingDemo() {
+   378→   378→  const [seed, setSeed] = useState(20260911)
+   379→   379→  const sim = useMemo(() => buildSimulation(seed), [seed])
+   380→   380→
+   381→   381→  const [mode, setMode] = useState<Mode>('ver1')
+   382→   382→  const [params, setParams] = useState<Params>({ ...DEFAULT_PARAMS })
+   383→   383→  const [sparseMode, setSparseMode] = useState(true)
+   384→   384→
+   385→   385→  const gtGraph = useMemo(() => buildGtGraph(sim, sparseMode), [sim, sparseMode])
+   386→   386→
+   387→   387→  // pipeline ver 0 + ver 1 chạy trên cùng một chuỗi thể tích — cache theo seed
+   388→   388→  const pipelines = useMemo(() => {
+   389→   389→    if (mode === 'custom') return null
+   390→   390→    const key = `${seed}|${sparseMode ? 1 : 0}`
+   391→   391→    let v = PIPELINE_CACHE.get(key)
+   392→   392→    if (v === undefined) {
+   393→   393→      v = runBothPipelines(sim, seed)
+   394→   394→      if (PIPELINE_CACHE.size > 8) PIPELINE_CACHE.clear()
+   395→   395→      PIPELINE_CACHE.set(key, v)
+   396→   396→    }
+   397→   397→    return v
+   398→   398→  }, [mode, seed, sparseMode, sim])
+   399→   399→
+   400→   400→  const pipelineAnalyses = useMemo(() => {
+   401→   401→    if (pipelines === null) return null
+   402→   402→    return {
+   403→   403→      ver0: scoreDetections(sim, gtGraph, pipelines.ver0.det, pipelines.ver0.edges),
+   404→   404→      ver1: scoreDetections(sim, gtGraph, pipelines.ver1.det, pipelines.ver1.edges),
+   405→   405→    }
+   406→   406→  }, [pipelines, gtGraph, sim])
+   407→   407→
+   408→   408→  const customAnalysis = useMemo(
+   409→   409→    () => analyzeCustom(sim, gtGraph, params, seed),
+   410→   410→    [sim, gtGraph, params, seed],
+   411→   411→  )
+   412→   412→
+   413→   413→  const analysis: Analysis =
+   414→   414→    mode === 'custom'
+   415→   415→      ? customAnalysis
+   416→   416→      : mode === 'ver0'
+   417→   417→        ? pipelineAnalyses!.ver0
+   418→   418→        : pipelineAnalyses!.ver1
+   419→   419→
+   420→   420→  const [playing, setPlaying] = useState(true)
+   421→   421→  const [speed, setSpeed] = useState(1)
+   422→   422→  const [frame, setFrame] = useState(0)
+   423→   423→  const [showGt, setShowGt] = useState(true)
+   424→   424→  const [showPred, setShowPred] = useState(true)
+   425→   425→  const [showEdges, setShowEdges] = useState(true)
+   426→   426→  const [showLabels, setShowLabels] = useState(false)
+   427→   427→
+   428→   428→  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+   429→   429→  const wrapRef = useRef<HTMLDivElement | null>(null)
+   430→   430→  const timeRef = useRef(0)
+   431→   431→  const frameRef = useRef(0)
+   432→   432→  const tickRef = useRef(0)
+   433→   433→  const sizeRef = useRef({ w: 0, h: 0, dpr: 1 })
+   434→   434→  const noiseRef = useRef<{ pattern: CanvasPattern | null; width: number } | null>(null)
+   435→   435→  const stateRef = useRef<RuntimeState>({
+   436→   436→    playing: true,
+   437→   437→    speed: 1,
+   438→   438→    showGt: true,
+   439→   439→    showPred: true,
+   440→   440→    showEdges: true,
+   441→   441→    showLabels: false,
+   442→   442→    sparse: true,
+   443→   443→  })
+   444→   444→  const dataRef = useRef<{ sim: SimData; analysis: Analysis } | null>(null)
+   445→   445→
+   446→   446→  useEffect(() => {
+   447→   447→    stateRef.current = {
+   448→   448→      playing, speed, showGt, showPred, showEdges, showLabels, sparse: sparseMode,
+   449→   449→    }
+   450→   450→  }, [playing, speed, showGt, showPred, showEdges, showLabels, sparseMode])
+   451→   451→
+   452→   452→  useEffect(() => {
+   453→   453→    dataRef.current = { sim, analysis }
+   454→   454→  }, [sim, analysis])
+   455→   455→
+   456→   456→  // ---- vẽ một khung ----
+   457→   457→  const draw = useCallback((): void => {
+   458→   458→    const canvas = canvasRef.current
+   459→   459→    if (canvas === null) return
+   460→   460→    const ctx = canvas.getContext('2d')
+   461→   461→    if (ctx === null) return
+   462→   462→    const data = dataRef.current
+   463→   463→    if (data === null) return
+   464→   464→    const { w, h, dpr } = sizeRef.current
+   465→   465→    if (w < 4 || h < 4) return
+   466→   466→
+   467→   467→    const st = stateRef.current
+   468→   468→    const { sim: sm, analysis: an } = data
+   469→   469→    // Vô hiệu hoá NaN/âm (state bị nhiễu) → luôn cho ra chỉ số khung hợp lệ
+   470→   470→    const tauRaw = timeRef.current
+   471→   471→    const tau = Number.isFinite(tauRaw) ? Math.max(0, tauRaw) : 0
+   472→   472→    const fi = Math.floor(tau)
+   473→   473→    const f = Math.min(fi, LAST_FRAME)
+   474→   474→    const u = f === LAST_FRAME ? 0 : tau - fi
+   475→   475→    const scaleX = w / WORLD_W
+   476→   476→    const scaleY = h / WORLD_H
+   477→   477→    const S = clamp(w / 900, 0.8, 1.4)
+   478→   478→
+   479→   479→    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+   480→   480→
+   481→   481→    // --- nền tối kính hiển vi ---
+   482→   482→    ctx.globalCompositeOperation = 'source-over'
+   483→   483→    ctx.globalAlpha = 1
+   484→   484→    ctx.fillStyle = '#04100b'
+   485→   485→    ctx.fillRect(0, 0, w, h)
+   486→   486→
+   487→   487→    const ill = ctx.createRadialGradient(
+   488→   488→      w * 0.42, h * 0.38, 0,
+   489→   489→      w * 0.42, h * 0.38, Math.max(w, h) * 0.72,
+   490→   490→    )
+   491→   491→    ill.addColorStop(0, 'rgba(45, 212, 160, 0.05)')
+   492→   492→    ill.addColorStop(1, 'rgba(45, 212, 160, 0)')
+   493→   493→    ctx.fillStyle = ill
+   494→   494→    ctx.fillRect(0, 0, w, h)
+   495→   495→
+   496→   496→    if (noiseRef.current === null || noiseRef.current.width !== canvas.width) {
+   497→   497→      noiseRef.current = {
+   498→   498→        pattern: ctx.createPattern(createNoiseCanvas(), 'repeat'),
+   499→   499→        width: canvas.width,
+   500→   500→      }
+   501→   501→    }
+   502→   502→    const noise = noiseRef.current
+   503→   503→    if (noise !== null && noise.pattern !== null) {
+   504→   504→      ctx.save()
+   505→   505→      ctx.globalCompositeOperation = 'lighter'
+   506→   506→      ctx.globalAlpha = 0.5
+   507→   507→      const offX = (tickRef.current * 11) % 128
+   508→   508→      const offY = (tickRef.current * 7) % 128
+   509→   509→      ctx.translate(-offX, -offY)
+   510→   510→      ctx.fillStyle = noise.pattern
+   511→   511→      ctx.fillRect(offX, offY, w, h)
+   512→   512→      ctx.restore()
+   513→   513→    }
+   514→   514→
+   515→   515→    // --- cạnh ---
+   516→   516→    const fd = an.frames[f] ?? EMPTY_FRAME_VIEW
+   517→   517→    const line = (
+   518→   518→      x1: number, y1: number, x2: number, y2: number,
+   519→   519→      color: string, lw: number, dash?: number[],
+   520→   520→    ): void => {
+   521→   521→      ctx.strokeStyle = color
+   522→   522→      ctx.lineWidth = lw
+   523→   523→      ctx.setLineDash(dash ?? [])
+   524→   524→      ctx.beginPath()
+   525→   525→      ctx.moveTo(x1 * scaleX, y1 * scaleY)
+   526→   526→      ctx.lineTo(x2 * scaleX, y2 * scaleY)
+   527→   527→      ctx.stroke()
+   528→   528→      ctx.setLineDash([])
+   529→   529→    }
+   530→   530→
+   531→   531→    if (st.showGt) {
+   532→   532→      for (const e of fd.gtEdges) {
+   533→   533→        if (e.fn && st.showEdges) continue
+   534→   534→        line(e.x1, e.y1, e.x2, e.y2, 'rgba(52, 211, 153, 0.20)', 1 * S)
+   535→   535→      }
+   536→   536→    }
+   537→   537→    if (st.showEdges) {
+   538→   538→      for (const e of fd.gtEdges) {
+   539→   539→        if (!e.fn) continue
+   540→   540→        line(e.x1, e.y1, e.x2, e.y2, 'rgba(251, 191, 36, 0.85)', 1.6 * S, [5, 4])
+   541→   541→      }
+   542→   542→      for (const e of fd.predEdges) {
+   543→   543→        if (e.cls === 'tp') {
+   544→   544→          line(e.x1, e.y1, e.x2, e.y2, 'rgba(52, 211, 153, 0.55)', 1.6 * S)
+   545→   545→        } else if (e.cls === 'fp') {
+   546→   546→          line(e.x1, e.y1, e.x2, e.y2, 'rgba(244, 63, 94, 0.6)', 1.5 * S)
+   547→   547→        } else {
+   548→   548→          line(e.x1, e.y1, e.x2, e.y2, 'rgba(148, 163, 158, 0.14)', 1 * S)
+   549→   549→        }
+   550→   550→      }
+   551→   551→    }
+   552→   552→
+   553→   553→    // --- tế bào GT (nội suy mượt giữa 2 khung) ---
+   554→   554→    if (st.showGt) {
+   555→   555→      for (const tr of sm.tracks) {
+   556→   556→        if (!(tr.start <= f + 1 && tr.end >= f)) continue
+   557→   557→        const fa = f >= tr.start && f <= tr.end ? tr.frames[f - tr.start] ?? null : null
+   558→   558→        const fb = f + 1 >= tr.start && f + 1 <= tr.end ? tr.frames[f + 1 - tr.start] ?? null : null
+   559→   559→        if (fa === null && fb === null) continue
+   560→   560→
+   561→   561→        let x: number, y: number, z: number, r: number
+   562→   562→        let labeled: boolean
+   563→   563→        let ii: number
+   564→   564→        if (fa !== null && fb !== null) {
+   565→   565→          x = lerp(fa.x, fb.x, u)
+   566→   566→          y = lerp(fa.y, fb.y, u)
+   567→   567→          z = lerp(fa.z, fb.z, u)
+   568→   568→          r = lerp(fa.r, fb.r, u)
+   569→   569→          labeled = fa.labeled
+   570→   570→          ii = lerp(fa.i, fb.i, u)
+   571→   571→        } else if (fa !== null) {
+   572→   572→          x = fa.x; y = fa.y; z = fa.z; r = fa.r
+   573→   573→          labeled = fa.labeled
+   574→   574→          ii = fa.i
+   575→   575→        } else {
+   576→   576→          const mother = tr.parent !== null ? sm.byId.get(tr.parent) : undefined
+   577→   577→          const mf = mother !== undefined ? mother.frames[mother.frames.length - 1] : undefined
+   578→   578→          if (mother !== undefined && mf !== undefined && tr.parent !== null) {
+   579→   579→            const grow = u * u
+   580→   580→            x = lerp(mf.x, fb!.x, grow)
+   581→   581→            y = lerp(mf.y, fb!.y, grow)
+   582→   582→            z = lerp(mf.z, fb!.z, u)
+   583→   583→            r = lerp(mf.r * 1.2, fb!.r, grow)
+   584→   584→          } else {
+   585→   585→            x = fb!.x; y = fb!.y; z = fb!.z; r = fb!.r
+   586→   586→          }
+   587→   587→          labeled = fb!.labeled
+   588→   588→          ii = fb!.i
+   589→   589→        }
+   590→   590→
+   591→   591→        const X = x * scaleX
+   592→   592→        const Y = y * scaleY
+   593→   593→        const dz = z / 63
+   594→   594→        const R = Math.max(2.5, r * scaleX * (1 - 0.28 * dz))
+   595→   595→        const ghost = st.sparse && !labeled
+   596→   596→        // tế bào trong "cửa sổ mờ" (rời mặt phẳng chiếu) tối hơn rõ rệt
+   597→   597→        const dimF = clamp(Math.pow(ii / 1800, 0.6), 0.22, 1.08)
+   598→   598→
+   599→   599→        if (ghost) {
+   600→   600→          ctx.strokeStyle = 'rgba(110, 231, 183, 0.22)'
+   601→   601→          ctx.lineWidth = 1 * S
+   602→   602→          ctx.setLineDash([3, 3])
+   603→   603→          ctx.beginPath()
+   604→   604→          ctx.arc(X, Y, R, 0, Math.PI * 2)
+   605→   605→          ctx.stroke()
+   606→   606→          ctx.setLineDash([])
+   607→   607→        } else {
+   608→   608→          const g = ctx.createRadialGradient(X, Y, 0, X, Y, R)
+   609→   609→          const aBase = (0.9 - 0.35 * dz) * dimF
+   610→   610→          g.addColorStop(0, `rgba(209, 250, 229, ${aBase.toFixed(3)})`)
+   611→   611→          g.addColorStop(0.45, `rgba(52, 211, 153, ${(aBase * 0.75).toFixed(3)})`)
+   612→   612→          g.addColorStop(1, 'rgba(6, 78, 59, 0)')
+   613→   613→          ctx.fillStyle = g
+   614→   614→          ctx.beginPath()
+   615→   615→          ctx.arc(X, Y, R, 0, Math.PI * 2)
+   616→   616→          ctx.fill()
+   617→   617→          ctx.fillStyle = `rgba(236, 254, 255, ${((0.85 - 0.3 * dz) * dimF).toFixed(3)})`
+   618→   618→          ctx.beginPath()
+   619→   619→          ctx.arc(X, Y, Math.max(1, R * 0.16), 0, Math.PI * 2)
+   620→   620→          ctx.fill()
+   621→   621→        }
+   622→   622→
+   623→   623→        if (st.showLabels && !ghost) {
+   624→   624→          ctx.font = `600 ${Math.round(9.5 * S)}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`
+   625→   625→          ctx.textAlign = 'left'
+   626→   626→          ctx.textBaseline = 'middle'
+   627→   627→          ctx.shadowColor = 'rgba(0, 0, 0, 0.85)'
+   628→   628→          ctx.shadowBlur = 3
+   629→   629→          ctx.fillStyle = 'rgba(167, 243, 208, 0.9)'
+   630→   630→          ctx.fillText(String(tr.id), X + R + 4 * S, Y - R * 0.6)
+   631→   631→          ctx.shadowBlur = 0
+   632→   632→          ctx.shadowColor = 'transparent'
+   633→   633→        }
+   634→   634→      }
+   635→   635→    }
+   636→   636→
+   637→   637→    // --- lớp dự đoán: vòng teal + node giả (×) ---
+   638→   638→    if (st.showPred) {
+   639→   639→      const frameNodes = an.nodes[f]!
+   640→   640→      for (const nd of frameNodes) {
+   641→   641→        const d = nd.det
+   642→   642→        const X = d.x * scaleX
+   643→   643→        const Y = d.y * scaleY
+   644→   644→        const dz = d.z / 63
+   645→   645→        const R = Math.max(2.5, d.r * scaleX * (1 - 0.28 * dz))
+   646→   646→
+   647→   647→        if (nd.cls === 'spurious') {
+   648→   648→          ctx.strokeStyle = 'rgba(251, 113, 133, 0.9)'
+   649→   649→          ctx.lineWidth = 1.8 * S
+   650→   650→          const k = 4.5 * S
+   651→   651→          ctx.beginPath()
+   652→   652→          ctx.moveTo(X - k, Y - k); ctx.lineTo(X + k, Y + k)
+   653→   653→          ctx.moveTo(X + k, Y - k); ctx.lineTo(X - k, Y + k)
+   654→   654→          ctx.stroke()
+   655→   655→        } else {
+   656→   656→          const a = nd.cls === 'matched' ? 0.95 - 0.25 * dz : 0.5 - 0.15 * dz
+   657→   657→          ctx.strokeStyle = `rgba(45, 212, 191, ${a.toFixed(3)})`
+   658→   658→          ctx.lineWidth = 1.7 * S
+   659→   659→          ctx.beginPath()
+   660→   660→          ctx.arc(X, Y, R + 2.5 * S, 0, Math.PI * 2)
+   661→   661→          ctx.stroke()
+   662→   662→          if (nd.cls === 'matched') {
+   663→   663→            ctx.fillStyle = `rgba(45, 212, 191, ${(0.8 - 0.2 * dz).toFixed(3)})`
+   664→   664→            ctx.beginPath()
+   665→   665→            ctx.arc(X, Y, Math.max(1, R * 0.12), 0, Math.PI * 2)
+   666→   666→            ctx.fill()
+   667→   667→          }
+   668→   668→        }
+   669→   669→
+   670→   670→        if (st.showLabels) {
+   671→   671→          ctx.font = `600 ${Math.round(9 * S)}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`
+   672→   672→          ctx.textAlign = 'right'
+   673→   673→          ctx.textBaseline = 'middle'
+   674→   674→          ctx.shadowColor = 'rgba(0, 0, 0, 0.85)'
+   675→   675→          ctx.shadowBlur = 3
+   676→   676→          ctx.fillStyle =
+   677→   677→            nd.cls === 'matched'
+   678→   678→              ? 'rgba(94, 234, 212, 0.92)'
+   679→   679→              : nd.cls === 'neutral'
+   680→   680→                ? 'rgba(94, 234, 212, 0.45)'
+   681→   681→                : 'rgba(251, 113, 133, 0.9)'
+   682→   682→          const labelText =
+   683→   683→            nd.cls === 'matched'
+   684→   684→              ? `→${nd.gtKey!.split('@')[0]}`
+   685→   685→              : nd.cls === 'neutral'
+   686→   686→                ? '·'
+   687→   687→                : 'FP'
+   688→   688→          ctx.fillText(labelText, X - R - 4 * S, Y + R * 0.55)
+   689→   689→          ctx.shadowBlur = 0
+   690→   690→          ctx.shadowColor = 'transparent'
+   691→   691→        }
+   692→   692→      }
+   693→   693→    }
+   694→   694→
+   695→   695→    // --- xung phân bào (lớp GT) ---
+   696→   696→    if (st.showGt && st.showEdges) {
+   697→   697→      for (const dv of sm.divisions) {
+   698→   698→        if (!(tau >= dv.frame && tau < dv.frame + 1.8)) continue
+   699→   699→        const mother = sm.byId.get(dv.mother)
+   700→   700→        const mf = mother !== undefined ? mother.frames[mother.frames.length - 1] : undefined
+   701→   701→        if (mf === undefined) continue
+   702→   702→        const p = (tau - dv.frame) / 1.8
+   703→   703→        const ease = 1 - Math.pow(1 - p, 3)
+   704→   704→        const fade = Math.pow(1 - p, 1.6)
+   705→   705→        const X = mf.x * scaleX
+   706→   706→        const Y = mf.y * scaleY
+   707→   707→        ctx.strokeStyle = `rgba(251, 191, 36, ${(0.9 * fade).toFixed(3)})`
+   708→   708→        ctx.lineWidth = 2.2 * S
+   709→   709→        ctx.beginPath()
+   710→   710→        ctx.arc(X, Y, (6 + 34 * ease) * S, 0, Math.PI * 2)
+   711→   711→        ctx.stroke()
+   712→   712→        ctx.strokeStyle = `rgba(252, 211, 77, ${(0.45 * fade).toFixed(3)})`
+   713→   713→        ctx.lineWidth = 1.2 * S
+   714→   714→        ctx.beginPath()
+   715→   715→        ctx.arc(X, Y, (4 + 18 * ease) * S, 0, Math.PI * 2)
+   716→   716→        ctx.stroke()
+   717→   717→        ctx.font = `600 ${Math.round(11 * S)}px ui-sans-serif, system-ui, sans-serif`
+   718→   718→        ctx.textAlign = 'center'
+   719→   719→        ctx.textBaseline = 'alphabetic'
+   720→   720→        ctx.shadowColor = 'rgba(0, 0, 0, 0.85)'
+   721→   721→        ctx.shadowBlur = 4
+   722→   722→        ctx.fillStyle = `rgba(252, 211, 77, ${clamp(1.15 - p * 0.35, 0, 1).toFixed(3)})`
+   723→   723→        ctx.fillText('phân bào', X, Y - (mf.r * scaleX + 14 * S))
+   724→   724→        ctx.shadowBlur = 0
+   725→   725→        ctx.shadowColor = 'transparent'
+   726→   726→      }
+   727→   727→    }
+   728→   728→
+   729→   729→    // --- vignette ---
+   730→   730→    const vg = ctx.createRadialGradient(
+   731→   731→      w / 2, h / 2, Math.min(w, h) * 0.32,
+   732→   732→      w / 2, h / 2, Math.max(w, h) * 0.72,
+   733→   733→    )
+   734→   734→    vg.addColorStop(0, 'rgba(0, 0, 0, 0)')
+   735→   735→    vg.addColorStop(1, 'rgba(0, 0, 0, 0.5)')
+   736→   736→    ctx.fillStyle = vg
+   737→   737→    ctx.fillRect(0, 0, w, h)
+   738→   738→
+   739→   739→    // --- HUD ---
+   740→   740→    const pad = 12 * S
+   741→   741→    const mono = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+   742→   742→
+   743→   743→    ctx.fillStyle = 'rgba(167, 243, 208, 0.65)'
+   744→   744→    if (st.playing) {
+   745→   745→      ctx.beginPath()
+   746→   746→      ctx.moveTo(pad + 3.5 * S, pad + 2 * S)
+   747→   747→      ctx.lineTo(pad + 3.5 * S, pad + 12 * S)
+   748→   748→      ctx.lineTo(pad + 12 * S, pad + 7 * S)
+   749→   749→      ctx.closePath()
+   750→   750→      ctx.fill()
+   751→   751→    } else {
+   752→   752→      ctx.fillRect(pad + 3.5 * S, pad + 2 * S, 3 * S, 10 * S)
+   753→   753→      ctx.fillRect(pad + 8.5 * S, pad + 2 * S, 3 * S, 10 * S)
+   754→   754→    }
+   755→   755→
+   756→   756→    ctx.textAlign = 'left'
+   757→   757→    ctx.textBaseline = 'top'
+   758→   758→    ctx.font = `600 ${Math.round(13 * S)}px ${mono}`
+   759→   759→    ctx.fillStyle = 'rgba(209, 250, 229, 0.92)'
+   760→   760→    ctx.fillText(
+   761→   761→      `t = ${String(f).padStart(2, '0')} / ${String(LAST_FRAME).padStart(2, '0')}`,
+   762→   762→      pad + 18 * S, pad,
+   763→   763→    )
+   764→   764→    ctx.font = `${Math.round(10.5 * S)}px ${mono}`
+   765→   765→    ctx.fillStyle = 'rgba(149, 202, 178, 0.62)'
+   766→   766→    ctx.fillText(
+   767→   767→      `${(MPF_BASE + tau * MPF_PER_FRAME).toFixed(1)} phút sau thụ tinh (mpf)`,
+   768→   768→      pad + 18 * S, pad + 18 * S,
+   769→   769→    )
+   770→   770→
+   771→   771→    ctx.textAlign = 'right'
+   772→   772→    ctx.font = `600 ${Math.round(13 * S)}px ${mono}`
+   773→   773→    ctx.fillStyle = 'rgba(209, 250, 229, 0.92)'
+   774→   774→    ctx.fillText(`⟨I⟩ = ${sm.meanIntensity[f] ?? 0}`, w - pad, pad)
+   775→   775→    ctx.font = `${Math.round(10.5 * S)}px ${mono}`
+   776→   776→    ctx.fillStyle = 'rgba(149, 202, 178, 0.62)'
+   777→   777→    ctx.fillText('uint16 · max-projection Z', w - pad, pad + 18 * S)
+   778→   778→
+   779→   779→    ctx.textAlign = 'left'
+   780→   780→    ctx.font = `${Math.round(9.5 * S)}px ${mono}`
+   781→   781→    ctx.fillStyle = 'rgba(149, 202, 178, 0.45)'
+   782→   782→    ctx.fillText('(T, Z, Y, X) = (60, 64, 256, 256) · uint16', pad, h - pad - 25 * S)
+   783→   783→    ctx.fillText('xy µm · z 1.625 µm/voxel', pad, h - pad - 13 * S)
+   784→   784→
+   785→   785→    const barLen = 50 * scaleX
+   786→   786→    const bx0 = w - pad - barLen
+   787→   787→    const by0 = h - pad - 8 * S
+   788→   788→    ctx.strokeStyle = 'rgba(209, 250, 229, 0.85)'
+   789→   789→    ctx.lineWidth = 1.5 * S
+   790→   790→    ctx.beginPath()
+   791→   791→    ctx.moveTo(bx0, by0); ctx.lineTo(bx0 + barLen, by0)
+   792→   792→    ctx.moveTo(bx0, by0 - 3 * S); ctx.lineTo(bx0, by0 + 3 * S)
+   793→   793→    ctx.moveTo(bx0 + barLen, by0 - 3 * S); ctx.lineTo(bx0 + barLen, by0 + 3 * S)
+   794→   794→    ctx.stroke()
+   795→   795→    ctx.textAlign = 'center'
+   796→   796→    ctx.textBaseline = 'bottom'
+   797→   797→    ctx.font = `600 ${Math.round(10.5 * S)}px ${mono}`
+   798→   798→    ctx.fillStyle = 'rgba(209, 250, 229, 0.85)'
+   799→   799→    ctx.fillText('50 µm', bx0 + barLen / 2, by0 - 5 * S)
+   800→   800→
+   801→   801→    tickRef.current += 1
+   802→   802→  }, [])
+   803→   803→
+   804→   804→  // ---- vòng lặp rAF ----
+   805→   805→  useEffect(() => {
+   806→   806→    let raf = 0
+   807→   807→    let last = performance.now()
+   808→   808→    const loop = (now: number): void => {
+   809→   809→      raf = requestAnimationFrame(loop)
+   810→   810→      const dt = Math.min(0.06, (now - last) / 1000)
+   811→   811→      last = now
+   812→   812→      if (typeof document !== 'undefined' && document.hidden) return
+   813→   813→      const st = stateRef.current
+   814→   814→      if (st.playing) {
+   815→   815→        timeRef.current += dt * BASE_FPS * st.speed
+   816→   816→        if (!Number.isFinite(timeRef.current) || timeRef.current >= LAST_FRAME) {
+   817→   817→          timeRef.current = 0
+   818→   818→        }
+   819→   819→      }
+   820→   820→      draw()
+   821→   821→      const tauNow = timeRef.current
+   822→   822→      const fi = Number.isFinite(tauNow)
+   823→   823→        ? Math.min(LAST_FRAME, Math.max(0, Math.floor(tauNow)))
+   824→   824→        : 0
+   825→   825→      if (fi !== frameRef.current) {
+   826→   826→        frameRef.current = fi
+   827→   827→        setFrame(fi)
+   828→   828→      }
+   829→   829→    }
+   830→   830→    raf = requestAnimationFrame(loop)
+   831→   831→    return () => cancelAnimationFrame(raf)
+   832→   832→  }, [draw])
+   833→   833→
+   834→   834→  // ---- canvas co giãn theo container + devicePixelRatio ----
+   835→   835→  useEffect(() => {
+   836→   836→    const wrap = wrapRef.current
+   837→   837→    const canvas = canvasRef.current
+   838→   838→    if (wrap === null || canvas === null) return
+   839→   839→    const resize = (): void => {
+   840→   840→      const rect = wrap.getBoundingClientRect()
+   841→   841→      const dpr = clamp(window.devicePixelRatio || 1, 1, 2)
+   842→   842→      const w = Math.max(1, Math.round(rect.width))
+   843→   843→      const h = Math.max(1, Math.round(rect.height))
+   844→   844→      const cw = Math.round(w * dpr)
+   845→   845→      const ch = Math.round(h * dpr)
+   846→   846→      if (canvas.width !== cw) canvas.width = cw
+   847→   847→      if (canvas.height !== ch) canvas.height = ch
+   848→   848→      sizeRef.current = { w, h, dpr }
+   849→   849→    }
+   850→   850→    resize()
+   851→   851→    const ro = new ResizeObserver(resize)
+   852→   852→    ro.observe(wrap)
+   853→   853→    return () => ro.disconnect()
+   854→   854→  }, [])
+   855→   855→
+   856→   856→  // ---- điều khiển ----
+   857→   857→  const handleScrub = useCallback((v: number[]): void => {
+   858→   858→    const nf = clamp(Math.round(v[0] ?? 0), 0, LAST_FRAME)
+   859→   859→    timeRef.current = nf
+   860→   860→    frameRef.current = nf
+   861→   861→    setFrame(nf)
+   862→   862→  }, [])
+   863→   863→
+   864→   864→  const handleReset = useCallback((): void => {
+   865→   865→    timeRef.current = 0
+   866→   866→    frameRef.current = 0
+   867→   867→    setFrame(0)
+   868→   868→  }, [])
+   869→   869→
+   870→   870→  // ---- thống kê khung hiện tại ----
+   871→   871→  const m = analysis.metrics
+   872→   872→  const curNodes = analysis.nodes[frame] ?? []
+   873→   873→  const curFrame = analysis.frames[frame] ?? { gtEdges: [], predEdges: [] }
+   874→   874→  const matchedNow = curNodes.filter((n) => n.cls === 'matched').length
+   875→   875→  const tpNow = curFrame.predEdges.filter((e) => e.cls === 'tp').length
+   876→   876→  const fpNow = curFrame.predEdges.filter((e) => e.cls === 'fp').length
+   877→   877→  const fnNow = curFrame.gtEdges.filter((e) => e.fn).length
+   878→   878→  const gtNow = analysis.gtCountByFrame[frame] ?? 0
+   879→   879→
+   880→   880→  return (
+   881→   881→    <Card className="gap-0 overflow-hidden py-0">
+   882→   882→      <CardHeader className="px-4 pt-5 pb-4 sm:px-6">
+   883→   883→        <div className="flex min-w-0 items-center gap-3">
+   884→   884→          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-emerald-500/25 bg-emerald-500/10">
+   885→   885→            <Microscope className="size-5 text-emerald-600 dark:text-emerald-400" />
+   886→   886→          </div>
+   887→   887→          <div className="min-w-0">
+   888→   888→            <CardTitle className="text-base sm:text-lg">
+   889→   889→              Trình mô phỏng &amp; chấm điểm bài nộp
+   890→   890→            </CardTitle>
+   891→   891→            <CardDescription className="mt-1 text-xs sm:text-sm">
+   892→   892→              Chạy <span className="font-semibold text-emerald-700 dark:text-emerald-300">thật</span>{' '}
+   893→   893→              thuật toán từng phiên bản nộp bài (port JS từ notebook Kaggle) trên
+   894→   894→              thể tích 3D tổng hợp của phôi zebrafish, rồi chấm điểm đúng metric
+   895→   895→              cuộc thi. Đổi phiên bản để so sánh Ver 0 (baseline) với Ver 1
+   896→   896→              (Stage 0+2), hoặc dùng chế độ{' '}
+   897→   897→              <span className="font-semibold text-teal-700 dark:text-teal-300">
+   898→   898→                Tùy chỉnh
+   899→   899→              </span>{' '}
+   900→   900→              để thí nghiệm các loại lỗi.
+   901→   901→            </CardDescription>
+   902→   902→          </div>
+   903→   903→        </div>
+   904→   904→        <CardAction>
+   905→   905→          <Badge
+   906→   906→            variant="outline"
+   907→   907→            className="hidden gap-1.5 border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 sm:inline-flex"
+   908→   908→          >
+   909→   909→            <Gauge className="size-3" />
+   910→   910→            60 khung · 6 phân bào · GT thưa
+   911→   911→          </Badge>
+   912→   912→        </CardAction>
+   913→   913→      </CardHeader>
+   914→   914→
+   915→   915→      {/* vùng canvas */}
+   916→   916→      <div
+   917→   917→        ref={wrapRef}
+   918→   918→        className="relative aspect-video w-full overflow-hidden bg-[#04100b]"
+   919→   919→      >
+   920→   920→        <canvas
+   921→   921→          ref={canvasRef}
+   922→   922→          className="absolute inset-0 h-full w-full"
+   923→   923→          role="img"
+   924→   924→          aria-label="Mô phỏng theo dõi tế bào: lớp ground-truth màu emerald, lớp dự đoán màu teal, cạnh đúng màu lục, cạnh sai màu đỏ, cạnh bỏ sót màu vàng nét đứt"
+   925→   925→        />
+   926→   926→      </div>
+   927→   927→
+   928→   928→      <div className="flex flex-col gap-5 px-4 pt-4 pb-5 sm:px-6">
+   929→   929→        {/* 1 · phát / tua / tốc độ */}
+   930→   930→        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+   931→   931→          <Button
+   932→   932→            type="button"
+   933→   933→            variant="secondary"
+   934→   934→            size="icon"
+   935→   935→            onClick={() => setPlaying((p) => !p)}
+   936→   936→            aria-label={playing ? 'Tạm dừng phát' : 'Phát'}
+   937→   937→            className="border border-emerald-500/20 bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 dark:text-emerald-300"
+   938→   938→          >
+   939→   939→            {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
+   940→   940→          </Button>
+   941→   941→          <Button
+   942→   942→            type="button"
+   943→   943→            variant="outline"
+   944→   944→            size="icon"
+   945→   945→            onClick={handleReset}
+   946→   946→            aria-label="Quay về khung hình đầu"
+   947→   947→          >
+   948→   948→            <RotateCcw className="size-4" />
+   949→   949→          </Button>
+   950→   950→          <div className="order-last w-full min-w-0 sm:order-none sm:w-auto sm:flex-1">
+   951→   951→            <Slider
+   952→   952→              value={[frame]}
+   953→   953→              min={0}
+   954→   954→              max={LAST_FRAME}
+   955→   955→              step={1}
+   956→   956→              onValueChange={handleScrub}
+   957→   957→              onPointerDown={() => setPlaying(false)}
+   958→   958→              aria-label="Khung hình hiện tại"
+   959→   959→              className="w-full"
+   960→   960→            />
+   961→   961→          </div>
+   962→   962→          <span className="w-full text-right font-mono text-xs tabular-nums text-muted-foreground sm:w-auto sm:text-left">
+   963→   963→            t = {String(frame).padStart(2, '0')} / {String(LAST_FRAME).padStart(2, '0')}
+   964→   964→          </span>
+   965→   965→          <ToggleGroup
+   966→   966→            type="single"
+   967→   967→            variant="outline"
+   968→   968→            size="sm"
+   969→   969→            value={String(speed)}
+   970→   970→            onValueChange={(v) => {
+   971→   971→              const n = v === '' ? Number.NaN : Number(v)
+   972→   972→              if (Number.isFinite(n) && n > 0) setSpeed(n)
+   973→   973→            }}
+   974→   974→            aria-label="Tốc độ phát"
+   975→   975→          >
+   976→   976→            <ToggleGroupItem value="0.5" aria-label="Tốc độ 0,5 lần">0.5×</ToggleGroupItem>
+   977→   977→            <ToggleGroupItem value="1" aria-label="Tốc độ 1 lần">1×</ToggleGroupItem>
+   978→   978→            <ToggleGroupItem value="2" aria-label="Tốc độ 2 lần">2×</ToggleGroupItem>
+   979→   979→          </ToggleGroup>
+   980→   980→        </div>
+   981→   981→
+   982→   982→        {/* 2 · chip thống kê khung hiện tại */}
+   983→   983→        <div className="flex flex-wrap items-center gap-2">
+   984→   984→          <StatChip icon={<CircleDot />} label="GT node" value={String(gtNow)} tone="emerald" />
+   985→   985→          <StatChip icon={<Target />} label="Dự đoán" value={String(curNodes.length)} tone="teal" />
+   986→   986→          <StatChip icon={<Crosshair />} label="Khớp" value={String(matchedNow)} tone="emerald" />
+   987→   987→          <StatChip
+   988→   988→            icon={<Spline />}
+   989→   989→            label="TP·FP·FN"
+   990→   990→            value={`${tpNow}·${fpNow}·${fnNow}`}
+   991→   991→            tone="rose"
+   992→   992→          />
+   993→   993→          <StatChip
+   994→   994→            icon={<GitBranch />}
+   995→   995→            label="Phân bào"
+   996→   996→            value={`${m.divTP}/${sim.divisions.length}`}
+   997→   997→            tone="amber"
+   998→   998→          />
+   999→   999→          <StatChip
+  1000→  1000→            icon={<Activity />}
+  1001→  1001→            label="⟨I⟩"
+  1002→  1002→            value={String(sim.meanIntensity[frame] ?? 0)}
+  1003→  1003→            tone="emerald"
+  1004→  1004→          />
+  1005→  1005→        </div>
+  1006→  1006→
+  1007→  1007→        {/* 3 · lớp hiển thị */}
+  1008→  1008→        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+  1009→  1009→          {(
+  1010→  1010→            [
+  1011→  1011→              ['td-gt', showGt, setShowGt, 'Hiện GT (đáp án)'],
+  1012→  1012→              ['td-pred', showPred, setShowPred, 'Hiện dự đoán'],
+  1013→  1013→              ['td-edges', showEdges, setShowEdges, 'Cạnh & lỗi (TP·FP·FN)'],
+  1014→  1014→              ['td-labels', showLabels, setShowLabels, 'Nhãn node'],
+  1015→  1015→              ['td-sparse', sparseMode, setSparseMode, 'GT thưa (sparse)'],
+  1016→  1016→            ] as const
+  1017→  1017→          ).map(([id, checked, setter, text]) => (
+  1018→  1018→            <div key={id} className="flex items-center gap-2">
+  1019→  1019→              <Switch
+  1020→  1020→                id={id}
+  1021→  1021→                checked={checked}
+  1022→  1022→                onCheckedChange={(c) => setter(c)}
+  1023→  1023→              />
+  1024→  1024→              <Label htmlFor={id} className="cursor-pointer text-xs text-muted-foreground">
+  1025→  1025→                {text}
+  1026→  1026→              </Label>
+  1027→  1027→            </div>
+  1028→  1028→          ))}
+  1029→  1029→        </div>
+  1030→  1030→
+  1031→  1031→        {/* 4 · bảng chấm điểm */}
+  1032→  1032→        <div className="rounded-xl border bg-muted/30 p-4 sm:p-5">
+  1033→  1033→          <div className="mb-4 flex items-center gap-2 text-sm font-semibold">
+  1034→  1034→            <Gauge className="size-4 text-emerald-600 dark:text-emerald-400" />
+  1035→  1035→            Kết quả chấm điểm — tổng trên toàn bộ 60 khung hình
+  1036→  1036→          </div>
+  1037→  1037→          <div className="grid gap-4 lg:grid-cols-5">
+  1038→  1038→            <div className="flex flex-col justify-center rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 to-transparent p-4 lg:col-span-2">
+  1039→  1039→              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+  1040→  1040→                Điểm tổng (mô phỏng)
+  1041→  1041→              </p>
+  1042→  1042→              <p className="mt-1 font-mono text-4xl font-extrabold leading-none tabular-nums text-emerald-700 dark:text-emerald-300">
+  1043→  1043→                {m.combined.toFixed(3)}
+  1044→  1044→              </p>
+  1045→  1045→              <p className="mt-2 font-mono text-[11px] text-muted-foreground">
+  1046→  1046→                = adj_edge_jaccard + 0.1 × division_jaccard
+  1047→  1047→              </p>
+  1048→  1048→              <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground/80">
+  1049→  1049→                Adj = TP / (TP + FP + FN + node thừa) — phạt over-predict node
+  1050→  1050→                (đơn giản hóa để minh họa; metric chính thức chi tiết hơn).
+  1051→  1051→                Ghép node tối ưu trong ngưỡng 7.0 µm.
+  1052→  1052→              </p>
+  1053→  1053→            </div>
+  1054→  1054→            <div className="space-y-3.5 lg:col-span-3">
+  1055→  1055→              <MetricBar label="Phát hiện node (recall)" value={m.nodeRecall} />
+  1056→  1056→              <MetricBar label="Edge Jaccard (điều chỉnh)" value={m.adjEJ} />
+  1057→  1057→              <MetricBar label="Division Jaccard" value={m.divJ} />
+  1058→  1058→              <div className="flex flex-wrap gap-2 pt-0.5">
+  1059→  1059→                <span className="rounded-full border bg-background px-2.5 py-1 font-mono text-[11px] tabular-nums">
+  1060→  1060→                  Cạnh TP {m.tp} · FP {m.fp} · FN {m.fn}
+  1061→  1061→                </span>
+  1062→  1062→                <span className="rounded-full border bg-background px-2.5 py-1 font-mono text-[11px] tabular-nums">
+  1063→  1063→                  Phân bào TP {m.divTP} · FP {m.divFP} · FN {m.divFN}
+  1064→  1064→                </span>
+  1065→  1065→                <span className="rounded-full border bg-background px-2.5 py-1 font-mono text-[11px] tabular-nums">
+  1066→  1066→                  Node GT {m.gtNodes} · khớp {m.matchedGT} · thừa {m.spurious}
+  1067→  1067→                </span>
+  1068→  1068→              </div>
+  1069→  1069→            </div>
+  1070→  1070→          </div>
+  1071→  1071→        </div>
+  1072→  1072→
+  1073→  1073→        {/* 5 · phiên bản thuật toán nộp bài */}
+  1074→  1074→        <div className="rounded-xl border bg-muted/30 p-4 sm:p-5">
+  1075→  1075→          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+  1076→  1076→            <div className="flex items-center gap-2 text-sm font-semibold">
+  1077→  1077→              <Wand2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+  1078→  1078→              Thuật toán nộp bài (theo phiên bản)
+  1079→  1079→            </div>
+  1080→  1080→            <div className="flex flex-wrap items-center gap-2">
+  1081→  1081→              <ToggleGroup
+  1082→  1082→                type="single"
+  1083→  1083→                variant="outline"
+  1084→  1084→                size="sm"
+  1085→  1085→                value={mode}
+  1086→  1086→                onValueChange={(v) => {
+  1087→  1087→                  if (v === 'ver0' || v === 'ver1' || v === 'custom') setMode(v)
+  1088→  1088→                }}
+  1089→  1089→                aria-label="Chọn phiên bản thuật toán"
+  1090→  1090→              >
+  1091→  1091→                <ToggleGroupItem value="ver0" aria-label="Ver 0, notebook baseline gốc">
+  1092→  1092→                  Ver 0 · Baseline
+  1093→  1093→                </ToggleGroupItem>
+  1094→  1094→                <ToggleGroupItem value="ver1" aria-label="Ver 1, Stage 0+2 đã nộp">
+  1095→  1095→                  Ver 1 · Stage 0+2
+  1096→  1096→                </ToggleGroupItem>
+  1097→  1097→                <ToggleGroupItem value="custom" aria-label="Chế độ tùy chỉnh tham số">
+  1098→  1098→                  Tùy chỉnh
+  1099→  1099→                </ToggleGroupItem>
+  1100→  1100→              </ToggleGroup>
+  1101→  1101→              <Button
+  1102→  1102→                type="button"
+  1103→  1103→                variant="secondary"
+  1104→  1104→                size="sm"
+  1105→  1105→                className="h-7 gap-1.5 px-2.5 text-xs"
+  1106→  1106→                onClick={() => setSeed((s) => s + 101)}
+  1107→  1107→              >
+  1108→  1108→                <Dices className="size-3.5" />
+  1109→  1109→                Dữ liệu mới
+  1110→  1110→              </Button>
+  1111→  1111→            </div>
+  1112→  1112→          </div>
+  1113→  1113→
+  1114→  1114→          {mode === 'custom' ? (
+  1115→  1115→            <>
+  1116→  1116→              <div className="mb-4 flex flex-wrap items-center gap-1.5">
+  1117→  1117→                {PRESETS.map((pr) => (
+  1118→  1118→                  <Button
+  1119→  1119→                    key={pr.name}
+  1120→  1120→                    type="button"
+  1121→  1121→                    variant="outline"
+  1122→  1122→                    size="sm"
+  1123→  1123→                    className="h-7 px-2.5 text-xs"
+  1124→  1124→                    onClick={() => setParams({ ...pr.p })}
+  1125→  1125→                  >
+  1126→  1126→                    {pr.name}
+  1127→  1127→                  </Button>
+  1128→  1128→                ))}
+  1129→  1129→              </div>
+  1130→  1130→              <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
+  1131→  1131→                <ParamSlider
+  1132→  1132→                  label="Phát hiện (recall)"
+  1133→  1133→                  hint="Xác suất bắt được từng tế bào ở mỗi khung — thiếu sẽ sinh cạnh FN."
+  1134→  1134→                  value={params.recall}
+  1135→  1135→                  min={0.5}
+  1136→  1136→                  max={1}
+  1137→  1137→                  step={0.01}
+  1138→  1138→                  fmt={(v) => v.toFixed(2)}
+  1139→  1139→                  onChange={(v) => setParams((p) => ({ ...p, recall: v }))}
+  1140→  1140→                />
+  1141→  1141→                <ParamSlider
+  1142→  1142→                  label="Node giả (FP)"
+  1143→  1143→                  hint="Tỉ lệ phát hiện thừa — bị trừ trực tiếp vào mẫu số điểm cạnh."
+  1144→  1144→                  value={params.fpRate}
+  1145→  1145→                  min={0}
+  1146→  1146→                  max={0.15}
+  1147→  1147→                  step={0.005}
+  1148→  1148→                  fmt={(v) => `${(v * 100).toFixed(1)}%`}
+  1149→  1149→                  onChange={(v) => setParams((p) => ({ ...p, fpRate: v }))}
+  1150→  1150→                />
+  1151→  1151→                <ParamSlider
+  1152→  1152→                  label="Nhiễu định vị"
+  1153→  1153→                  hint="Sai số tâm node — quá lớn thì vượt ngưỡng ghép 7.0 µm, gây FN."
+  1154→  1154→                  value={params.jitter}
+  1155→  1155→                  min={0}
+  1156→  1156→                  max={4}
+  1157→  1157→                  step={0.1}
+  1158→  1158→                  fmt={(v) => `${v.toFixed(1)} µm`}
+  1159→  1159→                  onChange={(v) => setParams((p) => ({ ...p, jitter: v }))}
+  1160→  1160→                />
+  1161→  1161→                <ParamSlider
+  1162→  1162→                  label="Ngưỡng liên kết"
+  1163→  1163→                  hint="Bán kính tối đa nối node giữa 2 khung — quá lỏng sẽ tạo cạnh FP chéo."
+  1164→  1164→                  value={params.linkUm}
+  1165→  1165→                  min={3}
+  1166→  1166→                  max={16}
+  1167→  1167→                  step={0.5}
+  1168→  1168→                  fmt={(v) => `${v.toFixed(1)} µm`}
+  1169→  1169→                  onChange={(v) => setParams((p) => ({ ...p, linkUm: v }))}
+  1170→  1170→                />
+  1171→  1171→              </div>
+  1172→  1172→              <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border bg-background/60 px-3.5 py-2.5">
+  1173→  1173→                <div className="flex items-center gap-2.5">
+  1174→  1174→                  <Switch
+  1175→  1175→                    id="td-division"
+  1176→  1176→                    checked={params.division}
+  1177→  1177→                    onCheckedChange={(c) => setParams((p) => ({ ...p, division: c }))}
+  1178→  1178→                  />
+  1179→  1179→                  <Label htmlFor="td-division" className="cursor-pointer text-xs">
+  1180→  1180→                    Phát hiện phân bào (nối 1 node tới 2 node con)
+  1181→  1181→                  </Label>
+  1182→  1182→                </div>
+  1183→  1183→                <p className="hidden text-[11px] text-muted-foreground sm:block">
+  1184→  1184→                  Tắt → mất điểm division (10% tổng điểm)
+  1185→  1185→                </p>
+  1186→  1186→              </div>
+  1187→  1187→            </>
+  1188→  1188→          ) : (
+  1189→  1189→            <>
+  1190→  1190→              {/* console log mô phỏng Kaggle */}
+  1191→  1191→              <pre className="mb-4 overflow-x-auto rounded-lg bg-[#04100b] p-3 font-mono text-[11px] leading-relaxed text-emerald-200/90">
+  1192→  1192→                {(() => {
+  1193→  1193→                  const run = mode === 'ver0' ? pipelines!.ver0 : pipelines!.ver1
+  1194→  1194→                  const st = run.stats
+  1195→  1195→                  return [
+  1196→  1196→                    `[mô phỏng] 30/60 khung · ${st.nodes30} node · ${st.edges30} cạnh · ${st.div30} phân bào · ${Math.round(st.ms30)} ms`,
+  1197→  1197→                    `[mô phỏng] 60/60 khung · ${st.nodes} node · ${st.edges} cạnh · ${st.divisions} phân bào · ${Math.round(st.ms)} ms`,
+  1198→  1198→                    `== mô phỏng · ${MODE_LABEL[mode]}: ${st.nodes} nodes · ${st.edges} edges · ${st.divisions} phân bào (${Math.round(st.ms)} ms)`,
+  1199→  1199→                  ].join('\n')
+  1200→  1200→                })()}
+  1201→  1201→              </pre>
+  1202→  1202→
+  1203→  1203→              {/* pipeline của phiên bản đang chọn */}
+  1204→  1204→              <div className="mb-4 flex flex-wrap items-center gap-1.5">
+  1205→  1205→                <span className="mr-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+  1206→  1206→                  Pipeline
+  1207→  1207→                </span>
+  1208→  1208→                {VERSION_INFO[mode].map((s) => (
+  1209→  1209→                  <span
+  1210→  1210→                    key={s}
+  1211→  1211→                    className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] text-emerald-700 dark:text-emerald-300"
+  1212→  1212→                  >
+  1213→  1213→                    {s}
+  1214→  1214→                  </span>
+  1215→  1215→                ))}
+  1216→  1216→              </div>
+  1217→  1217→
+  1218→  1218→              {/* so sánh 2 phiên bản trên cùng dữ liệu */}
+  1219→  1219→              <div className="overflow-x-auto">
+  1220→  1220→                <table className="w-full min-w-[460px] border-collapse text-left text-xs">
+  1221→  1221→                  <thead>
+  1222→  1222→                    <tr className="border-b text-muted-foreground">
+  1223→  1223→                      <th className="py-2 pr-3 font-medium">Trên cùng dữ liệu này</th>
+  1224→  1224→                      <th className={`px-3 py-2 font-medium ${mode === 'ver0' ? 'rounded-t-lg bg-emerald-500/10' : ''}`}>
+  1225→  1225→                        Ver 0 · Baseline
+  1226→  1226→                      </th>
+  1227→  1227→                      <th className={`px-3 py-2 font-medium ${mode === 'ver1' ? 'rounded-t-lg bg-emerald-500/10' : ''}`}>
+  1228→  1228→                        Ver 1 · Stage 0+2
+  1229→  1229→                      </th>
+  1230→  1230→                    </tr>
+  1231→  1231→                  </thead>
+  1232→  1232→                  <tbody className="font-mono tabular-nums">
+  1233→  1233→                    {(() => {
+  1234→  1234→                      const a = pipelineAnalyses!
+  1235→  1235→                      const m0 = a.ver0.metrics
+  1236→  1236→                      const m1 = a.ver1.metrics
+  1237→  1237→                      const rows: { label: string; v0: string; v1: string; better1?: boolean }[] = [
+  1238→  1238→                        {
+  1239→  1239→                          label: 'Phát hiện node (recall)',
+  1240→  1240→                          v0: m0.nodeRecall.toFixed(3),
+  1241→  1241→                          v1: m1.nodeRecall.toFixed(3),
+  1242→  1242→                          better1: m1.nodeRecall > m0.nodeRecall,
+  1243→  1243→                        },
+  1244→  1244→                        {
+  1245→  1245→                          label: 'Edge Jaccard (điều chỉnh)',
+  1246→  1246→                          v0: m0.adjEJ.toFixed(3),
+  1247→  1247→                          v1: m1.adjEJ.toFixed(3),
+  1248→  1248→                          better1: m1.adjEJ > m0.adjEJ,
+  1249→  1249→                        },
+  1250→  1250→                        {
+  1251→  1251→                          label: 'Division Jaccard',
+  1252→  1252→                          v0: m0.divJ.toFixed(3),
+  1253→  1253→                          v1: m1.divJ.toFixed(3),
+  1254→  1254→                          better1: m1.divJ > m0.divJ,
+  1255→  1255→                        },
+  1256→  1256→                        {
+  1257→  1257→                          label: 'Cạnh TP · FP · FN',
+  1258→  1258→                          v0: `${m0.tp} · ${m0.fp} · ${m0.fn}`,
+  1259→  1259→                          v1: `${m1.tp} · ${m1.fp} · ${m1.fn}`,
+  1260→  1260→                          better1: m1.tp > m0.tp,
+  1261→  1261→                        },
+  1262→  1262→                        {
+  1263→  1263→                          label: 'Phân bào TP · FP · FN',
+  1264→  1264→                          v0: `${m0.divTP} · ${m0.divFP} · ${m0.divFN}`,
+  1265→  1265→                          v1: `${m1.divTP} · ${m1.divFP} · ${m1.divFN}`,
+  1266→  1266→                          better1: m1.divTP > m0.divTP,
+  1267→  1267→                        },
+  1268→  1268→                        {
+  1269→  1269→                          label: 'Node thừa (spurious)',
+  1270→  1270→                          v0: String(m0.spurious),
+  1271→  1271→                          v1: String(m1.spurious),
+  1272→  1272→                          better1: m1.spurious < m0.spurious,
+  1273→  1273→                        },
+  1274→  1274→                        {
+  1275→  1275→                          label: 'Thời gian chạy 60 khung',
+  1276→  1276→                          v0: `${Math.round(pipelines!.ver0.stats.ms)} ms`,
+  1277→  1277→                          v1: `${Math.round(pipelines!.ver1.stats.ms)} ms`,
+  1278→  1278→                        },
+  1279→  1279→                        {
+  1280→  1280→                          label: 'Điểm tổng (mô phỏng)',
+  1281→  1281→                          v0: m0.combined.toFixed(3),
+  1282→  1282→                          v1: m1.combined.toFixed(3),
+  1283→  1283→                          better1: m1.combined > m0.combined,
+  1284→  1284→                        },
+  1285→  1285→                      ]
+  1286→  1286→                      return rows.map((r) => (
+  1287→  1287→                        <tr key={r.label} className="border-b border-border/50 last:border-0">
+  1288→  1288→                          <td className="py-1.5 pr-3 font-sans text-muted-foreground">{r.label}</td>
+  1289→  1289→                          <td className={`px-3 py-1.5 ${mode === 'ver0' ? 'bg-emerald-500/10 font-bold' : ''}`}>
+  1290→  1290→                            {r.v0}
+  1291→  1291→                          </td>
+  1292→  1292→                          <td className={`px-3 py-1.5 ${mode === 'ver1' ? 'bg-emerald-500/10 font-bold' : ''}`}>
+  1293→  1293→                            {r.v1}
+  1294→  1294→                            {r.better1 === true && (
+  1295→  1295→                              <span className="ml-1.5 font-sans text-[10px] text-emerald-600 dark:text-emerald-400">
+  1296→  1296→                                ▲
+  1297→  1297→                              </span>
+  1298→  1298→                            )}
+  1299→  1299→                            {r.better1 === false && (
+  1300→  1300→                              <span className="ml-1.5 font-sans text-[10px] text-rose-500">▼</span>
+  1301→  1301→                            )}
+  1302→  1302→                          </td>
+  1303→  1303→                        </tr>
+  1304→  1304→                      ))
+  1305→  1305→                    })()}
+  1306→  1306→                  </tbody>
+  1307→  1307→                </table>
+  1308→  1308→              </div>
+  1309→  1309→              <p className="mt-2.5 text-[11px] leading-snug text-muted-foreground">
+  1310→  1310→                Cùng một thể tích tổng hợp (seed {seed}) chạy qua cả hai pipeline —
+  1311→  1311→                khác biệt đến từ thuật toán, không phải dữ liệu. Trên Kaggle thật,
+  1312→  1312→ điểm tuyệt đối sẽ khác nhưng TRẬT TỰ ver 1 &gt; ver 0 giữ nguyên.
+  1313→  1313→              </p>
+  1314→  1314→            </>
+  1315→  1315→          )}
+  1316→  1316→        </div>
+  1317→  1317→
+  1318→  1318→        {/* 6 · chú giải */}
+  1319→  1319→        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t pt-3 text-xs text-muted-foreground">
+  1320→  1320→          <span className="inline-flex items-center gap-2">
+  1321→  1321→            <span
+  1322→  1322→              className="size-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]"
+  1323→  1323→              aria-hidden
+  1324→  1324→            />
+  1325→  1325→            Tế bào GT (node)
+  1326→  1326→          </span>
+  1327→  1327→          <span className="inline-flex items-center gap-2">
+  1328→  1328→            <span
+  1329→  1329→              className="size-2.5 rounded-full border-2 border-teal-400"
+  1330→  1330→              aria-hidden
+  1331→  1331→            />
+  1332→  1332→            Dự đoán (node)
+  1333→  1333→          </span>
+  1334→  1334→          <span className="inline-flex items-center gap-2">
+  1335→  1335→            <span className="font-mono text-rose-500" aria-hidden>✕</span>
+  1336→  1336→            Node thừa (FP)
+  1337→  1337→          </span>
+  1338→  1338→          <span className="inline-flex items-center gap-2">
+  1339→  1339→            <span className="h-0.5 w-5 rounded-full bg-emerald-400/80" aria-hidden />
+  1340→  1340→            Cạnh TP
+  1341→  1341→          </span>
+  1342→  1342→          <span className="inline-flex items-center gap-2">
+  1343→  1343→            <span className="h-0.5 w-5 rounded-full bg-rose-500/80" aria-hidden />
+  1344→  1344→            Cạnh FP
+  1345→  1345→          </span>
+  1346→  1346→          <span className="inline-flex items-center gap-2">
+  1347→  1347→            <span
+  1348→  1348→              className="h-0.5 w-5 rounded-full border-t-2 border-dashed border-amber-400"
+  1349→  1349→              aria-hidden
+  1350→  1350→            />
+  1351→  1351→            Cạnh FN (bỏ sót)
+  1352→  1352→          </span>
+  1353→  1353→          <span className="inline-flex items-center gap-2">
+  1354→  1354→            <span
+  1355→  1355→              className="size-2.5 rounded-full border-2 border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.7)]"
+  1356→  1356→              aria-hidden
+  1357→  1357→            />
+  1358→  1358→            Phân bào
+  1359→  1359→          </span>
+  1360→  1360→          <span className="ml-auto hidden text-[11px] text-muted-foreground/70 lg:inline">
+  1361→  1361→            GT thưa: nét đứt mờ = tế bào chưa được gắn nhãn (metric đã tính đến)
+  1362→  1362→          </span>
+  1363→  1363→        </div>
+  1364→  1364→      </div>
+  1365→  1365→    </Card>
+  1366→  1366→  )
+  1367→  1367→}
+  1368→  1368→

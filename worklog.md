@@ -210,3 +210,42 @@ Stage Summary:
 - Phân tích kết quả Kaggle user (4 dataset: 9557 node · 6940 cạnh · 166 phân bào · ~30s): 22-41% node không có cạnh vào = track đứt nhiều (đặc biệt 6bba_05b6850b 28%); 68/94 phân bào ở 2 dataset dày khả năng có phân bào giả merge-split; ds 6bba_05db0fb1 với ~39 node/khung + 94 phân bào vô lý về mặt sinh học nếu tất cả thật → nghiêng về FP
 - Đề xuất ver 2: giảm đứt track (MAX_SKIP_FRAMES 1→2-3 + nội suy; quét PERCENTILE 88-96; gate max 12→15 cho cell nhanh), chặn phân bào giả merge-split (đòi hỏi 2 con tồn tại ≥3 khung + khoảng cách tăng dần), sau đó mới đến Stage 1 (ngưỡng cục bộ/watershed)
 - Sản phẩm: src/lib/tracking-pipeline.ts, tracking-demo.tsx nâng cấp, kaggle/ver-1/*, kaggle/README.md
+
+---
+Task ID: 2
+Agent: full-stack-developer
+Task: Xây section "Phòng đo lường & quy chuẩn" (submission-lab.tsx) — registry phiên bản + phân tích điểm 0.198 + máy tính what-if + analyzer submission.csv
+
+Work Log:
+- Đọc worklog.md, tạo src/components/competition/submission-lab.tsx (~2400 dòng, 'use client', 3 tab) + tích hợp vào page.tsx (section id="lab" sau section demo)
+- Tab 1 "Phiên bản & điểm": registry ver 0/1/2 + local scorer; ver 1 = 0.198 Kaggle; bảng kết quả 4 dataset; 3 điểm nghẽn (recall/track đứt/phân bào giả); insight metric chính thức (FP có điều kiện, phạt node thừa nhẹ)
+- Tab 2 "Máy tính điểm": 4 slider (r, p, λ, divJ) + công thức hiển thị + preset ver 1 (0.197 khớp Kaggle 0.198) / mục tiêu ver 2 (0.33) / top đầu (0.97)
+- Tab 3 "Kiểm tra submission.csv": upload/paste + dữ liệu mẫu; 7 nhóm kiểm tra hợp lệ (🔴/🟡); thống kê từng dataset (11 cột + Δ so ver 1); chuẩn sức khoẻ 5 badge theo ngưỡng heuristic; histogram độ dài track bằng div
+- E2E: 3 tab hoạt động, máy tính khớp công thức, analyzer hiện badge + bảng + histogram
+
+Stage Summary:
+- Sản phẩm: submission-lab.tsx + page.tsx tích hợp
+- Lỗi để main xử lý: ReferenceError "Target is not defined" lúc đầu (chunk stale), mobile tràn ngang 488px — main đã vá (xem Task 14)
+
+---
+Task ID: 14
+Agent: main
+Task: Sửa lỗi hydration ms; kiểm chứng + vá submission-lab; nghiên cứu metric chính thức; viết ver 2 notebook + local scorer; cập nhật registry; push GitHub
+
+Work Log:
+- SỬA LỖI HYDRATION (lỗi user báo): stats.ms đo bằng performance.now() khác nhau giữa Node SSR (376ms) và browser (364ms) → text <pre> không khớp khi hydrate. Vá bằng useSyncExternalStore (server snapshot false → "… ms", sau hydrate → số thật); không dùng setState-in-effect vì vi phạm react-hooks/set-state-in-effect (đã thử và lint chặn)
+- KIỂM CHỨNG submission-lab của subagent: lỗi "Target is not defined" là stale chunk browser (đóng mở lại browser hết); VÀ 2 lỗi mobile thật: (1) ToggleGroup nguồn dữ liệu có className w-full nhưng base là w-fit (CSS ordering Tailwind v4) → items flex-1 tạo min-content 422px → tràn; vá bỏ w-full/flex-1; (2) các grid "grid gap-4 lg:grid-cols-2" thiếu cols mobile → grid auto columns theo max-content (bảng đẩy) → thêm grid-cols-1 vào 8 chỗ + bọc 2 bảng trong overflow-x-auto → mobile 390px sạch (scrollWidth = 390)
+- NGHIÊN CỨU METRIC CHÍNH THỨC: tải toàn bộ source repo royerlab/kaggle-cell-tracking-competition (metrics.py, division_metrics.py, io.py, evaluate.py, csv_to_geffs.py) + spec .geff + source DistanceMatching tracksdata. Phát hiện quan trọng: (a) cạnh FP CHỈ tính khi bám node GT có cạnh (ra vào) — cạnh giữa tế bào không annotate bị bỏ; (b) adjEJ = EJ·(1 − 0.1·(N_pred−N_true)/N_true) với N_true từ geff extra.estimated_number_of_nodes; (c) cạnh nhảy bị bỏ hẳn khi chấm; (d) division metric phức tạp: window 3 thế hệ, per-window matching, directed topology, cross-component, malformed branch, bipartite pairing
+- VIẾT VER 2 (kaggle/ver-2/cell1..4code.py): P90 + MAX 3000 (recall là đòn bẩy r²); tách blob gộp "eo" bằng maximum_filter peaks + gán voxel→đỉnh gần nhất + CoM từng vùng; skip 2 khung + nội suy; gate 14µm; PHÂN BÀO XÁC NHẬN ĐỘNG HỌC (cạnh divergence hoãn, chỉ ghi khi 2 con sống ≥3 khung + khoảng cách tăng ≥15% — chặn merge-split giả); chẩn đoán sức khoẻ mỗi dataset
+- KIỂM CHỨNG VER 2 trên Zarr tổng hợp (6 tế bào: blob gộp eo B/C, phân bào thật D, merge-split giả E/F đứng yên): 4 vòng debug — (1) σ tế bào tổng hợp phải theo PSF thật (z 1.5, xy 8.5 voxel, không phải 3); (2) blob "gộp đầy" 2 Gaussian cách <2.4σ không tách được (vùng giữa sáng hơn đỉnh yếu — không có dip) → phải cách ≥2.5σ mới có 2 đỉnh; (3) BUG THẬT trong code: bước xác nhận (e) chạy trong cùng step tạo candidate → succ.get(c1)=None → reject ngay → vá đếm tuổi riêng (age 0 chỉ tăng tuổi); (4) merge-split test cần amp gần nhau để qua brightness check rồi bị DIV_SEP_GROWTH chặn. KẾT QUẢ 16/16 ĐẠT (kèm test-ver2-synth.py)
+- VIẾT LOCAL SCORER (kaggle/scorer/scorer1..3code.py): port TRUNG THÀNH metric chính thức, chỉ numpy/scipy/pandas/blosc2: đọc .geff zarr v2+v3 (đã xác minh blosc2.decompress đọc được chunk blosc1 — test numcodecs); ghép node per-timepoint Hungarian 7µm; edge metric đầy đủ (bỏ cạnh nhảy → collapse merge → cap out-degree 2 → FP có điều kiện); division metric port đầy đủ division_metrics.py (window, topology, cross-component, malformed, bipartite); adjEJ + micro-average + weight-averaged đúng summarise. Sửa 3 bug khi test: read_csv usecols (không phải columns), index bug match_nodes (gidx đã là global), Graph remap node_id→index nội bộ (matched keys vs edges). KẾT QUẢ 31/31 ĐẠT khớp 100% tính tay (submission tốt = 1.100 max, xấu = 0.648 đúng từng thành phần kể cả nhánh FP-có-điều-kiện + division-evaluable-FP)
+- Tạo download/ver2-cell-tracking.ipynb + download/local-scorer.ipynb (nbformat 4) để import thẳng vào Kaggle
+- Cập nhật kaggle/README.md: bảng điểm (ver 1 = 0.198), 4 nguyên tắc metric, ver 2 chi tiết, hướng dẫn scorer, template ver 3+
+- E2E cuối: hydration hết (browser mới sạch), 3 tab lab OK (máy tính 0.197 khớp, analyzer badge+bảng+histogram), mobile 390 = 390, lint sạch, dev.log sạch
+
+Stage Summary:
+- Lỗi hydration đã vá bằng useSyncExternalStore (không còn setState-in-effect)
+- Website: thêm Phòng đo lường & quy chuẩn + vá 2 lỗi mobile tràn ngang
+- Ver 2 sẵn sàng: dán 4 cell vào notebook Kaggle (hoặc import ipynb); kỳ vọng tăng recall + chặn phân bào giả
+- QUY TRÌNH MỚI: chạy pipeline ver 2 → local scorer chấm trên train (không tốn quota) → chỉ submit khi tốt hơn
+- Sản phẩm: kaggle/ver-2/* (16/16 pass), kaggle/scorer/* (31/31 pass), download/*.ipynb, README registry cập nhật, submission-lab.tsx
