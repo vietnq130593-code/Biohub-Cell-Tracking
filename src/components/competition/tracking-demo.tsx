@@ -4,17 +4,18 @@
  * Trình mô phỏng & chấm điểm bài nộp
  * Kaggle: "Biohub - Cell Tracking During Development"
  *
- * Mô phỏng một mẫu dữ liệu kính hiển vi 3D+time (phôi zebrafish, 60 khung hình):
- * - Lớp ground-truth (GT): tế bào thật + đồ thị node/cạnh + 6 phân bào, gắn nhãn thưa
- * - Lớp dự đoán: sinh từ "thuật toán" giả lập (nearest-neighbor tracker) với tham số
- *   tùy chỉnh: recall, node giả (FP), nhiễu định vị, ngưỡng liên kết, phát hiện phân bào
- * - Chấm điểm đúng tinh thần metric cuộc thi:
+ * Chạy THẬT hai phiên bản thuật toán nộp bài (port JS trung thành notebook,
+ * xem src/lib/tracking-pipeline.ts) trên thể tích 3D tổng hợp render từ GT:
+ *  - ver 0 · Baseline (notebook getting-started Kaggle)
+ *  - ver 1 · Stage 0+2 (CoM, 26-conn, motion model, gate thích ứng, phân bào,
+ *    nội suy khung mất — đúng cell2code/cell3code đã nộp)
+ * rồi chấm điểm bằng đúng tinh thần metric cuộc thi:
  *   + Ghép node tối ưu (Hungarian) trong ngưỡng 7.0 µm theo khoảng cách vật lý
- *   + Cạnh TP / FP / FN, Edge Jaccard điều chỉnh (phạt node dự đoán thừa)
- *   + Division Jaccard (phân bào TP/FP/FN)
+ *   + Cạnh TP/FP/FN, Edge Jaccard điều chỉnh (phạt node dự đoán thừa)
+ *   + Division Jaccard theo dòng con (lineage)
  *   + score = adj_edge_jaccard + 0.1 × division_jaccard (có thể vượt 1.0)
- *
- * Toàn bộ dữ liệu sinh bằng PRNG có seed (mulberry32) → tái lập được.
+ * Ngoài ra còn chế độ "Tùy chỉnh" — mô hình tham số giả lập tracker
+ * nearest-neighbor để thí nghiệm các loại lỗi.
  */
 
 import {
@@ -56,16 +57,27 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
-// ---------------------------------------------------------------------------
-// Hằng số mô phỏng (gần dữ liệu thật: (T,Z,Y,X)=(100,64,256,256)·uint16)
-// ---------------------------------------------------------------------------
-
-const T = 60
-const LAST_FRAME = T - 1
-
-/** Trường nhìn 2D (µm) — phép chiếu max-projection của khối dữ liệu */
-const WORLD_W = 160
-const WORLD_H = 90
+import {
+  buildGtGraph,
+  buildSimulation,
+  clamp,
+  dist3,
+  gauss,
+  lerp,
+  mulberry32,
+  runBothPipelines,
+  scoreDetections,
+  T,
+  LAST_FRAME,
+  WORLD_W,
+  WORLD_H,
+  type Analysis,
+  type Det,
+  type EdgeRef,
+  type GtGraph,
+  type PipelineRun,
+  type SimData,
+} from '@/lib/tracking-pipeline'
 
 /** Tốc độ phát cơ bản (khung hình/giây ở 1×) */
 const BASE_FPS = 2.5
@@ -74,281 +86,9 @@ const BASE_FPS = 2.5
 const MPF_BASE = 150
 const MPF_PER_FRAME = 1.5
 
-/** Ngưỡng ghép node tối đa của metric cuộc thi (µm) */
-const MATCH_UM = 7.0
-
-/** Thang vật lý trục z (µm/voxel) — xy đã tính trực tiếp bằng µm */
-const Z_UM_PER_VOXEL = 1.625
-
-/** Các khung hình có phân bào */
-const DIV_FRAMES = [12, 19, 26, 35, 42, 50]
-
 // ---------------------------------------------------------------------------
-// PRNG & tiện ích
+// Chế độ "Tùy chỉnh": giả lập nearest-neighbor tracker bằng tham số
 // ---------------------------------------------------------------------------
-
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0
-  return () => {
-    a |= 0
-    a = (a + 0x6d2b79f5) | 0
-    let t = Math.imul(a ^ (a >>> 15), 1 | a)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-
-function gauss(rng: () => number): number {
-  const u1 = Math.max(1e-9, rng())
-  const u2 = rng()
-  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2)
-}
-
-const clamp = (v: number, lo: number, hi: number): number =>
-  Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : lo
-const lerp = (a: number, b: number, t: number): number => a + (b - a) * t
-
-/** Khoảng cách vật lý 3D giữa 2 điểm (xy µm, z theo voxel) */
-const dist3 = (
-  ax: number, ay: number, az: number,
-  bx: number, by: number, bz: number,
-): number => Math.hypot(ax - bx, ay - by, Z_UM_PER_VOXEL * (az - bz))
-
-// ---------------------------------------------------------------------------
-// Mô phỏng sinh học (ground truth)
-// ---------------------------------------------------------------------------
-
-interface FrameState {
-  x: number; y: number; z: number
-  r: number; i: number
-  labeled: boolean
-}
-
-interface Track {
-  id: number
-  start: number
-  end: number
-  frames: FrameState[]
-  parent: number | null
-  divisionFrame: number | null
-}
-
-interface Division {
-  mother: number
-  frame: number
-  daughters: [number, number]
-}
-
-interface SimData {
-  tracks: Track[]
-  byId: Map<number, Track>
-  divisions: Division[]
-  meanIntensity: number[]
-}
-
-interface RtState {
-  pos: [number, number, number]
-  vel: [number, number, number]
-  rB: number
-  iB: number
-}
-
-function buildSimulation(seed: number): SimData {
-  const rng = mulberry32(seed)
-  const tracks: Track[] = []
-  const rt = new Map<number, RtState>()
-  const divisions: Division[] = []
-  let nextId = 1
-
-  const newTrack = (start: number, pos: [number, number, number]): Track => {
-    const tr: Track = {
-      id: nextId++,
-      start,
-      end: LAST_FRAME,
-      frames: [],
-      parent: null,
-      divisionFrame: null,
-    }
-    tracks.push(tr)
-    rt.set(tr.id, {
-      pos,
-      vel: [0, 0, 0],
-      rB: 1.9 + rng() * 1.3,
-      iB: 700 + rng() * 2500,
-    })
-    return tr
-  }
-
-  // 26 tế bào ban đầu
-  for (let k = 0; k < 26; k++) {
-    newTrack(0, [
-      14 + rng() * (WORLD_W - 28),
-      12 + rng() * (WORLD_H - 24),
-      4 + rng() * 56,
-    ])
-  }
-  // 3 tế bào đi vào trường nhìn giữa phim
-  newTrack(14, [6, 10 + rng() * (WORLD_H - 20), 3 + rng() * 56])
-  newTrack(27, [WORLD_W - 6, 10 + rng() * (WORLD_H - 20), 3 + rng() * 56])
-  newTrack(41, [20 + rng() * (WORLD_W - 40), WORLD_H - 6, 3 + rng() * 56])
-
-  // lên lịch 6 phân bào: chọn mẹ hợp lệ, cắt track mẹ tại khung phân bào
-  for (const d of DIV_FRAMES) {
-    const elig = tracks.filter(
-      (tr) =>
-        tr.start <= d - 2 &&
-        tr.end === LAST_FRAME &&
-        tr.divisionFrame === null &&
-        !(tr.parent !== null && d - tr.start < 8),
-    )
-    if (elig.length === 0) continue
-    const mother = elig[Math.floor(rng() * elig.length)]
-    mother.end = d
-    mother.divisionFrame = d
-    const dA = nextId++
-    const dB = nextId++
-    for (const cid of [dA, dB]) {
-      tracks.push({
-        id: cid,
-        start: d + 1,
-        end: LAST_FRAME,
-        frames: [],
-        parent: mother.id,
-        divisionFrame: null,
-      })
-      rt.set(cid, { pos: [0, 0, 0], vel: [0, 0, 0], rB: 1.2, iB: 800 })
-    }
-    divisions.push({ mother: mother.id, frame: d, daughters: [dA, dB] })
-  }
-
-  const pending = new Map<number, Division>()
-  for (const dv of divisions) pending.set(dv.frame, dv)
-
-  // mô phỏng từng khung hình
-  const swirlA = rng() * Math.PI * 2
-  const intensitySum: number[] = new Array<number>(T).fill(0)
-
-  for (let t = 0; t < T; t++) {
-    for (const tr of tracks) {
-      if (tr.start > t || tr.end < t) continue
-      const s = rt.get(tr.id)
-      if (s === undefined) continue
-
-      if (t > tr.start) {
-        // dòng chảy xoáy của phôi + random walk có damping
-        const dx = s.pos[0] - WORLD_W / 2
-        const dy = s.pos[1] - WORLD_H / 2
-        const dC = Math.hypot(dx, dy) + 1e-6
-        const ph = swirlA + t * 0.012
-        const fx = (-dy / dC) * 0.32 + Math.cos(ph) * 0.1
-        const fy = (dx / dC) * 0.32 + Math.sin(ph) * 0.1
-        s.vel[0] = s.vel[0] * 0.86 + (fx + (rng() - 0.5) * 0.55) * 0.5
-        s.vel[1] = s.vel[1] * 0.86 + (fy + (rng() - 0.5) * 0.55) * 0.5
-        s.vel[2] = s.vel[2] * 0.9 + (rng() - 0.5) * 0.9
-        s.pos[0] = clamp(s.pos[0] + s.vel[0], 5, WORLD_W - 5)
-        s.pos[1] = clamp(s.pos[1] + s.vel[1], 5, WORLD_H - 5)
-        s.pos[2] = clamp(s.pos[2] + s.vel[2], 2.5, 60.5)
-      }
-
-      const swell =
-        tr.divisionFrame !== null && t >= tr.divisionFrame - 4
-          ? 1 + 0.3 * ((t - (tr.divisionFrame - 4)) / 4)
-          : 1
-      const grow =
-        tr.parent !== null
-          ? 0.72 + 0.28 * clamp((t - tr.start) / 8, 0, 1)
-          : 1
-
-      tr.frames.push({
-        x: s.pos[0],
-        y: s.pos[1],
-        z: s.pos[2],
-        r: s.rB * swell * grow,
-        i: Math.round(s.iB * (0.85 + rng() * 0.3)),
-        labeled: true,
-      })
-      intensitySum[t] += s.iB
-    }
-
-    // xử lý phân bào tại khung t: đặt vị trí 2 con quanh mẹ
-    const dv = pending.get(t)
-    if (dv !== undefined) {
-      const mother = tracks.find((x) => x.id === dv.mother)
-      const ms = mother !== undefined ? rt.get(mother.id) : undefined
-      if (mother !== undefined && ms !== undefined && mother.frames.length > 0) {
-        const ang = rng() * Math.PI * 2
-        const off = 2.2 + rng() * 1.8
-        for (const [cid, sgn] of [
-          [dv.daughters[0], 1],
-          [dv.daughters[1], -1],
-        ] as const) {
-          const cs = rt.get(cid)
-          if (cs !== undefined) {
-            cs.pos = [
-              ms.pos[0] + Math.cos(ang) * off * sgn,
-              ms.pos[1] + Math.sin(ang) * off * sgn,
-              ms.pos[2],
-            ]
-            cs.vel = [Math.cos(ang) * 0.5 * sgn, Math.sin(ang) * 0.5 * sgn, 0]
-            cs.rB = ms.rB * 0.75
-            cs.iB = ms.iB * (0.9 + rng() * 0.2)
-          }
-        }
-      }
-    }
-  }
-
-  // gắn nhãn thưa (~88%): đục "cửa sổ mờ" 2–7 khung, luôn bảo vệ vùng phân bào
-  const holeRng = mulberry32(seed ^ 0x9e3779b9)
-  for (const tr of tracks) {
-    let i = 2 + Math.floor(holeRng() * 8)
-    while (i < tr.frames.length) {
-      const len = 2 + Math.floor(holeRng() * 5)
-      for (let j = i; j < Math.min(i + len, tr.frames.length); j++) {
-        tr.frames[j].labeled = false
-      }
-      i += len + 4 + Math.floor(holeRng() * 9)
-    }
-    if (tr.divisionFrame !== null) {
-      for (
-        let j = Math.max(0, tr.divisionFrame - 1 - tr.start);
-        j <= tr.divisionFrame - tr.start;
-        j++
-      ) {
-        tr.frames[j].labeled = true
-      }
-    }
-    if (tr.parent !== null) {
-      tr.frames[0].labeled = true
-      if (tr.frames.length > 1) tr.frames[1].labeled = true
-    }
-  }
-
-  const byId = new Map<number, Track>()
-  for (const tr of tracks) byId.set(tr.id, tr)
-
-  const meanIntensity: number[] = []
-  for (let t = 0; t < T; t++) {
-    const alive = tracks.filter((tr) => tr.start <= t && t <= tr.end).length
-    meanIntensity.push(
-      alive > 0
-        ? Math.round(intensitySum[t] / alive + 1400 * Math.sin(t / 9))
-        : 1500,
-    )
-  }
-
-  return { tracks, byId, divisions, meanIntensity }
-}
-
-// ---------------------------------------------------------------------------
-// "Thuật toán" giả lập: sinh phát hiện (detection) từ tham số
-// ---------------------------------------------------------------------------
-
-interface Det {
-  x: number; y: number; z: number
-  r: number; i: number
-  src: number | null // track nguồn (null = node giả)
-}
 
 interface Params {
   recall: number
@@ -405,6 +145,7 @@ function genDetections(sim: SimData, p: Params, seed: number): Det[][] {
         z: clamp(f.z + gauss(rng) * p.jitter * 0.5, 1, 62),
         r: f.r,
         i: f.i,
+        mass: Math.round(f.i * 27),
         src: tr.id,
       })
     }
@@ -417,6 +158,7 @@ function genDetections(sim: SimData, p: Params, seed: number): Det[][] {
         z: 2 + rng() * 58,
         r: 1.6 + rng() * 1.6,
         i: 500 + Math.round(rng() * 1500),
+        mass: 18000,
         src: null,
       })
     }
@@ -425,262 +167,23 @@ function genDetections(sim: SimData, p: Params, seed: number): Det[][] {
   return out
 }
 
-// ---------------------------------------------------------------------------
-// Gán song phân tối ưu (Hungarian, O(n³)) — như metric cuộc thi
-// ---------------------------------------------------------------------------
-
-/** Trả về col gán cho mỗi row (hoặc null nếu chi phí >= BIG) */
-function hungarian(cost: number[][]): (number | null)[] {
-  const nRows = cost.length
-  if (nRows === 0) return []
-  const nCols = cost[0]?.length ?? 0
-  if (nCols === 0) return new Array<number | null>(nRows).fill(null)
-  const n = Math.max(nRows, nCols)
-  const BIG = 1e9
-  const INF = 1e18
-
-  const a: number[][] = Array.from({ length: n + 1 }, () =>
-    new Array<number>(n + 1).fill(BIG),
-  )
-  for (let i = 0; i < nRows; i++) {
-    for (let j = 0; j < nCols; j++) a[i + 1][j + 1] = cost[i]![j]!
-  }
-
-  const u = new Array<number>(n + 1).fill(0)
-  const v = new Array<number>(n + 1).fill(0)
-  const p = new Array<number>(n + 1).fill(0)
-  const way = new Array<number>(n + 1).fill(0)
-
-  for (let i = 1; i <= n; i++) {
-    p[0] = i
-    let j0 = 0
-    const minv = new Array<number>(n + 1).fill(INF)
-    const used = new Array<boolean>(n + 1).fill(false)
-    do {
-      used[j0] = true
-      const i0 = p[j0]!
-      let delta = INF
-      let j1 = 0
-      for (let j = 1; j <= n; j++) {
-        if (!used[j]) {
-          const cur = a[i0]![j]! - u[i0]! - v[j]!
-          if (cur < minv[j]!) {
-            minv[j] = cur
-            way[j] = j0
-          }
-          if (minv[j]! < delta) {
-            delta = minv[j]!
-            j1 = j
-          }
-        }
-      }
-      for (let j = 0; j <= n; j++) {
-        if (used[j]) {
-          u[p[j]!]! += delta
-          v[j]! -= delta
-        } else {
-          minv[j]! -= delta
-        }
-      }
-      j0 = j1
-    } while (p[j0] !== 0)
-    do {
-      const j1 = way[j0]!
-      p[j0] = p[j1]!
-      j0 = j1
-    } while (j0 !== 0)
-  }
-
-  const rowToCol: (number | null)[] = new Array<number | null>(nRows).fill(null)
-  for (let j = 1; j <= n; j++) {
-    const i = p[j]!
-    if (i >= 1 && i <= nRows) {
-      const c = a[i]![j]!
-      if (c < BIG) rowToCol[i - 1] = j - 1
-    }
-  }
-  return rowToCol
-}
-
-// ---------------------------------------------------------------------------
-// Phân tích: đồ thị GT, đồ thị dự đoán, và metric
-// ---------------------------------------------------------------------------
-
-interface GtNode {
-  key: string
-  trackId: number
-  t: number
-  x: number; y: number; z: number
-}
-
-interface GtEdge {
-  key: string
-  t: number
-  x1: number; y1: number
-  x2: number; y2: number
-}
-
-type PredCls = 'matched' | 'neutral' | 'spurious'
-
-interface PredNode {
-  key: string
-  t: number
-  det: Det
-  gtKey: string | null
-  cls: PredCls
-}
-
-interface PredEdge {
-  a: PredNode
-  b: PredNode
-  cls: 'tp' | 'fp' | 'neutral'
-}
-
-interface Metrics {
-  gtNodes: number
-  predNodes: number
-  matchedPred: number
-  matchedGT: number
-  spurious: number
-  nodeRecall: number
-  tp: number
-  fp: number
-  fn: number
-  adjEJ: number
-  divTP: number
-  divFP: number
-  divFN: number
-  divJ: number
-  combined: number
-}
-
-interface Analysis {
-  det: Det[][]
-  nodes: PredNode[][]
-  frames: {
-    gtEdges: (GtEdge & { fn: boolean })[]
-    predEdges: {
-      x1: number; y1: number
-      x2: number; y2: number
-      cls: 'tp' | 'fp' | 'neutral'
-    }[]
-  }[]
-  gtCountByFrame: number[]
-  metrics: Metrics
-}
-
-/** Khung rỗng dự phòng — chống crash khi index ngoài phạm vi */
-const EMPTY_FRAME_VIEW: Analysis['frames'][number] = { gtEdges: [], predEdges: [] }
-
-function analyze(
+/** Chấm điểm chế độ tùy chỉnh: greedy nearest-neighbor + phân bào giả lập */
+function analyzeCustom(
   sim: SimData,
+  gt: GtGraph,
   p: Params,
-  sparse: boolean,
   seed: number,
 ): Analysis {
-  const labeledAt = (tr: Track, t: number): boolean => {
-    if (t < tr.start || t > tr.end) return false
-    return sparse ? tr.frames[t - tr.start]!.labeled : true
-  }
-
-  // ---- đồ thị GT ----
-  const gtNodesByFrame: GtNode[][] = Array.from({ length: T }, () => [])
-  const gtKeySet = new Set<string>()
-  for (const tr of sim.tracks) {
-    for (let t = tr.start; t <= tr.end; t++) {
-      if (!labeledAt(tr, t)) continue
-      const f = tr.frames[t - tr.start]!
-      const key = `${tr.id}@${t}`
-      gtNodesByFrame[t]!.push({ key, trackId: tr.id, t, x: f.x, y: f.y, z: f.z })
-      gtKeySet.add(key)
-    }
-  }
-
-  const gtEdges: GtEdge[] = []
-  const gtEdgeSet = new Set<string>()
-  for (const tr of sim.tracks) {
-    for (let t = tr.start; t < tr.end; t++) {
-      if (!labeledAt(tr, t) || !labeledAt(tr, t + 1)) continue
-      const fa = tr.frames[t - tr.start]!
-      const fb = tr.frames[t + 1 - tr.start]!
-      const key = `${tr.id}@${t}=>${tr.id}@${t + 1}`
-      gtEdges.push({ key, t, x1: fa.x, y1: fa.y, x2: fb.x, y2: fb.y })
-      gtEdgeSet.add(key)
-    }
-  }
-  for (const dv of sim.divisions) {
-    const m = sim.byId.get(dv.mother)
-    if (m === undefined || !labeledAt(m, dv.frame)) continue
-    const mf = m.frames[dv.frame - m.start]!
-    for (const did of dv.daughters) {
-      const d = sim.byId.get(did)
-      if (d === undefined || !labeledAt(d, dv.frame + 1)) continue
-      const df = d.frames[0]!
-      const key = `${m.id}@${dv.frame}=>${d.id}@${dv.frame + 1}`
-      gtEdges.push({ key, t: dv.frame, x1: mf.x, y1: mf.y, x2: df.x, y2: df.y })
-      gtEdgeSet.add(key)
-    }
-  }
-
-  // ---- phát hiện + gán song phân theo ngưỡng 7.0 µm ----
   const det = genDetections(sim, p, seed)
-  const nodes: PredNode[][] = []
-  for (let t = 0; t < T; t++) {
-    const dets = det[t]!
-    const gts = gtNodesByFrame[t]!
-    const cost = dets.map((d) =>
-      gts.map((g) => {
-        const dd = dist3(d.x, d.y, d.z, g.x, g.y, g.z)
-        return dd <= MATCH_UM ? dd : 1e9
-      }),
-    )
-    const assign = hungarian(cost)
-    nodes[t] = dets.map((d, i): PredNode => {
-      const col = assign[i]
-      const gtKey =
-        col !== null && dist3(d.x, d.y, d.z, gts[col]!.x, gts[col]!.y, gts[col]!.z) <= MATCH_UM
-          ? gts[col]!.key
-          : null
-      let cls: PredCls = 'spurious'
-      if (gtKey !== null) cls = 'matched'
-      else if (d.src !== null && !gtKeySet.has(`${d.src}@${t}`)) cls = 'neutral'
-      return { key: `${t}:${i}`, t, det: d, gtKey, cls }
-    })
-  }
-
-  // ---- tracker nearest-neighbor (giả lập notebook getting-started) ----
-  const predEdges: PredEdge[] = []
-  const predEdgeKeySet = new Set<string>()
-  const covered = new Set<string>()
-
-  const addEdge = (a: PredNode, b: PredNode): void => {
-    predEdgeKeySet.add(`${a.key}=>${b.key}`)
-    let cls: 'tp' | 'fp' | 'neutral'
-    if (a.cls === 'matched' && b.cls === 'matched') {
-      const gk = `${a.gtKey}=>${b.gtKey}`
-      if (gtEdgeSet.has(gk) && !covered.has(gk)) {
-        cls = 'tp'
-        covered.add(gk)
-      } else {
-        cls = 'fp'
-      }
-    } else if (a.cls === 'spurious' || b.cls === 'spurious') {
-      cls = 'fp'
-    } else {
-      // chạm vùng GT thưa → metric "tính đến" nhãn thưa, bỏ qua
-      cls = 'neutral'
-    }
-    predEdges.push({ a, b, cls })
-  }
-
+  const edgeRefs: EdgeRef[] = []
   for (let t = 0; t < T - 1; t++) {
-    const A = nodes[t]!
-    const B = nodes[t + 1]!
+    const A = det[t]!
+    const B = det[t + 1]!
     const pairs: { ai: number; bi: number; d: number }[] = []
     for (let ai = 0; ai < A.length; ai++) {
       for (let bi = 0; bi < B.length; bi++) {
-        const da = A[ai]!.det
-        const db = B[bi]!.det
+        const da = A[ai]!
+        const db = B[bi]!
         const d = dist3(da.x, da.y, da.z, db.x, db.y, db.z)
         if (d <= p.linkUm) pairs.push({ ai, bi, d })
       }
@@ -694,133 +197,31 @@ function analyze(
       usedA.add(pr.ai)
       usedB.add(pr.bi)
       primary.set(pr.ai, pr.bi)
-      addEdge(A[pr.ai]!, B[pr.bi]!)
+      edgeRefs.push({ at: t, ai: pr.ai, bt: t + 1, bi: pr.bi })
     }
     // phát hiện phân bào: cho phép 1 node nối thêm "con thứ 2" nằm gần
     if (p.division) {
       for (const [ai, bi1] of primary) {
-        const da = A[ai]!.det
-        const db1 = B[bi1]!.det
+        const da = A[ai]!
+        const db1 = B[bi1]!
         for (let bi = 0; bi < B.length; bi++) {
           if (usedB.has(bi)) continue
-          const db = B[bi]!.det
+          const db = B[bi]!
           const d2 = dist3(da.x, da.y, da.z, db.x, db.y, db.z)
-          const d3 = dist3(db1.x, db1.y, db1.z, db.x, db.y, db.z)
-          if (d2 <= p.linkUm && d3 <= p.linkUm) {
+          const d3v = dist3(db1.x, db1.y, db1.z, db.x, db.y, db.z)
+          if (d2 <= p.linkUm && d3v <= p.linkUm) {
             usedB.add(bi)
-            addEdge(A[ai]!, B[bi]!)
+            edgeRefs.push({ at: t, ai, bt: t + 1, bi })
           }
         }
       }
     }
   }
-
-  // ---- metric ----
-  const gtNodeTotal = gtNodesByFrame.reduce((s, g) => s + g.length, 0)
-  const matchedGTSet = new Set<string>()
-  let spurious = 0
-  let matchedPred = 0
-  const predNodeTotal = nodes.reduce((s, f) => s + f.length, 0)
-  for (const frameNodes of nodes) {
-    for (const nd of frameNodes) {
-      if (nd.cls === 'matched') {
-        matchedPred++
-        matchedGTSet.add(nd.gtKey!)
-      } else if (nd.cls === 'spurious') {
-        spurious++
-      }
-    }
-  }
-
-  const tp = covered.size
-  const fp = predEdges.filter((e) => e.cls === 'fp').length
-  const fn = gtEdges.length - tp
-  const denomE = tp + fp + fn + spurious
-  const adjEJ = denomE > 0 ? tp / denomE : 0
-
-  // ---- phân bào ----
-  let divTP = 0
-  let divFP = 0
-  const divTotal = sim.divisions.length
-  for (const dv of sim.divisions) {
-    const mKey = `${dv.mother}@${dv.frame}`
-    const d1Key = `${dv.daughters[0]}@${dv.frame + 1}`
-    const d2Key = `${dv.daughters[1]}@${dv.frame + 1}`
-    const pm = nodes[dv.frame]!.find(
-      (n) => n.cls === 'matched' && n.gtKey === mKey,
-    )
-    const pd1 = nodes[dv.frame + 1]!.find(
-      (n) => n.cls === 'matched' && n.gtKey === d1Key,
-    )
-    const pd2 = nodes[dv.frame + 1]!.find(
-      (n) => n.cls === 'matched' && n.gtKey === d2Key,
-    )
-    if (
-      pm !== undefined &&
-      pd1 !== undefined &&
-      pd2 !== undefined &&
-      predEdgeKeySet.has(`${pm.key}=>${pd1.key}`) &&
-      predEdgeKeySet.has(`${pm.key}=>${pd2.key}`)
-    ) {
-      divTP++
-    }
-  }
-  // phân bào giả: node dự đoán (đã khớp GT) có ≥ 2 cạnh đi ra nhưng GT không có
-  for (const frameNodes of nodes) {
-    for (const nd of frameNodes) {
-      if (nd.cls !== 'matched') continue
-      const outDeg = predEdges.filter(
-        (e) => e.a === nd && e.b.cls === 'matched',
-      ).length
-      if (outDeg < 2) continue
-      const gtTrackId = Number(nd.gtKey!.split('@')[0])
-      const tr = Number.isFinite(gtTrackId) ? sim.byId.get(gtTrackId) : undefined
-      const t = nd.t
-      const gtOut =
-        (tr !== undefined && t + 1 <= tr.end && labeledAt(tr, t + 1) ? 1 : 0) +
-        (tr !== undefined && tr.divisionFrame === t ? 2 : 0)
-      if (gtOut < 2) divFP++
-    }
-  }
-  const divFN = divTotal - divTP
-  const divDenom = divTP + divFP + divFN
-  const divJ = divDenom > 0 ? divTP / divDenom : 0
-
-  const metrics: Metrics = {
-    gtNodes: gtNodeTotal,
-    predNodes: predNodeTotal,
-    matchedPred,
-    matchedGT: matchedGTSet.size,
-    spurious,
-    nodeRecall: gtNodeTotal > 0 ? matchedGTSet.size / gtNodeTotal : 0,
-    tp,
-    fp,
-    fn,
-    adjEJ,
-    divTP,
-    divFP,
-    divFN,
-    divJ,
-    combined: adjEJ + 0.1 * divJ,
-  }
-
-  // ---- dữ liệu vẽ theo khung ----
-  const frames = Array.from({ length: T }, (_, t) => ({
-    gtEdges: gtEdges
-      .filter((e) => e.t === t)
-      .map((e) => ({ ...e, fn: !covered.has(e.key) })),
-    predEdges: predEdges
-      .filter((e) => e.a.t === t)
-      .map((e) => ({
-        x1: e.a.det.x, y1: e.a.det.y,
-        x2: e.b.det.x, y2: e.b.det.y,
-        cls: e.cls,
-      })),
-  }))
-  const gtCountByFrame = gtNodesByFrame.map((g) => g.length)
-
-  return { det, nodes, frames, gtCountByFrame, metrics }
+  return scoreDetections(sim, gt, det, edgeRefs)
 }
+
+/** Khung rỗng dự phòng — chống crash khi index ngoài phạm vi */
+const EMPTY_FRAME_VIEW: Analysis['frames'][number] = { gtEdges: [], predEdges: [] }
 
 // ---------------------------------------------------------------------------
 // nhiễu sensor (canvas pattern)
@@ -949,16 +350,72 @@ interface RuntimeState {
   sparse: boolean
 }
 
+type Mode = 'ver0' | 'ver1' | 'custom'
+
+const MODE_LABEL: Record<Mode, string> = {
+  ver0: 'Ver 0 · Baseline',
+  ver1: 'Ver 1 · Stage 0+2',
+  custom: 'Tùy chỉnh',
+}
+
+/** Pipeline steps hiển thị cho từng phiên bản (đúng notebook kaggle/ver-1) */
+const VERSION_INFO: Record<'ver0' | 'ver1', string[]> = {
+  ver0: [
+    'P90', 'liên kết 6 ô', 'tâm hình học', 'Hungarian gate 15 µm',
+    'không phân bào', 'không frame-skip',
+  ],
+  ver1: [
+    'P92', 'liên kết 26 ô', 'CoM theo cường độ', 'MIN/MAX 4–1000 voxels',
+    'motion model EMA', 'gate thích ứng 5–12 µm', 'phân bào 10/12 µm',
+    'nội suy khung mất',
+  ],
+}
+
+/** Cache pipeline theo (seed, sparse) — module scope, dữ liệu deterministic */
+const PIPELINE_CACHE = new Map<string, { ver0: PipelineRun; ver1: PipelineRun }>()
+
 export default function TrackingDemo() {
   const [seed, setSeed] = useState(20260911)
   const sim = useMemo(() => buildSimulation(seed), [seed])
 
+  const [mode, setMode] = useState<Mode>('ver1')
   const [params, setParams] = useState<Params>({ ...DEFAULT_PARAMS })
   const [sparseMode, setSparseMode] = useState(true)
-  const analysis = useMemo(
-    () => analyze(sim, params, sparseMode, seed),
-    [sim, params, sparseMode, seed],
+
+  const gtGraph = useMemo(() => buildGtGraph(sim, sparseMode), [sim, sparseMode])
+
+  // pipeline ver 0 + ver 1 chạy trên cùng một chuỗi thể tích — cache theo seed
+  const pipelines = useMemo(() => {
+    if (mode === 'custom') return null
+    const key = `${seed}|${sparseMode ? 1 : 0}`
+    let v = PIPELINE_CACHE.get(key)
+    if (v === undefined) {
+      v = runBothPipelines(sim, seed)
+      if (PIPELINE_CACHE.size > 8) PIPELINE_CACHE.clear()
+      PIPELINE_CACHE.set(key, v)
+    }
+    return v
+  }, [mode, seed, sparseMode, sim])
+
+  const pipelineAnalyses = useMemo(() => {
+    if (pipelines === null) return null
+    return {
+      ver0: scoreDetections(sim, gtGraph, pipelines.ver0.det, pipelines.ver0.edges),
+      ver1: scoreDetections(sim, gtGraph, pipelines.ver1.det, pipelines.ver1.edges),
+    }
+  }, [pipelines, gtGraph, sim])
+
+  const customAnalysis = useMemo(
+    () => analyzeCustom(sim, gtGraph, params, seed),
+    [sim, gtGraph, params, seed],
   )
+
+  const analysis: Analysis =
+    mode === 'custom'
+      ? customAnalysis
+      : mode === 'ver0'
+        ? pipelineAnalyses!.ver0
+        : pipelineAnalyses!.ver1
 
   const [playing, setPlaying] = useState(true)
   const [speed, setSpeed] = useState(1)
@@ -1103,15 +560,18 @@ export default function TrackingDemo() {
 
         let x: number, y: number, z: number, r: number
         let labeled: boolean
+        let ii: number
         if (fa !== null && fb !== null) {
           x = lerp(fa.x, fb.x, u)
           y = lerp(fa.y, fb.y, u)
           z = lerp(fa.z, fb.z, u)
           r = lerp(fa.r, fb.r, u)
           labeled = fa.labeled
+          ii = lerp(fa.i, fb.i, u)
         } else if (fa !== null) {
           x = fa.x; y = fa.y; z = fa.z; r = fa.r
           labeled = fa.labeled
+          ii = fa.i
         } else {
           const mother = tr.parent !== null ? sm.byId.get(tr.parent) : undefined
           const mf = mother !== undefined ? mother.frames[mother.frames.length - 1] : undefined
@@ -1125,6 +585,7 @@ export default function TrackingDemo() {
             x = fb!.x; y = fb!.y; z = fb!.z; r = fb!.r
           }
           labeled = fb!.labeled
+          ii = fb!.i
         }
 
         const X = x * scaleX
@@ -1132,6 +593,8 @@ export default function TrackingDemo() {
         const dz = z / 63
         const R = Math.max(2.5, r * scaleX * (1 - 0.28 * dz))
         const ghost = st.sparse && !labeled
+        // tế bào trong "cửa sổ mờ" (rời mặt phẳng chiếu) tối hơn rõ rệt
+        const dimF = clamp(Math.pow(ii / 1800, 0.6), 0.22, 1.08)
 
         if (ghost) {
           ctx.strokeStyle = 'rgba(110, 231, 183, 0.22)'
@@ -1143,7 +606,7 @@ export default function TrackingDemo() {
           ctx.setLineDash([])
         } else {
           const g = ctx.createRadialGradient(X, Y, 0, X, Y, R)
-          const aBase = 0.9 - 0.35 * dz
+          const aBase = (0.9 - 0.35 * dz) * dimF
           g.addColorStop(0, `rgba(209, 250, 229, ${aBase.toFixed(3)})`)
           g.addColorStop(0.45, `rgba(52, 211, 153, ${(aBase * 0.75).toFixed(3)})`)
           g.addColorStop(1, 'rgba(6, 78, 59, 0)')
@@ -1151,7 +614,7 @@ export default function TrackingDemo() {
           ctx.beginPath()
           ctx.arc(X, Y, R, 0, Math.PI * 2)
           ctx.fill()
-          ctx.fillStyle = `rgba(236, 254, 255, ${(0.85 - 0.3 * dz).toFixed(3)})`
+          ctx.fillStyle = `rgba(236, 254, 255, ${((0.85 - 0.3 * dz) * dimF).toFixed(3)})`
           ctx.beginPath()
           ctx.arc(X, Y, Math.max(1, R * 0.16), 0, Math.PI * 2)
           ctx.fill()
@@ -1426,16 +889,15 @@ export default function TrackingDemo() {
               Trình mô phỏng &amp; chấm điểm bài nộp
             </CardTitle>
             <CardDescription className="mt-1 text-xs sm:text-sm">
-              Dữ liệu kính hiển vi 3D+time của phôi zebrafish — lớp{' '}
-              <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                ground-truth
-              </span>{' '}
-              (đốm emerald) đối chiếu lớp{' '}
+              Chạy <span className="font-semibold text-emerald-700 dark:text-emerald-300">thật</span>{' '}
+              thuật toán từng phiên bản nộp bài (port JS từ notebook Kaggle) trên
+              thể tích 3D tổng hợp của phôi zebrafish, rồi chấm điểm đúng metric
+              cuộc thi. Đổi phiên bản để so sánh Ver 0 (baseline) với Ver 1
+              (Stage 0+2), hoặc dùng chế độ{' '}
               <span className="font-semibold text-teal-700 dark:text-teal-300">
-                dự đoán
+                Tùy chỉnh
               </span>{' '}
-              (vòng teal) từ &quot;thuật toán&quot; nearest-neighbor. Chỉnh tham
-              số và xem điểm thay đổi theo đúng tinh thần metric cuộc thi.
+              để thí nghiệm các loại lỗi.
             </CardDescription>
           </div>
         </div>
@@ -1608,26 +1070,34 @@ export default function TrackingDemo() {
           </div>
         </div>
 
-        {/* 5 · tham số thuật toán */}
+        {/* 5 · phiên bản thuật toán nộp bài */}
         <div className="rounded-xl border bg-muted/30 p-4 sm:p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Wand2 className="size-4 text-emerald-600 dark:text-emerald-400" />
-              Tham số &quot;thuật toán&quot; giả lập
+              Thuật toán nộp bài (theo phiên bản)
             </div>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {PRESETS.map((pr) => (
-                <Button
-                  key={pr.name}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2.5 text-xs"
-                  onClick={() => setParams({ ...pr.p })}
-                >
-                  {pr.name}
-                </Button>
-              ))}
+            <div className="flex flex-wrap items-center gap-2">
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                size="sm"
+                value={mode}
+                onValueChange={(v) => {
+                  if (v === 'ver0' || v === 'ver1' || v === 'custom') setMode(v)
+                }}
+                aria-label="Chọn phiên bản thuật toán"
+              >
+                <ToggleGroupItem value="ver0" aria-label="Ver 0, notebook baseline gốc">
+                  Ver 0 · Baseline
+                </ToggleGroupItem>
+                <ToggleGroupItem value="ver1" aria-label="Ver 1, Stage 0+2 đã nộp">
+                  Ver 1 · Stage 0+2
+                </ToggleGroupItem>
+                <ToggleGroupItem value="custom" aria-label="Chế độ tùy chỉnh tham số">
+                  Tùy chỉnh
+                </ToggleGroupItem>
+              </ToggleGroup>
               <Button
                 type="button"
                 variant="secondary"
@@ -1640,63 +1110,209 @@ export default function TrackingDemo() {
               </Button>
             </div>
           </div>
-          <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
-            <ParamSlider
-              label="Phát hiện (recall)"
-              hint="Xác suất bắt được từng tế bào ở mỗi khung — thiếu sẽ sinh cạnh FN."
-              value={params.recall}
-              min={0.5}
-              max={1}
-              step={0.01}
-              fmt={(v) => v.toFixed(2)}
-              onChange={(v) => setParams((p) => ({ ...p, recall: v }))}
-            />
-            <ParamSlider
-              label="Node giả (FP)"
-              hint="Tỉ lệ phát hiện thừa — bị trừ trực tiếp vào mẫu số điểm cạnh."
-              value={params.fpRate}
-              min={0}
-              max={0.15}
-              step={0.005}
-              fmt={(v) => `${(v * 100).toFixed(1)}%`}
-              onChange={(v) => setParams((p) => ({ ...p, fpRate: v }))}
-            />
-            <ParamSlider
-              label="Nhiễu định vị"
-              hint="Sai số tâm node — quá lớn thì vượt ngưỡng ghép 7.0 µm, gây FN."
-              value={params.jitter}
-              min={0}
-              max={4}
-              step={0.1}
-              fmt={(v) => `${v.toFixed(1)} µm`}
-              onChange={(v) => setParams((p) => ({ ...p, jitter: v }))}
-            />
-            <ParamSlider
-              label="Ngưỡng liên kết"
-              hint="Bán kính tối đa nối node giữa 2 khung — quá lỏng sẽ tạo cạnh FP chéo."
-              value={params.linkUm}
-              min={3}
-              max={16}
-              step={0.5}
-              fmt={(v) => `${v.toFixed(1)} µm`}
-              onChange={(v) => setParams((p) => ({ ...p, linkUm: v }))}
-            />
-          </div>
-          <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border bg-background/60 px-3.5 py-2.5">
-            <div className="flex items-center gap-2.5">
-              <Switch
-                id="td-division"
-                checked={params.division}
-                onCheckedChange={(c) => setParams((p) => ({ ...p, division: c }))}
-              />
-              <Label htmlFor="td-division" className="cursor-pointer text-xs">
-                Phát hiện phân bào (nối 1 node tới 2 node con)
-              </Label>
-            </div>
-            <p className="hidden text-[11px] text-muted-foreground sm:block">
-              Tắt → mất điểm division (10% tổng điểm)
-            </p>
-          </div>
+
+          {mode === 'custom' ? (
+            <>
+              <div className="mb-4 flex flex-wrap items-center gap-1.5">
+                {PRESETS.map((pr) => (
+                  <Button
+                    key={pr.name}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2.5 text-xs"
+                    onClick={() => setParams({ ...pr.p })}
+                  >
+                    {pr.name}
+                  </Button>
+                ))}
+              </div>
+              <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
+                <ParamSlider
+                  label="Phát hiện (recall)"
+                  hint="Xác suất bắt được từng tế bào ở mỗi khung — thiếu sẽ sinh cạnh FN."
+                  value={params.recall}
+                  min={0.5}
+                  max={1}
+                  step={0.01}
+                  fmt={(v) => v.toFixed(2)}
+                  onChange={(v) => setParams((p) => ({ ...p, recall: v }))}
+                />
+                <ParamSlider
+                  label="Node giả (FP)"
+                  hint="Tỉ lệ phát hiện thừa — bị trừ trực tiếp vào mẫu số điểm cạnh."
+                  value={params.fpRate}
+                  min={0}
+                  max={0.15}
+                  step={0.005}
+                  fmt={(v) => `${(v * 100).toFixed(1)}%`}
+                  onChange={(v) => setParams((p) => ({ ...p, fpRate: v }))}
+                />
+                <ParamSlider
+                  label="Nhiễu định vị"
+                  hint="Sai số tâm node — quá lớn thì vượt ngưỡng ghép 7.0 µm, gây FN."
+                  value={params.jitter}
+                  min={0}
+                  max={4}
+                  step={0.1}
+                  fmt={(v) => `${v.toFixed(1)} µm`}
+                  onChange={(v) => setParams((p) => ({ ...p, jitter: v }))}
+                />
+                <ParamSlider
+                  label="Ngưỡng liên kết"
+                  hint="Bán kính tối đa nối node giữa 2 khung — quá lỏng sẽ tạo cạnh FP chéo."
+                  value={params.linkUm}
+                  min={3}
+                  max={16}
+                  step={0.5}
+                  fmt={(v) => `${v.toFixed(1)} µm`}
+                  onChange={(v) => setParams((p) => ({ ...p, linkUm: v }))}
+                />
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border bg-background/60 px-3.5 py-2.5">
+                <div className="flex items-center gap-2.5">
+                  <Switch
+                    id="td-division"
+                    checked={params.division}
+                    onCheckedChange={(c) => setParams((p) => ({ ...p, division: c }))}
+                  />
+                  <Label htmlFor="td-division" className="cursor-pointer text-xs">
+                    Phát hiện phân bào (nối 1 node tới 2 node con)
+                  </Label>
+                </div>
+                <p className="hidden text-[11px] text-muted-foreground sm:block">
+                  Tắt → mất điểm division (10% tổng điểm)
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* console log mô phỏng Kaggle */}
+              <pre className="mb-4 overflow-x-auto rounded-lg bg-[#04100b] p-3 font-mono text-[11px] leading-relaxed text-emerald-200/90">
+                {(() => {
+                  const run = mode === 'ver0' ? pipelines!.ver0 : pipelines!.ver1
+                  const st = run.stats
+                  return [
+                    `[mô phỏng] 30/60 khung · ${st.nodes30} node · ${st.edges30} cạnh · ${st.div30} phân bào · ${Math.round(st.ms30)} ms`,
+                    `[mô phỏng] 60/60 khung · ${st.nodes} node · ${st.edges} cạnh · ${st.divisions} phân bào · ${Math.round(st.ms)} ms`,
+                    `== mô phỏng · ${MODE_LABEL[mode]}: ${st.nodes} nodes · ${st.edges} edges · ${st.divisions} phân bào (${Math.round(st.ms)} ms)`,
+                  ].join('\n')
+                })()}
+              </pre>
+
+              {/* pipeline của phiên bản đang chọn */}
+              <div className="mb-4 flex flex-wrap items-center gap-1.5">
+                <span className="mr-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Pipeline
+                </span>
+                {VERSION_INFO[mode].map((s) => (
+                  <span
+                    key={s}
+                    className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] text-emerald-700 dark:text-emerald-300"
+                  >
+                    {s}
+                  </span>
+                ))}
+              </div>
+
+              {/* so sánh 2 phiên bản trên cùng dữ liệu */}
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[460px] border-collapse text-left text-xs">
+                  <thead>
+                    <tr className="border-b text-muted-foreground">
+                      <th className="py-2 pr-3 font-medium">Trên cùng dữ liệu này</th>
+                      <th className={`px-3 py-2 font-medium ${mode === 'ver0' ? 'rounded-t-lg bg-emerald-500/10' : ''}`}>
+                        Ver 0 · Baseline
+                      </th>
+                      <th className={`px-3 py-2 font-medium ${mode === 'ver1' ? 'rounded-t-lg bg-emerald-500/10' : ''}`}>
+                        Ver 1 · Stage 0+2
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="font-mono tabular-nums">
+                    {(() => {
+                      const a = pipelineAnalyses!
+                      const m0 = a.ver0.metrics
+                      const m1 = a.ver1.metrics
+                      const rows: { label: string; v0: string; v1: string; better1?: boolean }[] = [
+                        {
+                          label: 'Phát hiện node (recall)',
+                          v0: m0.nodeRecall.toFixed(3),
+                          v1: m1.nodeRecall.toFixed(3),
+                          better1: m1.nodeRecall > m0.nodeRecall,
+                        },
+                        {
+                          label: 'Edge Jaccard (điều chỉnh)',
+                          v0: m0.adjEJ.toFixed(3),
+                          v1: m1.adjEJ.toFixed(3),
+                          better1: m1.adjEJ > m0.adjEJ,
+                        },
+                        {
+                          label: 'Division Jaccard',
+                          v0: m0.divJ.toFixed(3),
+                          v1: m1.divJ.toFixed(3),
+                          better1: m1.divJ > m0.divJ,
+                        },
+                        {
+                          label: 'Cạnh TP · FP · FN',
+                          v0: `${m0.tp} · ${m0.fp} · ${m0.fn}`,
+                          v1: `${m1.tp} · ${m1.fp} · ${m1.fn}`,
+                          better1: m1.tp > m0.tp,
+                        },
+                        {
+                          label: 'Phân bào TP · FP · FN',
+                          v0: `${m0.divTP} · ${m0.divFP} · ${m0.divFN}`,
+                          v1: `${m1.divTP} · ${m1.divFP} · ${m1.divFN}`,
+                          better1: m1.divTP > m0.divTP,
+                        },
+                        {
+                          label: 'Node thừa (spurious)',
+                          v0: String(m0.spurious),
+                          v1: String(m1.spurious),
+                          better1: m1.spurious < m0.spurious,
+                        },
+                        {
+                          label: 'Thời gian chạy 60 khung',
+                          v0: `${Math.round(pipelines!.ver0.stats.ms)} ms`,
+                          v1: `${Math.round(pipelines!.ver1.stats.ms)} ms`,
+                        },
+                        {
+                          label: 'Điểm tổng (mô phỏng)',
+                          v0: m0.combined.toFixed(3),
+                          v1: m1.combined.toFixed(3),
+                          better1: m1.combined > m0.combined,
+                        },
+                      ]
+                      return rows.map((r) => (
+                        <tr key={r.label} className="border-b border-border/50 last:border-0">
+                          <td className="py-1.5 pr-3 font-sans text-muted-foreground">{r.label}</td>
+                          <td className={`px-3 py-1.5 ${mode === 'ver0' ? 'bg-emerald-500/10 font-bold' : ''}`}>
+                            {r.v0}
+                          </td>
+                          <td className={`px-3 py-1.5 ${mode === 'ver1' ? 'bg-emerald-500/10 font-bold' : ''}`}>
+                            {r.v1}
+                            {r.better1 === true && (
+                              <span className="ml-1.5 font-sans text-[10px] text-emerald-600 dark:text-emerald-400">
+                                ▲
+                              </span>
+                            )}
+                            {r.better1 === false && (
+                              <span className="ml-1.5 font-sans text-[10px] text-rose-500">▼</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-2.5 text-[11px] leading-snug text-muted-foreground">
+                Cùng một thể tích tổng hợp (seed {seed}) chạy qua cả hai pipeline —
+                khác biệt đến từ thuật toán, không phải dữ liệu. Trên Kaggle thật,
+ điểm tuyệt đối sẽ khác nhưng TRẬT TỰ ver 1 &gt; ver 0 giữ nguyên.
+              </p>
+            </>
+          )}
         </div>
 
         {/* 6 · chú giải */}

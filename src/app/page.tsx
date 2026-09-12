@@ -37,15 +37,17 @@ export default function Home() {
               <strong className="text-foreground">ground-truth</strong> (đốm
               emerald — &quot;đáp án&quot;) đối chiếu với lớp{" "}
               <strong className="text-foreground">dự đoán</strong> (vòng teal)
-              do thuật toán nearest-neighbor giả lập sinh ra. Hệ thống tự ghép
-              node tối ưu trong ngưỡng 7.0 µm, đếm cạnh{" "}
+              do <strong className="text-foreground">chính thuật toán nộp bài</strong>{" "}
+              (port JS trung thành từ notebook Kaggle) chạy trên thể tích 3D tổng
+              hợp. Hệ thống tự ghép node tối ưu trong ngưỡng 7.0 µm, đếm cạnh{" "}
               <strong className="text-foreground">TP/FP/FN</strong>, phát hiện{" "}
               <strong className="text-foreground">phân bào</strong> và tính điểm
               đúng công thức{" "}
               <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em]">
                 adj_edge + 0.1 × division
               </code>
-              . Hãy kéo các thanh tham số để xem điểm số thay đổi tức thì!
+              . Hãy đổi giữa Ver 0 (baseline) ↔ Ver 1 (Stage 0+2) — hoặc chỉnh
+              tham số ở chế độ Tùy chỉnh — để xem điểm thay đổi tức thì!
             </p>
           </div>
           <TrackingDemo />
