@@ -195,6 +195,21 @@ const V3: VerParams = {
   divMomBrightBonus: 1.05,
 }
 
+// --- ver 4 (kaggle/ver-4 · cell 2) — stitching hậu kiểm ---
+// GATE_MIN 5→7 (p99 bước GT 6,9µm) + MAX_SKIP 2→3; phần phát hiện/phân bào
+// giữ nguyên ver 3. Stitch chạy HẬU KIỂM sau khi hết chuỗi khung (xem dưới).
+const V4: VerParams = {
+  ...V3,
+  gateMinUm: 7,
+  maxSkipFrames: 3,
+}
+
+// --- ver 4 · tham số stitching (kaggle/ver-4 · cell 2, mục STITCHING) ---
+const STITCH_GAP_MAX = 5        // nối lại track đứt cách ≤ 5 khung
+const STITCH_GATE_UM = 10.0     // gate tại gap=1 (µm)
+const STITCH_GATE_PER_GAP = 2.0 // gate(g) = 10 + 2·(g−1)
+const STITCH_MAX_LOGMASS = 1.1  // |ln(m_start/m_end)| ≤ 1,1 (~3×)
+
 // ---------------------------------------------------------------------------
 // PRNG & tiện ích
 // ---------------------------------------------------------------------------
@@ -1959,11 +1974,113 @@ function createLinkedTracker(
 // Chạy 4 phiên bản trên cùng một chuỗi thể tích (render 1 lần/khung)
 // ---------------------------------------------------------------------------
 
-export type PipelineVersion = 'ver0' | 'ver1' | 'ver2' | 'ver3'
+export type PipelineVersion = 'ver0' | 'ver1' | 'ver2' | 'ver3' | 'ver4'
 
 export interface PipelineRunV3 extends PipelineRun {
   /** ver 2/3: số ứng viên phân bào bị từ chối theo lý do */
   rej: { mass: number; dyn: number; lost: number }
+  /** ver 4: thống kê stitching hậu kiểm */
+  stitch?: { pairs: number; interp: number }
+}
+
+// ---------------------------------------------------------------------------
+// ver 4 · STITCHING HẬU KIỂM — port trung thành stitch_tracks() của
+// kaggle/ver-4/cell3code.py: chạy hết chuỗi khung rồi mới nối mọi track kết
+// thúc ở khung t (node không có cạnh ra) với track mở đầu ở khung t+gap
+// (node không có cạnh vào) nếu hợp gate + khối lượng; gap ≥ 2 chèn node
+// nội suy → chuỗi cạnh LIỀN KHUNG (không bao giờ cạnh nhảy). Chữa 3 tình
+// huống mà Hungarian/frame-skip không với tới: blob gộp > MAX_SKIP khung,
+// mờ > MAX_SKIP khung, quẹo khi mờ làm dự đoán pos+vel·gap trượt.
+// ---------------------------------------------------------------------------
+function stitchTracksPost(
+  sim: SimData,
+  det: Det[][],
+  edges: EdgeRef[],
+): { pairs: number; interp: number } {
+  const key = (t: number, i: number) => `${t}:${i}`
+  const hasOut = new Set<string>()
+  const hasIn = new Set<string>()
+  for (const e of edges) {
+    hasOut.add(key(e.at, e.ai))
+    hasIn.add(key(e.bt, e.bi))
+  }
+  const posOf = (t: number, i: number): [number, number, number] => {
+    const d = det[t]![i]!
+    return [d.z * Z_UM_PER_VOXEL, d.y, d.x]
+  }
+
+  const endsByT: number[][] = Array.from({ length: T }, () => [])
+  const startsByT: number[][] = Array.from({ length: T }, () => [])
+  for (let t = 0; t < T; t++) {
+    for (let i = 0; i < det[t]!.length; i++) {
+      if (!hasOut.has(key(t, i))) endsByT[t]!.push(i)
+      if (!hasIn.has(key(t, i))) startsByT[t]!.push(i)
+    }
+  }
+
+  const usedE = new Set<string>()
+  const usedS = new Set<string>()
+  let pairs = 0
+  let nInterp = 0
+
+  for (let gap = 1; gap <= STITCH_GAP_MAX; gap++) {
+    const gate = STITCH_GATE_UM + STITCH_GATE_PER_GAP * (gap - 1)
+    for (let te = 0; te + gap < T; te++) {
+      const E = endsByT[te]!.filter((i) => !usedE.has(key(te, i)))
+      const S = startsByT[te + gap]!.filter((i) => !usedS.has(key(te + gap, i)))
+      if (E.length === 0 || S.length === 0) continue
+      const pe = E.map((i) => posOf(te, i))
+      const me = E.map((i) => det[te]![i]!.mass)
+      const ps = S.map((i) => posOf(te + gap, i))
+      const ms = S.map((i) => det[te + gap]![i]!.mass)
+      const cost: number[][] = []
+      for (let r = 0; r < E.length; r++) {
+        const row: number[] = []
+        for (let c = 0; c < S.length; c++) {
+          const d = physDist(pe[r]!, ps[c]!)
+          const massOk =
+            me[r]! > 0 && ms[c]! > 0
+              ? Math.abs(Math.log(ms[c]! / me[r]!)) <= STITCH_MAX_LOGMASS
+              : true
+          row.push(d <= gate && massOk ? d : 1e9)
+        }
+        cost.push(row)
+      }
+      const assign = hungarian(cost)
+      for (let r = 0; r < E.length; r++) {
+        const c = assign[r]
+        if (c === null || cost[r]![c]! > gate) continue
+        const ie = E[r]!, isx = S[c]!
+        usedE.add(key(te, ie))
+        usedS.add(key(te + gap, isx))
+        // chuỗi cạnh liền khung: end → node nội suy (từng khung) → start
+        let chainT = te
+        let chainI = ie
+        for (let k = 1; k < gap; k++) {
+          const tk = te + k
+          const zm = pe[r]![0] + (ps[c]![0] - pe[r]![0]) * (k / gap)
+          const y = pe[r]![1] + (ps[c]![1] - pe[r]![1]) * (k / gap)
+          const x = pe[r]![2] + (ps[c]![2] - pe[r]![2]) * (k / gap)
+          const z = zm / Z_UM_PER_VOXEL
+          det[tk]!.push({
+            x, y, z,
+            r: 2.6,
+            i: Math.round((me[r]! + ms[c]!) / 54),
+            mass: (me[r]! + ms[c]!) / 2,
+            src: nearestSrc(sim, tk, x, y, z, 4.0),
+          })
+          const midIdx = det[tk]!.length - 1
+          edges.push({ at: chainT, ai: chainI, bt: tk, bi: midIdx })
+          chainT = tk
+          chainI = midIdx
+          nInterp++
+        }
+        edges.push({ at: chainT, ai: chainI, bt: te + gap, bi: isx })
+        pairs++
+      }
+    }
+  }
+  return { pairs, interp: nInterp }
 }
 
 export function runAllPipelines(
@@ -1982,9 +2099,10 @@ export function runAllPipelines(
     ver1: Array.from({ length: T }, () => []),
     ver2: Array.from({ length: T }, () => []),
     ver3: Array.from({ length: T }, () => []),
+    ver4: Array.from({ length: T }, () => []),
   }
   const edges: Record<PipelineVersion, EdgeRef[]> = {
-    ver0: [], ver1: [], ver2: [], ver3: [],
+    ver0: [], ver1: [], ver2: [], ver3: [], ver4: [],
   }
 
   // ---- tracker ver 0: Hungarian gate 15 µm, không motion/division/skip ----
@@ -1994,11 +2112,12 @@ export function runAllPipelines(
   const trk1 = createLinkedTracker(sim, V1, det.ver1, edges.ver1)
   const trk2 = createLinkedTracker(sim, V2, det.ver2, edges.ver2)
   const trk3 = createLinkedTracker(sim, V3, det.ver3, edges.ver3)
+  const trk4 = createLinkedTracker(sim, V4, det.ver4, edges.ver4)
 
   const t0 = performance.now()
   let ms0 = 0
   let ms123 = 0
-  const at30 = { n: [0, 0, 0, 0], e: [0, 0, 0, 0], d: [0, 0, 0, 0], ms: [0, 0, 0, 0] }
+  const at30 = { n: [0, 0, 0, 0, 0], e: [0, 0, 0, 0, 0], d: [0, 0, 0, 0, 0], ms: [0, 0, 0, 0, 0] }
 
   for (let t = 0; t < T; t++) {
     const rng = mulberry32((seed * 7919 + t * 104729) >>> 0)
@@ -2070,18 +2189,23 @@ export function runAllPipelines(
     const d23 = detectFrame(sim, t, smoothed, V2, scratch)
     det.ver2[t] = [...d23]
     det.ver3[t] = [...d23]
+    det.ver4[t] = [...d23]
     trk1.step(t)
     trk2.step(t)
     trk3.step(t)
+    trk4.step(t)
     ms123 += performance.now() - tb
 
     if (t === 29) {
-      at30.n = [det.ver0, det.ver1, det.ver2, det.ver3].map((dd) => dd.reduce((s, f) => s + f.length, 0))
-      at30.e = [edges.ver0, edges.ver1, edges.ver2, edges.ver3].map((ee) => ee.length)
-      at30.d = [0, trk1.divCount(), trk2.divCount(), trk3.divCount()]
-      at30.ms = [ms0, ms123 / 3, ms123 / 3, ms123 / 3]
+      at30.n = [det.ver0, det.ver1, det.ver2, det.ver3, det.ver4].map((dd) => dd.reduce((s, f) => s + f.length, 0))
+      at30.e = [edges.ver0, edges.ver1, edges.ver2, edges.ver3, edges.ver4].map((ee) => ee.length)
+      at30.d = [0, trk1.divCount(), trk2.divCount(), trk3.divCount(), trk4.divCount()]
+      at30.ms = [ms0, ms123 / 3, ms123 / 3, ms123 / 3, ms123 / 4]
     }
   }
+
+  // ---- ver 4: stitching hậu kiểm (chạy sau khi hết chuỗi khung) ----
+  const stitch = stitchTracksPost(sim, det.ver4, edges.ver4)
 
   const total = performance.now() - t0
   const mk = (v: PipelineVersion, i: number, div: number, rej: { mass: number; dyn: number; lost: number }): PipelineRunV3 => ({
@@ -2090,7 +2214,7 @@ export function runAllPipelines(
       nodes: det[v].reduce((s, f) => s + f.length, 0),
       edges: edges[v].length,
       divisions: div,
-      ms: v === 'ver0' ? ms0 : ms123 / 3,
+      ms: v === 'ver0' ? ms0 : v === 'ver4' ? ms123 / 4 : ms123 / 3,
       nodes30: at30.n[i]!,
       edges30: at30.e[i]!,
       div30: at30.d[i]!,
@@ -2106,5 +2230,6 @@ export function runAllPipelines(
     ver1: mk('ver1', 1, trk1.divCount(), { mass: 0, dyn: 0, lost: 0 }),
     ver2: mk('ver2', 2, trk2.divCount(), trk2.rejStats()),
     ver3: mk('ver3', 3, trk3.divCount(), trk3.rejStats()),
+    ver4: { ...mk('ver4', 4, trk4.divCount(), trk4.rejStats()), stitch },
   }
 }

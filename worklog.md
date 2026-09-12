@@ -312,3 +312,25 @@ Stage Summary:
 - Bug user gặp KHÔNG phải logic thuật toán mà là dán đè Cell 3 làm rơi dòng STRUCT26 đầu cell
 - Hướng dẫn user 2 lối: (1) vá nhanh — thêm STRUCT26 = np.ones((3,3,3), dtype=bool) vào đầu Cell 3 rồi chạy lại từ Cell 3; (2) dán lại Cell 3 mới từ kaggle/ver-3/cell3code.py (hoặc import lại download/ver3-cell-tracking.ipynb)
 - Tất cả cell3code ver-1/2/3 + stage0plus2 giờ tự chứa cấu trúc liên kết — lỗi này không thể tái diễn
+
+---
+Task ID: 18
+Agent: main
+Task: Triển khai 2 đề xuất (ver-4 stitching + notebook chạy-train kèm scorer), tự rà soát lỗi/thiếu sót và vá, báo cáo
+
+Work Log:
+- KAGGLE/VER-4: cell2 (GATE_MIN 5→7 p99 bước GT 6,9µm · MAX_SKIP 2→3 · 5 tham số STITCH_*) + cell3 (thu thập node_meta t/z/y/x µm + mass mỗi node; hàm stitch_tracks() chạy sau mỗi dataset: end=không cạnh ra ↔ start=không cạnh vào, gap 1..5, gate 10+2·(gap−1)µm, |ln mass| ≤ 1,1, Hungarian theo nhóm (te,gap), gap≥2 chèn node nội suy → chuỗi cạnh liền khung; DATA_DIR thay TEST_DIR để tái dùng cho bản chạy-train)
+- THIẾT KẾ: collision check mặc định TẮT (STITCH_COLLISION_UM=0) — hành lang nối blob-break đi đúng qua node CoM của track bạn đồng hành; metric merge-collapse cạnh trùng nên chuỗi song song không tạo FP cạnh. Stitch không bao giờ tạo fork (out-degree 0→1, in-degree 0→1)
+- TEST test-ver4-synth.py: 4 kịch bản đứt (N blob-break 4 khung · H merge-split khéo · P mờ 3 khung + quẹo 90° làm skip-trượt 16,2µm > 12 · W đứng yên mờ 4 khung d=0) + regression ver-3 (D phân bào · E/F · G/H mass · B/C tách blob · J nội suy) + A/B stitch TẮT (namespace thứ 2)
+- 3 VÒNG DEBUG: (1) A đặt gần G → gộp blob làm mass baseline nhiễm (rise 1,67 lọt cửa) + H' bị nuốt thành con phân bào giả → dàn lại A; (2) công thức P sai trục (y chạy trong pha 1 → teleport 10,7µm, skip tự chữa được) → viết lại y cố định + quẹo khi mờ; (3) con gái D tách chậm (1,2 vox/khung → blob tách t=14, không kịp xác nhận) → tăng 2,0 vox/khung (tách t=11, fork đúng vị trí rider t=10)
+- BUG THẬT TÌM THẤY KHI RÀ SOÁT: `d <= 0.0` trong stitch từ chối cặp end→start CÙNG VỊ TRÍ — đúng trường hợp tế bào đứng yên mờ rồi sáng lại. Vá + thêm kịch bản W phủ test. KẾT QUẢ: 28/28 ĐẠT (đối chứng TẮT: 4/4 đứt)
+- NOTEBOOK CHẠY-TRAIN: make-ver4-ipynb.py sinh 2 notebook — ver4-cell-tracking.ipynb (nộp bài, đọc test) + ver4-train-eval.ipynb (7 cell: cell2' trỏ DATA_DIR=TRAIN_DIR + cấu hình scorer; scorer cell 2+3 từ kaggle/scorer). Test E2E test-ver4-train-eval.py: dựng .zarr + .geff GT (225 node · 213 cạnh · 1 phân bào, zarr v2 đúng format BTC) rồi exec đúng 7 cell của notebook → ĐẠT TẤT CẢ: score 1.1000 (EJ 1.0 · divJ 1.0 · recall 1.0 · FP 0)
+- README: bảng thêm ver 4 + section ver 4 đầy đủ (bối cảnh/nâng cấp/vì sao an toàn/cách dùng) + Local scorer nhắc notebook tất-cả-trong-một
+- WEB: tracking-pipeline.ts port ver-4 (V4 params + stitchTracksPost port trung thành + PipelineVersion 'ver4' + stitch stats); tracking-demo.tsx 6 mode (mặc định ver4, console log thêm dòng [stitch], bảng 5 cột); submission-lab.tsx thêm 2 card registry ver-3 + ver-4 + cập nhật card Local scorer
+- Harness 3 seed: ver4 adjEJ 0,960/0,950/0,960 (ver3: 0,957/0,943/0,962) · FN cạnh 35/36/28 (ver3: 53/91/45) — stitching phục hồi track đúng thiết kế
+- E2E agent-browser: tải trang sạch, Ver 4 click chạy (log [stitch] nối 8 track · +11 node), bảng 5 cột ver4 điểm cao nhất 0.994▲, lab hiện đủ card ver3/ver4/train-eval/1.100, mobile 390 = 390, dev.log sạch; lint sạch, tsc src sạch
+
+Stage Summary:
+- Sản phẩm: kaggle/ver-4/ (cell1..4 + test-ver4-synth 28/28 + test-ver4-train-eval E2E 1.100), download/ver4-cell-tracking.ipynb + ver4-train-eval.ipynb, README ver-4, website 6 mode + registry 6 phiên bản
+- Bài học: (a) bố cục synthetic phải kiểm khoảng cách đỉnh ds (A/G cách 4,03 ds < MIN_PEAK_DIST 4 → gộp); (b) quỹ đạo nhiều pha phải khai báo từng trục rõ ràng; (c) điều kiện biên d≤0 là bug kinh điển của stitching
+- Bước tiếp theo cho user: Import ver4-train-eval.ipynb vào Kaggle → Run All → đọc score offline (so ver 1 = 0.198) → tune cell 2 (PERCENTILE, STITCH_*) → khi tốt hơn thì Import ver4-cell-tracking.ipynb → Save & Run All → Submit

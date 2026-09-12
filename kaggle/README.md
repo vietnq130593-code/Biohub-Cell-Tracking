@@ -16,6 +16,7 @@ notebook Kaggle gốc rồi **Save & Run All → Submit**.
 | 1 | Stage 0+2 | **0.198** | 13/09/2026 |
 | 2 | Chống gộp blob + phân bào xác nhận | soạn thảo ✓ | — |
 | 3 | Phân bào theo profile độ sáng (từ discussion #740573) | soạn thảo ✓ | — |
+| 4 | Stitching hậu kiểm (nối lại track đứt) | soạn thảo ✓ | — |
 
 ## Hotfix — NameError STRUCT26 (rơi trên Kaggle 13/09/2026)
 
@@ -123,6 +124,38 @@ continuation, 72 cạnh phân bào, 572 track) — không phải dự đoán:
 | **Mới — kiểm tra "ổn định khối lượng mẹ"**: khối lượng blob mẹ tại khung tách ≤ ~1,7× baseline riêng của nó | merge-split giả: blob gộp 2 tế bào ≈ 2× đơn; phân bào thật chỉ sáng lên nhẹ (AUC 0,73) |
 | Giữ nội suy + xác nhận động học | GT 100% cạnh liền khung; base rate 24:1 |
 | Phân bổ công lực: 90% cho adjEJ (trọng số 1,0) — division chỉ 0,1 | Kể cả hạng 40 cũng hỏi "tín hiệu gì chạy được division > 0" |
+
+## ver 4 — Stitching hậu kiểm (nối lại track đứt)
+
+- **Nguồn**: `ver-4/` · **kiểm chứng**: `ver-4/test-ver4-synth.py` — **ĐẠT TẤT CẢ
+  28/28** (đối chứng stitch TẮT: 3 kịch bản đứt đều hỏng) + `ver-4/test-ver4-train-eval.py`
+  — E2E chạy notebook `download/ver4-train-eval.ipynb` trên synthetic có nhãn
+  .geff: **score 1.100/1.100** (EJ 1.0 · divJ 1.0 · recall 1.0)
+- **Bối cảnh**: chẩn đoán ver 3 trên test — trung vị 2–3 node/track (GT: 35
+  khung/track) · ~20% node mở đầu track · 3 cơ chế nối có sẵn đều bỏ sót:
+  1. gate thích ứng bị kẹp [5,14] — p99 bước GT = 6,9 µm → min 5 giết bước hợp lệ
+  2. frame-skip chỉ ≤ MAX_SKIP khung VÀ dự đoán pos+vel·gap phải ≤ SKIP_GATE 12 µm
+     — tế bào quẹo khi mờ làm dự đoán trượt
+  3. blob gộp > MAX_SKIP khung: track bạn đồng hành chết hẳn (pending hết hạn)
+- **Nâng cấp**:
+  1. `GATE_MIN_UM 5 → 7` (p99 bước GT) · `MAX_SKIP_FRAMES 2 → 3`.
+  2. **MỚI — `stitch_tracks()` chạy sau mỗi dataset**: mọi track kết thúc ở
+     khung t (node không có cạnh ra) + track mở đầu ở khung t+gap (node không
+     có cạnh vào) trong gate `10 + 2·(gap−1) µm` (gap ≤ 5) và
+     `|ln khối lượng| ≤ 1,1` (~3×) → **Hungarian toàn cục theo nhóm** → gap ≥ 2
+     chèn node nội suy, nối chuỗi cạnh **LIỀN KHUNG** (không bao giờ cạnh nhảy).
+  3. `STITCH_COLLISION_UM = 0` (tắt kiểm tra đụng node trên đường nội suy):
+     hành lang nối blob-break đi đúng qua node CoM của track bạn đồng hành;
+     metric tự merge-collapse cạnh trùng nên chuỗi song song không tạo FP cạnh,
+     node thừa chỉ bị phạt nhẹ (hệ số 0,1).
+- **Vì sao an toàn**: stitch không bao giờ tạo fork (end có out-degree 0 → 1,
+  start có in-degree 0 → 1) · chỉ chạy khi 2 đầu hợp gate + khối lượng ·
+  cạnh nhảy không tồn tại (chuỗi nội suy) · con của phân bào đã xác nhận có
+  cạnh vào nên không bị nối nhầm.
+- **Dùng**: dán 4 cell `ver-4/` vào notebook Kaggle, hoặc Import
+  `download/ver4-cell-tracking.ipynb`. Đo điểm offline: Import
+  `download/ver4-train-eval.ipynb` (cell 2 đã trỏ `DATA_DIR` vào train,
+  chạy xong tự chấm bằng port metric chính thức — xem mục Local scorer).
 
 ## ver 3 — Phân bào theo profile độ sáng (từ discussion #740573)
 

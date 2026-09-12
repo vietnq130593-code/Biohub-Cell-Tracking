@@ -352,17 +352,18 @@ interface RuntimeState {
   sparse: boolean
 }
 
-type Mode = 'ver0' | 'ver1' | 'ver2' | 'ver3' | 'custom'
+type Mode = 'ver0' | 'ver1' | 'ver2' | 'ver3' | 'ver4' | 'custom'
 
 const MODE_LABEL: Record<Mode, string> = {
   ver0: 'Ver 0 · Baseline',
   ver1: 'Ver 1 · Stage 0+2',
   ver2: 'Ver 2 · Tách blob + động học',
   ver3: 'Ver 3 · Profile độ sáng',
+  ver4: 'Ver 4 · Stitching hậu kiểm',
   custom: 'Tùy chỉnh',
 }
 
-const PIPELINE_VERSIONS: PipelineVersion[] = ['ver0', 'ver1', 'ver2', 'ver3']
+const PIPELINE_VERSIONS: PipelineVersion[] = ['ver0', 'ver1', 'ver2', 'ver3', 'ver4']
 
 /** Pipeline steps hiển thị cho từng phiên bản (đúng notebook kaggle/ver-N) */
 const VERSION_INFO: Record<PipelineVersion, string[]> = {
@@ -385,6 +386,11 @@ const VERSION_INFO: Record<PipelineVersion, string[]> = {
     'con kế thừa vận tốc mẹ', 'ỔN ĐỊNH KHỐI LƯỢNG MẸ ≤1,7× baseline',
     'ưu tiên mẹ sáng dần (AUC 0,73)',
   ],
+  ver4: [
+    'ver 3 +', 'gate min 7 µm (p99 bước GT 6,9)', 'skip 3 khung',
+    'STITCHING HẬU KIỂM: nối track kết thúc ↔ track mở đầu (gap ≤ 5)',
+    'gate 10+2·(gap−1) µm + khối lượng ~3×', 'node nội suy — chỉ cạnh liền khung',
+  ],
 }
 
 /** Cache pipeline theo (seed, sparse) — module scope, dữ liệu deterministic */
@@ -394,7 +400,7 @@ export default function TrackingDemo() {
   const [seed, setSeed] = useState(20260911)
   const sim = useMemo(() => buildSimulation(seed), [seed])
 
-  const [mode, setMode] = useState<Mode>('ver3')
+  const [mode, setMode] = useState<Mode>('ver4')
   const [params, setParams] = useState<Params>({ ...DEFAULT_PARAMS })
   const [sparseMode, setSparseMode] = useState(true)
 
@@ -1114,7 +1120,7 @@ export default function TrackingDemo() {
                 size="sm"
                 value={mode}
                 onValueChange={(v) => {
-                  if (v === 'ver0' || v === 'ver1' || v === 'ver2' || v === 'ver3' || v === 'custom') setMode(v)
+                  if (v === 'ver0' || v === 'ver1' || v === 'ver2' || v === 'ver3' || v === 'ver4' || v === 'custom') setMode(v)
                 }}
                 aria-label="Chọn phiên bản thuật toán"
                 className="flex-wrap"
@@ -1130,6 +1136,9 @@ export default function TrackingDemo() {
                 </ToggleGroupItem>
                 <ToggleGroupItem value="ver3" aria-label="Ver 3, phân bào theo profile độ sáng từ discussion #740573">
                   Ver 3
+                </ToggleGroupItem>
+                <ToggleGroupItem value="ver4" aria-label="Ver 4, stitching hậu kiểm nối lại track đứt">
+                  Ver 4
                 </ToggleGroupItem>
                 <ToggleGroupItem value="custom" aria-label="Chế độ tùy chỉnh tham số">
                   Tùy chỉnh
@@ -1230,14 +1239,19 @@ export default function TrackingDemo() {
                   const run = pipelines![mode as PipelineVersion]
                   const st = run.stats
                   const extra =
-                    mode === 'ver2' || mode === 'ver3'
+                    mode === 'ver2' || mode === 'ver3' || mode === 'ver4'
                       ? `\n[phân bào] xác nhận ${st.divisions} · từ chối mass ${run.rej.mass} · động học ${run.rej.dyn} · mất con ${run.rej.lost}`
+                      : ''
+                  const extraStitch =
+                    mode === 'ver4' && run.stitch
+                      ? `\n[stitch] nối lại ${run.stitch.pairs} track đứt · +${run.stitch.interp} node nội suy`
                       : ''
                   return [
                     `[mô phỏng] 30/60 khung · ${st.nodes30} node · ${st.edges30} cạnh · ${st.div30} phân bào · ${fmtMs(st.ms30)}`,
                     `[mô phỏng] 60/60 khung · ${st.nodes} node · ${st.edges} cạnh · ${st.divisions} phân bào · ${fmtMs(st.ms)}`,
                     `== mô phỏng · ${MODE_LABEL[mode]}: ${st.nodes} nodes · ${st.edges} edges · ${st.divisions} phân bào (${fmtMs(st.ms)})`,
                     extra,
+                    extraStitch,
                   ].join('\n')
                 })()}
               </pre>
@@ -1257,7 +1271,7 @@ export default function TrackingDemo() {
                 ))}
               </div>
 
-              {/* so sánh 4 phiên bản trên cùng dữ liệu */}
+              {/* so sánh 5 phiên bản trên cùng dữ liệu */}
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[560px] border-collapse text-left text-xs">
                   <thead>

@@ -1213,6 +1213,109 @@ function VersionsTab() {
           </CardContent>
         </Card>
 
+        {/* ver 3 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+              <span className="flex items-center gap-2">
+                <Split className="h-4 w-4 text-rose-600 dark:text-rose-300" aria-hidden />
+                ver 3 · Phân bào theo profile độ sáng
+              </span>
+              <Badge
+                variant="outline"
+                className="border-rose-500/40 text-[10px] text-rose-700 dark:text-rose-300"
+              >
+                soạn thảo · 21/21 pass
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              Tri thức từ{" "}
+              <a
+                href="https://www.kaggle.com/competitions/biohub-cell-tracking-during-development/discussion/740573"
+                target="_blank"
+                rel="noreferrer"
+                className="underline decoration-dotted underline-offset-2"
+              >
+                discussion #740573
+              </a>{" "}
+              (đo trên 73 file nhãn train):
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-1.5 text-sm text-muted-foreground">
+              <li>
+                • <span className="font-mono">SIBLING_GATE 12→14,5 µm</span> — p99 thật 13,9,
+                max 14,65 (bắt thêm ~10% cặp chị em)
+              </li>
+              <li>
+                • <span className="font-mono">PARENT_GATE 10→12 µm</span> — khoảng cách chỉ là
+                cửa sổ (base rate 24:1), không phải tín hiệu
+              </li>
+              <li>
+                • Ổn định khối lượng mẹ: blob gộp 2 tế bào ≈ 2× bị chặn (
+                <span className="font-mono">rise &gt; 1,7</span>)
+              </li>
+              <li>
+                • Ưu tiên ứng viên có mẹ sáng dần (peak intensity AUC 0,73) · con kế thừa
+                vận tốc mẹ (bug fix)
+              </li>
+            </ul>
+            <p className="border-t pt-3 text-xs text-muted-foreground">
+              Chạy test ver 3: phân bào giả 166 → 6 (−96%) · cạnh +10% · code:{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                kaggle/ver-3/
+              </code>
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* ver 4 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+              <span className="flex items-center gap-2">
+                <GitBranch className="h-4 w-4 text-emerald-600 dark:text-emerald-300" aria-hidden />
+                ver 4 · Stitching hậu kiểm
+              </span>
+              <Badge
+                variant="outline"
+                className="border-emerald-500/40 text-[10px] text-emerald-700 dark:text-emerald-300"
+              >
+                soạn thảo · 28/28 + E2E 1.100
+              </Badge>
+            </CardTitle>
+            <CardDescription>Nhắm thẳng điểm nghẽn số 1 của 0.198 — track đứt:</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-1.5 text-sm text-muted-foreground">
+              <li>
+                • <span className="font-mono">GATE_MIN 5→7 µm</span> (p99 bước GT 6,9) ·{" "}
+                <span className="font-mono">MAX_SKIP 2→3</span>
+              </li>
+              <li>
+                • <span className="font-semibold text-foreground">Stitching hậu kiểm</span>: hết
+                dataset mới nối track kết thúc ở khung <em>t</em> với track mở đầu ở khung{" "}
+                <em>t+gap</em> (gate 10+2·(gap−1) µm + khối lượng ~3×)
+              </li>
+              <li>
+                • Gap ≥ 2 chèn <span className="font-semibold text-foreground">node nội suy</span>{" "}
+                — chỉ cạnh liền khung (cạnh nhảy bị metric bỏ hẳn)
+              </li>
+              <li>
+                • Chữa 3 tình huống không với tới: blob gộp &gt; 3 khung · mờ &gt; 3 khung ·
+                quẹo khi mờ làm dự đoán trượt
+              </li>
+            </ul>
+            <p className="border-t pt-3 text-xs text-muted-foreground">
+              Kiểm chứng: 28/28 (đối chứng stitch TẮT = đứt) · E2E chạy-train + scorer =
+              1.100/1.100 · code:{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                kaggle/ver-4/
+              </code>
+            </p>
+          </CardContent>
+        </Card>
+
         {/* Local scorer */}
         <Card className="md:col-span-2">
           <CardHeader>
@@ -1226,17 +1329,20 @@ function VersionsTab() {
               </Badge>
             </CardTitle>
             <CardDescription>
-              Công cụ chấm offline — notebook riêng{" "}
+              Công cụ chấm offline — port metric chính thức. Bản tất-cả-trong-một:{" "}
               <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
-                kaggle/scorer/
-              </code>
-              .
+                download/ver4-train-eval.ipynb
+              </code>{" "}
+              (pipeline ver 4 chạy trên train + chấm điểm ngay trong notebook).
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-2 text-sm text-muted-foreground sm:grid-cols-3">
-            <p>• Chạy pipeline trên dữ liệu train có GT</p>
+            <p>• Chạy pipeline ver 4 trên dữ liệu train có GT</p>
             <p>• Chấm đúng metric chính thức (port từ repo BTC royerlab)</p>
-            <p>• Phân rã node recall / edge TP-FP-FN / division</p>
+            <p>
+              • Phân rã node recall / edge TP-FP-FN / division — không đốt quota 5
+              submit/ngày
+            </p>
           </CardContent>
         </Card>
       </div>
