@@ -1,5 +1,19 @@
-# ver 2 · cell 3 — PIPELINE: ĐỌC ZARR → DETECTION (+TÁCH BLOB) → TRACKING → PHÂN BÀO XÁC NHẬN
+# ver 3 · cell 3 — PIPELINE: ĐỌC ZARR → DETECTION (+TÁCH BLOB) → TRACKING
+#                          → PHÂN BÀO THEO PROFILE ĐỘ SÁNG
 # Dán đè Cell 3 của notebook Kaggle (toàn bộ thuật toán nằm ở đây).
+# ============================================================
+# Thay đổi so với ver 2 (nguồn: discussion #740573, đo trên nhãn train):
+#   * Mỗi track theo dõi LỊCH SỬ KHỐI LƯỢNG qua các khung (mass_hist).
+#   * Ứng viên phân bào bị chặn nếu blob "mẹ" tại khung tách ≥ 1,7× baseline
+#     riêng của nó — blob gộp 2 tế bào (merge-split) có khối lượng ≈ 2× đơn,
+#     còn mẹ thật chỉ sáng lên nhẹ trước khi chia (peak AUC 0,73).
+#   * Ứng viên có mẹ sáng dần (≥ 1,05× baseline) được XẾP TRƯỚC khi cạnh
+#     tranh nhau con thứ 2 — tín hiệu appearance mạnh hơn hình học.
+#   * DIV_SIBLING_GATE 14,5µm (p99 thật 13,9, max 14,65) — bắt thêm cặp
+#     chị em xa mà ver 2 bỏ sót; các merge-split thừa lọt qua cửa rộng này
+#     sẽ bị mass stability chặn lại.
+#   * DIV_PARENT_GATE 12µm — khoảng cách chỉ là cửa sổ tìm kiếm (base rate
+#     24:1), không còn là tín hiệu.
 # ============================================================
 
 STRUCT26 = np.ones((3, 3, 3), dtype=bool)
@@ -10,7 +24,7 @@ def _over_time_budget():
     return (time.time() - T_START) > TIME_LIMIT_HOURS * 3600.0
 
 
-# ---------- 1) ĐỌC DỮ LIỆU (giữ nguyên ver 1) ----------
+# ---------- 1) ĐỌC DỮ LIỆU (giữ nguyên ver 2) ----------
 def read_zarr_meta(zarr_path):
     """Đọc shape/dtype/chunk grid từ zarr.json của mảng (như notebook gốc)."""
     with open(os.path.join(zarr_path, '0', 'zarr.json')) as f:
@@ -76,7 +90,7 @@ def load_volume(zarr_path, t, shape, dtype, chunk):
     return vol
 
 
-# ---------- 2) DETECTION + TÁCH BLOB GỘP (mới: đỉnh cục bộ) ----------
+# ---------- 2) DETECTION + TÁCH BLOB GỘP (giữ nguyên ver 2) ----------
 def _com(coords, w):
     """Center-of-mass theo cường độ của tập voxel (z,y,x ds, float)."""
     s = w.sum()
@@ -87,11 +101,7 @@ def _com(coords, w):
 
 def detect_nodes(vol):
     """Trả về list dict: z, y, x (voxel gốc, int — đúng format đề bài) và
-    zf, yf, xf (float — cho tracking), mass (tổng cường độ), nvox.
-
-    ver 2: component lớn được TÁCH theo các đỉnh cục bộ (maximum_filter)
-    — 2 tế bào bị ngưỡng gộp thành 1 blob sẽ tách thành 2 node nếu có
-    ≥ 2 đỉnh sáng cách nhau ≥ MIN_PEAK_DIST_DS."""
+    zf, yf, xf (float — cho tracking), mass (tổng cường độ), nvox."""
     ds = vol[::DS_Z, ::DS_Y, ::DS_X].astype(np.float32)
     if ds.size == 0:
         return []
@@ -172,42 +182,69 @@ def detect_nodes(vol):
     return nodes
 
 
-# ---------- 3) TRACKER (ver 2: phân bào xác nhận + skip 2 khung) ----------
+# ---------- 3) TRACKER (ver 3: profile độ sáng cho phân bào) ----------
+def _mass_baseline(hist):
+    """Baseline khối lượng của track: PERCENTILE 25 của MASS_HISTORY giá trị
+    gần nhất, BỎ MASS_SKIP_LAST khung cuối (đúng khoảng mẹ sáng lên trước
+    khi chia). Dùng p25 thay vì median: blob gộp merge-split (≈2×) tồn tại
+    nửa cửa sổ vẫn không kéo được baseline lên — median thì được (bug đã
+    bắt gặp khi kiểm chứng trên mô phỏng TS), còn p25 vẫn kháng được 1–2
+    khung mờ nháp. Trả về None nếu chưa đủ dữ liệu."""
+    if len(hist) < MASS_BASE_MIN_FRAMES + MASS_SKIP_LAST:
+        return None
+    kept = hist[-(MASS_HISTORY + MASS_SKIP_LAST):-MASS_SKIP_LAST]
+    if not kept:
+        return None
+    return float(np.percentile(kept, 25))
+
+
 class Tracker:
-    """Hungarian + motion model + tách blob + PHÂN BÀO XÁC NHẬN ĐỘNG HỌC.
+    """Hungarian + motion model + tách blob + PHÂN BÀO THEO PROFILE ĐỘ SÁNG.
 
     Mỗi khung gồm 5 bước:
       (a) Hungarian giữa node khung trước (đặt tại vị trí DỰ ĐOÁN) và node
           khung hiện tại, gate thích ứng
-      (b) phân bào ỨNG VIÊN: mẹ vừa match nhận thêm con thứ 2 — cạnh
-          divergence ĐƯỢC HOÃN, chờ xác nhận động học ở bước (e)
+      (b) phân bào ỨNG VIÊN — 5 CỬA:
+          1. parent gate 12µm (cửa sổ tìm kiếm — base rate 24:1 nên khoảng
+             cách không còn là tín hiệu)
+          2. sibling gate 14,5µm (p99 thật 13,9 — bắt cả cặp chị em xa)
+          3. bảo toàn độ sáng (con1+con2 ≈ mẹ) + con thứ 2 ≥ 15% mẹ
+          4. MỚI — ỔN ĐỊNH KHỐI LƯỢNG MẸ: khối lượng blob mẹ tại khung tách
+             ≤ 1,7× baseline riêng của nó (blob gộp 2 tế bào ≈ 2×; mẹ thật
+             chỉ sáng lên nhẹ) và ≥ 0,5× (mẹ không phai đột ngột)
+          5. MỚI — Ưu tiên appearance: ứng viên có mẹ sáng dần ≥ 5% xếp trước
+          Cạnh divergence vẫn HOÃN chờ bước (e)
       (c) frame-skip: nối lại track mất ≤ 2 khung + nội suy node giữa
-      (d) dọn dẹp: node chưa ai nhận thành track mới, track mất vào pending
-      (e) xác nhận phân bào: ứng viên phải sống đủ DIV_CONFIRM_FRAMES khung
-          và khoảng cách 2 con tăng ≥ DIV_SEP_GROWTH lần so với lúc "sinh"
-          → mới ghi cạnh + division.
-          Merge-split giả (blob gộp–tách) bị từ chối vì 2 "con" ở xa nhau
-          ngay từ đầu và khoảng cách gần như đứng yên; phân bào thật thì
-          2 con sát nhau lúc sinh rồi tách dần.
-
-    Lưu ý metric: node có ≥ 2 cạnh ra là predicted fork (phân bào). Fork giả
-    = division FP, nên mỗi fork phải xứng đáng. Cạnh bị hoãn vẫn là cạnh
-    liền khung (mẹ t-1 → con t) nên hợp lệ khi được xác nhận.
+      (d) dọn dẹp
+      (e) xác nhận động học: 2 con sống ≥ DIV_CONFIRM_FRAMES khung và
+          khoảng cách tăng ≥ 15% — cạnh + division chỉ ghi khi vượt hết
     """
 
     def __init__(self):
-        self.active = {}        # nid → dict(pos µm, vel µm/khung, mass)
-        self.pending = {}       # nid → dict(pos, vel, mass, missed)
+        self.active = {}        # nid → dict(pos, vel, mass, mass_hist)
+        self.pending = {}       # nid → dict(pos, vel, mass, mass_hist, missed)
         self.recent_steps = []  # bước đi (µm) của các match gần đây
         self.div_pending = []   # ứng viên phân bào chờ xác nhận
         self.n_div_confirmed = 0
         self.n_div_rejected = 0
+        # ver 3: đếm lý do từ chối để chẩn đoán
+        self.n_rej_mass = 0        # rớt ổn định khối lượng mẹ (bước b — MỚI)
+        self.n_rej_lost = 0        # một con biến mất (bước e)
+        self.n_rej_dyn = 0         # không tách ra đủ (bước e)
 
     def _gate(self):
         if len(self.recent_steps) < 5:
             return BASE_GATE_UM
         med = float(np.median(self.recent_steps))
         return float(np.clip(GATE_MEDIAN_MULT * med, GATE_MIN_UM, GATE_MAX_UM))
+
+    @staticmethod
+    def _push_hist(hist, m):
+        h = list(hist)
+        h.append(float(m))
+        if len(h) > MASS_HISTORY + MASS_SKIP_LAST + 2:
+            del h[:len(h) - (MASS_HISTORY + MASS_SKIP_LAST + 2)]
+        return h
 
     def step(self, dets, t):
         """Xử lý khung t. Trả về (nodes, edges, divisions, interp_nodes)."""
@@ -255,15 +292,22 @@ class Tracker:
             a = self.active[p]
             disp = pos[c] - a['pos']
             vel = VEL_SMOOTH * disp + (1.0 - VEL_SMOOTH) * a['vel']
-            new_active[ids[c]] = {'pos': pos[c], 'vel': vel, 'mass': mass[c]}
+            # ver 3: lịch sử khối lượng đi THEO TRACK (chuyển từ nid cũ sang nid mới)
+            new_active[ids[c]] = {
+                'pos': pos[c], 'vel': vel, 'mass': mass[c],
+                'mass_hist': self._push_hist(a['mass_hist'], mass[c]),
+            }
 
-        # ---- (b) phân bào ỨNG VIÊN (cạnh divergence hoãn chờ bước (e)) ----
+        # ---- (b) phân bào ỨNG VIÊN (5 cửa — cạnh hoãn chờ bước (e)) ----
         unmatched = [j for j in range(len(ids)) if j not in matched_curr]
         if DIVISION_ENABLED and matched_curr:
             cands = []
+            A_vel_cache = {p: self.active[p]['vel'] for p in matched_curr.values()}
             for c, p in matched_curr.items():
-                P, mP = self.active[p]['pos'], self.active[p]['mass']
+                A = self.active[p]
+                P, mP, hist = A['pos'], A['mass'], A['mass_hist']
                 C1, mC1 = pos[c], mass[c]
+                base = _mass_baseline(hist)          # None nếu track quá non
                 for j in unmatched:
                     B2, mB2 = pos[j], mass[j]
                     dP = float(np.linalg.norm(P - B2))
@@ -279,26 +323,41 @@ class Tracker:
                             ratio = (mC1 + mB2) / mP
                             if not (DIV_BRIGHTNESS_RATIO[0] <= ratio <= DIV_BRIGHTNESS_RATIO[1]):
                                 continue
-                    cands.append((dP, p, c, j))
+                    # --- MỚI ver 3: cửa 4 — ổn định khối lượng mẹ ---
+                    rise = (mP / base) if (base and base > 0) else None
+                    if rise is not None:
+                        if rise > DIV_MOM_MAX_RISE:
+                            # blob "mẹ" gộp ~2 tế bào → merge-split giả
+                            self.n_rej_mass += 1
+                            continue
+                        if rise < DIV_MOM_MIN_FRAC:
+                            # mẹ phai đột ngột → detection không ổn định
+                            self.n_rej_mass += 1
+                            continue
+                    # --- MỚI ver 3: cửa 5 (soft) — ưu tiên mẹ sáng dần ---
+                    bright = (rise is not None and rise >= DIV_MOM_BRIGHT_BONUS)
+                    cands.append((0 if bright else 1, dP, p, c, j, rise))
+            # sort: (mẹ sáng dần trước, rồi tới khoảng cách)
             cands.sort()
             used_p, used_j = set(), set()
-            for dP, p, c, j in cands:
+            for _prio, dP, p, c, j, rise in cands:
                 if p in used_p or j in used_j:
                     continue
                 used_p.add(p)
                 used_j.add(j)
-                P = self.active[p]['pos']
                 # con thứ 2 khởi động như track mới; cạnh p→ids[j] HOÃN,
-                # chỉ ghi nếu được xác nhận ở bước (e) của các khung sau.
-                # Con KẾ THỪA vận tốc mẹ (sửa khi phát triển ver 3: vectơ
-                # mẹ→con làm dự đoán khung sau vọt xa → con không match →
-                # ứng viên chết "lost" và bị đề xuất lại mỗi khung)
+                # chỉ ghi nếu được xác nhận ở bước (e) của các khung sau
+                # QUAN TRỌNG: con KẾ THỪA vận tốc mẹ — không phải vectơ
+                # mẹ→con! (vectơ đó làm dự đoán khung sau vọt xa vị trí thật
+                # → con không match được → ứng viên chết "lost" và bị đề
+                # xuất lại mỗi khung — vòng lặp đã bắt gặp khi kiểm chứng)
                 new_active[ids[j]] = {
-                    'pos': pos[j], 'vel': np.array(self.active[p]['vel']),
-                    'mass': mass[j],
+                    'pos': pos[j], 'vel': np.array(A_vel_cache[p]), 'mass': mass[j],
+                    'mass_hist': [mass[j]],
                 }
                 self.div_pending.append({
-                    't': t, 'mother': p,
+                    't': t, 'mother': p, 'mother_mass': self.active[p]['mass'],
+                    'mother_rise': rise,
                     'c1': ids[c], 'c2': ids[j], 'c2_start': ids[j],
                     'd0': float(np.linalg.norm(pos[c] - pos[j])), 'age': 0,
                 })
@@ -323,8 +382,7 @@ class Tracker:
                 gap = Q['missed'] + 1
                 if INTERPOLATE_MISSED_FRAMES and gap >= 2:
                     # Chèn node nội suy tại các khung bị mất rồi nối các cạnh
-                    # LIỀN KHUNG — node nằm giữa 2 node đã khớp nên khả năng
-                    # khớp GT ≤ 7 µm cao (cạnh nhảy t→t+2 bị metric bỏ hẳn).
+                    # LIỀN KHUNG — cạnh nhảy t→t+2 bị metric bỏ hẳn.
                     chain = q
                     for k in range(1, gap):
                         pm = Q['pos'] + (pos[j] - Q['pos']) * (k / gap)  # µm
@@ -342,6 +400,7 @@ class Tracker:
                     'pos': pos[j],
                     'vel': (pos[j] - Q['pos']) / gap,
                     'mass': mass[j],
+                    'mass_hist': self._push_hist(Q['mass_hist'], mass[j]),
                 }
                 succ[q] = ids[j]
                 self.pending.pop(q, None)
@@ -359,11 +418,15 @@ class Tracker:
                 continue
             a = self.active[p]
             self.pending[p] = {'pos': a['pos'], 'vel': a['vel'],
-                               'mass': a['mass'], 'missed': 1}
+                               'mass': a['mass'], 'mass_hist': a['mass_hist'],
+                               'missed': 1}
 
         for j in unmatched:
             if ids[j] not in new_active:
-                new_active[ids[j]] = {'pos': pos[j], 'vel': np.zeros(3), 'mass': mass[j]}
+                new_active[ids[j]] = {
+                    'pos': pos[j], 'vel': np.zeros(3), 'mass': mass[j],
+                    'mass_hist': [mass[j]],
+                }
 
         # ---- (e) xác nhận phân bào: đủ tuổi + khoảng cách 2 con tăng ----
         still_pending = []
@@ -379,6 +442,7 @@ class Tracker:
             c2 = succ.get(cand['c2'])
             if c1 is None or c2 is None:
                 self.n_div_rejected += 1          # một "con" biến mất → bỏ
+                self.n_rej_lost += 1
                 continue
             cand['c1'], cand['c2'] = c1, c2
             cand['age'] += 1
@@ -394,6 +458,7 @@ class Tracker:
                         self.n_div_confirmed += 1
                         continue
                 self.n_div_rejected += 1          # không tách ra → merge-split giả
+                self.n_rej_dyn += 1
                 continue
             still_pending.append(cand)
         self.div_pending = still_pending
@@ -412,8 +477,6 @@ def diagnose(rows):
         return 'không có node'
     node_ids = {r['node_id'] for r in nd}
     has_in = {r['target_id'] for r in ed if r['target_id'] in node_ids}
-    has_out = {r['source_id'] for r in ed if r['source_id'] in node_ids}
-    n_no_in = sum(1 for r in nd if r['node_id'] not in has_in)
     forks = {}
     for r in ed:
         if r['source_id'] in node_ids:
@@ -435,6 +498,7 @@ def diagnose(rows):
     from collections import Counter
     sizes = Counter(find(i) for i in node_ids)
     med_track = float(np.median(list(sizes.values()))) if sizes else 0.0
+    n_no_in = sum(1 for r in nd if r['node_id'] not in has_in)
     t_lo = min(r['t'] for r in nd)
     t_hi = max(r['t'] for r in nd)
     frames = t_hi - t_lo + 1
@@ -442,7 +506,9 @@ def diagnose(rows):
             f"{n_no_in}/{len(nd)} node không cạnh vào ({100.0 * n_no_in / len(nd):.0f}%) · "
             f"{len(sizes)} track · trung vị {med_track:.0f} node/track · "
             f"{len(nd) / max(1, frames):.1f} node/khung · "
-            f"xác nhận/từ chối phân bào: {TRK.n_div_confirmed}/{TRK.n_div_rejected}")
+            f"phân bào xác nhận/từ chối: {TRK.n_div_confirmed}/{TRK.n_div_rejected} "
+            f"(rớt mass: {TRK.n_rej_mass} · rớt động học: {TRK.n_rej_dyn} · "
+            f"mất con: {TRK.n_rej_lost})")
 
 
 if not os.path.isdir(TEST_DIR):
@@ -539,6 +605,6 @@ if RUN_PREVIEW and test_folder_names:
     axes[0].set_title(f'{test_folder_names[0]} · t=0 · lát z={zc}')
     for d in dets:
         axes[1].plot(d['x'], d['y'], 'o', mfc='none', mec='lime', ms=9, mew=1.2)
-    axes[1].set_title(f'phát hiện: {len(dets)} node (ver 2: P{PERCENTILE:g} + tách blob)')
+    axes[1].set_title(f'phát hiện: {len(dets)} node (ver 3: P{PERCENTILE:g} + tách blob)')
     plt.tight_layout()
     plt.show()

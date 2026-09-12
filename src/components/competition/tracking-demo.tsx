@@ -66,7 +66,7 @@ import {
   gauss,
   lerp,
   mulberry32,
-  runBothPipelines,
+  runAllPipelines,
   scoreDetections,
   T,
   LAST_FRAME,
@@ -76,7 +76,8 @@ import {
   type Det,
   type EdgeRef,
   type GtGraph,
-  type PipelineRun,
+  type PipelineRunV3,
+  type PipelineVersion,
   type SimData,
 } from '@/lib/tracking-pipeline'
 
@@ -351,16 +352,20 @@ interface RuntimeState {
   sparse: boolean
 }
 
-type Mode = 'ver0' | 'ver1' | 'custom'
+type Mode = 'ver0' | 'ver1' | 'ver2' | 'ver3' | 'custom'
 
 const MODE_LABEL: Record<Mode, string> = {
   ver0: 'Ver 0 · Baseline',
   ver1: 'Ver 1 · Stage 0+2',
+  ver2: 'Ver 2 · Tách blob + động học',
+  ver3: 'Ver 3 · Profile độ sáng',
   custom: 'Tùy chỉnh',
 }
 
-/** Pipeline steps hiển thị cho từng phiên bản (đúng notebook kaggle/ver-1) */
-const VERSION_INFO: Record<'ver0' | 'ver1', string[]> = {
+const PIPELINE_VERSIONS: PipelineVersion[] = ['ver0', 'ver1', 'ver2', 'ver3']
+
+/** Pipeline steps hiển thị cho từng phiên bản (đúng notebook kaggle/ver-N) */
+const VERSION_INFO: Record<PipelineVersion, string[]> = {
   ver0: [
     'P90', 'liên kết 6 ô', 'tâm hình học', 'Hungarian gate 15 µm',
     'không phân bào', 'không frame-skip',
@@ -370,28 +375,38 @@ const VERSION_INFO: Record<'ver0' | 'ver1', string[]> = {
     'motion model EMA', 'gate thích ứng 5–12 µm', 'phân bào 10/12 µm',
     'nội suy khung mất',
   ],
+  ver2: [
+    'P90', 'MAX 3000 voxels', 'tách blob theo đỉnh', 'gate 5–14 µm',
+    'skip 2 khung + nội suy', 'phân bào XÁC NHẬN ĐỘNG HỌC ≥3 khung',
+    'chỉ ghi khi 2 con tách ≥15%',
+  ],
+  ver3: [
+    'ver 2 +', 'sister gate 14,5 µm (p99 thật 13,9)', 'parent gate 12 µm',
+    'con kế thừa vận tốc mẹ', 'ỔN ĐỊNH KHỐI LƯỢNG MẸ ≤1,7× baseline',
+    'ưu tiên mẹ sáng dần (AUC 0,73)',
+  ],
 }
 
 /** Cache pipeline theo (seed, sparse) — module scope, dữ liệu deterministic */
-const PIPELINE_CACHE = new Map<string, { ver0: PipelineRun; ver1: PipelineRun }>()
+const PIPELINE_CACHE = new Map<string, Record<PipelineVersion, PipelineRunV3>>()
 
 export default function TrackingDemo() {
   const [seed, setSeed] = useState(20260911)
   const sim = useMemo(() => buildSimulation(seed), [seed])
 
-  const [mode, setMode] = useState<Mode>('ver1')
+  const [mode, setMode] = useState<Mode>('ver3')
   const [params, setParams] = useState<Params>({ ...DEFAULT_PARAMS })
   const [sparseMode, setSparseMode] = useState(true)
 
   const gtGraph = useMemo(() => buildGtGraph(sim, sparseMode), [sim, sparseMode])
 
-  // pipeline ver 0 + ver 1 chạy trên cùng một chuỗi thể tích — cache theo seed
+  // 4 pipeline chạy trên cùng một chuỗi thể tích — cache theo seed
   const pipelines = useMemo(() => {
     if (mode === 'custom') return null
     const key = `${seed}|${sparseMode ? 1 : 0}`
     let v = PIPELINE_CACHE.get(key)
     if (v === undefined) {
-      v = runBothPipelines(sim, seed)
+      v = runAllPipelines(sim, seed)
       if (PIPELINE_CACHE.size > 8) PIPELINE_CACHE.clear()
       PIPELINE_CACHE.set(key, v)
     }
@@ -400,10 +415,11 @@ export default function TrackingDemo() {
 
   const pipelineAnalyses = useMemo(() => {
     if (pipelines === null) return null
-    return {
-      ver0: scoreDetections(sim, gtGraph, pipelines.ver0.det, pipelines.ver0.edges),
-      ver1: scoreDetections(sim, gtGraph, pipelines.ver1.det, pipelines.ver1.edges),
+    const out = {} as Record<PipelineVersion, Analysis>
+    for (const v of PIPELINE_VERSIONS) {
+      out[v] = scoreDetections(sim, gtGraph, pipelines[v].det, pipelines[v].edges)
     }
+    return out
   }, [pipelines, gtGraph, sim])
 
   const customAnalysis = useMemo(
@@ -414,9 +430,7 @@ export default function TrackingDemo() {
   const analysis: Analysis =
     mode === 'custom'
       ? customAnalysis
-      : mode === 'ver0'
-        ? pipelineAnalyses!.ver0
-        : pipelineAnalyses!.ver1
+      : pipelineAnalyses![mode]
 
   const [playing, setPlaying] = useState(true)
   const [speed, setSpeed] = useState(1)
@@ -907,8 +921,9 @@ export default function TrackingDemo() {
               Chạy <span className="font-semibold text-emerald-700 dark:text-emerald-300">thật</span>{' '}
               thuật toán từng phiên bản nộp bài (port JS từ notebook Kaggle) trên
               thể tích 3D tổng hợp của phôi zebrafish, rồi chấm điểm đúng metric
-              cuộc thi. Đổi phiên bản để so sánh Ver 0 (baseline) với Ver 1
-              (Stage 0+2), hoặc dùng chế độ{' '}
+              cuộc thi. Ver 3 vừa tiếp thu tri thức từ discussion #740573 — đổi
+              phiên bản để xem mỗi thế hệ thuật toán tiến bộ ra sao, hoặc dùng
+              chế độ{' '}
               <span className="font-semibold text-teal-700 dark:text-teal-300">
                 Tùy chỉnh
               </span>{' '}
@@ -1099,15 +1114,22 @@ export default function TrackingDemo() {
                 size="sm"
                 value={mode}
                 onValueChange={(v) => {
-                  if (v === 'ver0' || v === 'ver1' || v === 'custom') setMode(v)
+                  if (v === 'ver0' || v === 'ver1' || v === 'ver2' || v === 'ver3' || v === 'custom') setMode(v)
                 }}
                 aria-label="Chọn phiên bản thuật toán"
+                className="flex-wrap"
               >
                 <ToggleGroupItem value="ver0" aria-label="Ver 0, notebook baseline gốc">
-                  Ver 0 · Baseline
+                  Ver 0
                 </ToggleGroupItem>
-                <ToggleGroupItem value="ver1" aria-label="Ver 1, Stage 0+2 đã nộp">
-                  Ver 1 · Stage 0+2
+                <ToggleGroupItem value="ver1" aria-label="Ver 1, Stage 0+2 đã nộp (Kaggle 0,198)">
+                  Ver 1
+                </ToggleGroupItem>
+                <ToggleGroupItem value="ver2" aria-label="Ver 2, tách blob + phân bào xác nhận động học">
+                  Ver 2
+                </ToggleGroupItem>
+                <ToggleGroupItem value="ver3" aria-label="Ver 3, phân bào theo profile độ sáng từ discussion #740573">
+                  Ver 3
                 </ToggleGroupItem>
                 <ToggleGroupItem value="custom" aria-label="Chế độ tùy chỉnh tham số">
                   Tùy chỉnh
@@ -1205,12 +1227,17 @@ export default function TrackingDemo() {
               {/* console log mô phỏng Kaggle */}
               <pre className="mb-4 overflow-x-auto rounded-lg bg-[#04100b] p-3 font-mono text-[11px] leading-relaxed text-emerald-200/90">
                 {(() => {
-                  const run = mode === 'ver0' ? pipelines!.ver0 : pipelines!.ver1
+                  const run = pipelines![mode as PipelineVersion]
                   const st = run.stats
+                  const extra =
+                    mode === 'ver2' || mode === 'ver3'
+                      ? `\n[phân bào] xác nhận ${st.divisions} · từ chối mass ${run.rej.mass} · động học ${run.rej.dyn} · mất con ${run.rej.lost}`
+                      : ''
                   return [
                     `[mô phỏng] 30/60 khung · ${st.nodes30} node · ${st.edges30} cạnh · ${st.div30} phân bào · ${fmtMs(st.ms30)}`,
                     `[mô phỏng] 60/60 khung · ${st.nodes} node · ${st.edges} cạnh · ${st.divisions} phân bào · ${fmtMs(st.ms)}`,
                     `== mô phỏng · ${MODE_LABEL[mode]}: ${st.nodes} nodes · ${st.edges} edges · ${st.divisions} phân bào (${fmtMs(st.ms)})`,
+                    extra,
                   ].join('\n')
                 })()}
               </pre>
@@ -1230,91 +1257,77 @@ export default function TrackingDemo() {
                 ))}
               </div>
 
-              {/* so sánh 2 phiên bản trên cùng dữ liệu */}
+              {/* so sánh 4 phiên bản trên cùng dữ liệu */}
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[460px] border-collapse text-left text-xs">
+                <table className="w-full min-w-[560px] border-collapse text-left text-xs">
                   <thead>
                     <tr className="border-b text-muted-foreground">
                       <th className="py-2 pr-3 font-medium">Trên cùng dữ liệu này</th>
-                      <th className={`px-3 py-2 font-medium ${mode === 'ver0' ? 'rounded-t-lg bg-emerald-500/10' : ''}`}>
-                        Ver 0 · Baseline
-                      </th>
-                      <th className={`px-3 py-2 font-medium ${mode === 'ver1' ? 'rounded-t-lg bg-emerald-500/10' : ''}`}>
-                        Ver 1 · Stage 0+2
-                      </th>
+                      {PIPELINE_VERSIONS.map((v) => (
+                        <th
+                          key={v}
+                          className={`px-2.5 py-2 font-medium ${mode === v ? 'rounded-t-lg bg-emerald-500/10' : ''}`}
+                        >
+                          {MODE_LABEL[v]}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="font-mono tabular-nums">
                     {(() => {
                       const a = pipelineAnalyses!
-                      const m0 = a.ver0.metrics
-                      const m1 = a.ver1.metrics
-                      const rows: { label: string; v0: string; v1: string; better1?: boolean }[] = [
-                        {
-                          label: 'Phát hiện node (recall)',
-                          v0: m0.nodeRecall.toFixed(3),
-                          v1: m1.nodeRecall.toFixed(3),
-                          better1: m1.nodeRecall > m0.nodeRecall,
-                        },
-                        {
-                          label: 'Edge Jaccard (điều chỉnh)',
-                          v0: m0.adjEJ.toFixed(3),
-                          v1: m1.adjEJ.toFixed(3),
-                          better1: m1.adjEJ > m0.adjEJ,
-                        },
-                        {
-                          label: 'Division Jaccard',
-                          v0: m0.divJ.toFixed(3),
-                          v1: m1.divJ.toFixed(3),
-                          better1: m1.divJ > m0.divJ,
-                        },
-                        {
-                          label: 'Cạnh TP · FP · FN',
-                          v0: `${m0.tp} · ${m0.fp} · ${m0.fn}`,
-                          v1: `${m1.tp} · ${m1.fp} · ${m1.fn}`,
-                          better1: m1.tp > m0.tp,
-                        },
-                        {
-                          label: 'Phân bào TP · FP · FN',
-                          v0: `${m0.divTP} · ${m0.divFP} · ${m0.divFN}`,
-                          v1: `${m1.divTP} · ${m1.divFP} · ${m1.divFN}`,
-                          better1: m1.divTP > m0.divTP,
-                        },
-                        {
-                          label: 'Node thừa (spurious)',
-                          v0: String(m0.spurious),
-                          v1: String(m1.spurious),
-                          better1: m1.spurious < m0.spurious,
-                        },
-                        {
-                          label: 'Thời gian chạy 60 khung',
-                          v0: fmtMs(pipelines!.ver0.stats.ms),
-                          v1: fmtMs(pipelines!.ver1.stats.ms),
-                        },
-                        {
-                          label: 'Điểm tổng (mô phỏng)',
-                          v0: m0.combined.toFixed(3),
-                          v1: m1.combined.toFixed(3),
-                          better1: m1.combined > m0.combined,
-                        },
+                      const ms = PIPELINE_VERSIONS.map((v) => a[v].metrics)
+                      /** So sánh theo SỐ, hiển thị theo chuỗi — đánh dấu ▲ ô tốt nhất */
+                      const cells = (
+                        getNum: (m: (typeof ms)[number]) => number | null,
+                        fmt: (m: (typeof ms)[number]) => string,
+                        better: 'max' | 'min' = 'max',
+                      ) => {
+                        const vals = ms.map((m) => getNum(m))
+                        let bi = -1
+                        if (vals.every((v) => v !== null)) {
+                          const nums = vals as number[]
+                          for (let k = 0; k < nums.length; k++) {
+                            if (nums[k] !== nums[0]) bi = 0 // có khác biệt mới đánh dấu
+                          }
+                          if (bi === 0) {
+                            for (let k = 1; k < nums.length; k++) {
+                              if (better === 'max' ? nums[k]! > nums[bi]! : nums[k]! < nums[bi]!) bi = k
+                            }
+                          }
+                        }
+                        return PIPELINE_VERSIONS.map((_, k) => ({
+                          text: fmt(ms[k]!),
+                          best: k === bi,
+                        }))
+                      }
+                      const tpFpFn = (m: (typeof ms)[number]): string => `${m.tp} · ${m.fp} · ${m.fn}`
+                      const rows: { label: string; c: { text: string; best: boolean }[] }[] = [
+                        { label: 'Phát hiện node (recall)', c: cells((m) => m.nodeRecall, (m) => m.nodeRecall.toFixed(3)) },
+                        { label: 'Edge Jaccard (điều chỉnh)', c: cells((m) => m.adjEJ, (m) => m.adjEJ.toFixed(3)) },
+                        { label: 'Division Jaccard', c: cells((m) => m.divJ, (m) => m.divJ.toFixed(3)) },
+                        { label: 'Cạnh TP', c: cells((m) => m.tp, tpFpFn) },
+                        { label: 'Phân bào TP', c: cells((m) => m.divTP, (m) => `${m.divTP} · ${m.divFP} · ${m.divFN}`) },
+                        { label: 'Node thừa (spurious)', c: cells((m) => m.spurious, (m) => String(m.spurious), 'min') },
+                        { label: 'Thời gian 60 khung', c: cells(() => null, (m) => fmtMs(pipelines![PIPELINE_VERSIONS[ms.indexOf(m)] as PipelineVersion].stats.ms)) },
+                        { label: 'Điểm tổng (mô phỏng)', c: cells((m) => m.combined, (m) => m.combined.toFixed(3)) },
                       ]
                       return rows.map((r) => (
                         <tr key={r.label} className="border-b border-border/50 last:border-0">
                           <td className="py-1.5 pr-3 font-sans text-muted-foreground">{r.label}</td>
-                          <td className={`px-3 py-1.5 ${mode === 'ver0' ? 'bg-emerald-500/10 font-bold' : ''}`}>
-                            {r.v0}
-                          </td>
-                          <td className={`px-3 py-1.5 ${mode === 'ver1' ? 'bg-emerald-500/10 font-bold' : ''}`}>
-                            {r.v1}
-                            {r.better1 === true && (
-                              <span className="ml-1.5 font-sans text-[10px] text-emerald-600 dark:text-emerald-400">
-                                ▲
-                              </span>
-                            )}
-                            {r.better1 === false && (
-                              <span className="ml-1.5 font-sans text-[10px] text-rose-500">▼</span>
-                            )}
-                          </td>
+                          {PIPELINE_VERSIONS.map((v, k) => (
+                            <td
+                              key={v}
+                              className={`px-2.5 py-1.5 ${mode === v ? 'bg-emerald-500/10 font-bold' : ''}`}
+                            >
+                              {r.c[k]!.text}
+                              {r.c[k]!.best && (
+                                <span className="ml-1 font-sans text-[10px] text-emerald-600 dark:text-emerald-400" aria-label="tốt nhất">
+                                  ▲
+                                </span>
+                              )}
+                            </td>
+                          ))}
                         </tr>
                       ))
                     })()}
@@ -1322,9 +1335,11 @@ export default function TrackingDemo() {
                 </table>
               </div>
               <p className="mt-2.5 text-[11px] leading-snug text-muted-foreground">
-                Cùng một thể tích tổng hợp (seed {seed}) chạy qua cả hai pipeline —
-                khác biệt đến từ thuật toán, không phải dữ liệu. Trên Kaggle thật,
- điểm tuyệt đối sẽ khác nhưng TRẬT TỰ ver 1 &gt; ver 0 giữ nguyên.
+                Cùng một thể tích tổng hợp (seed {seed}) chạy qua cả 4 pipeline —
+                khác biệt đến từ thuật toán, không phải dữ liệu. Ver 3 thêm lượt
+                chặn merge-split bằng khối lượng mẹ (▲ cột tốt nhất mỗi hàng).
+                Trên Kaggle thật điểm tuyệt đối sẽ khác (mô phỏng dễ hơn data thật)
+                nhưng TRẬT TỰ ver 3 ≥ ver 2 &gt; ver 1 &gt;&gt; ver 0 giữ nguyên.
               </p>
             </>
           )}

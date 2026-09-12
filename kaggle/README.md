@@ -15,6 +15,7 @@ notebook Kaggle gốc rồi **Save & Run All → Submit**.
 | 0 | Baseline (getting-started) | — (chưa submit) | — |
 | 1 | Stage 0+2 | **0.198** | 13/09/2026 |
 | 2 | Chống gộp blob + phân bào xác nhận | soạn thảo ✓ | — |
+| 3 | Phân bào theo profile độ sáng (từ discussion #740573) | soạn thảo ✓ | — |
 
 Top 1 (Sergio Alvarez) = **0.97** · top 10 ≈ 0.957 — khoảng cách còn rất lớn.
 
@@ -27,6 +28,107 @@ Top 1 (Sergio Alvarez) = **0.97** · top 10 ≈ 0.957 — khoảng cách còn r�
 3. **Cạnh nhảy t→t+k bị metric bỏ hẳn** (không TP) → nội suy node giữa là bắt buộc.
 4. **Fork (≥2 cạnh ra) = phân bào** theo metric; fork giả là division FP →
    mỗi fork phải được xác nhận bằng động học.
+
+## Insight từ discussion #740573 (Lê Quang Cảnh · hạng 40 + hengck23)
+
+Đo trực tiếp trên **73 file nhãn train** (36 phân bào có nhãn, 25.661 cạnh
+continuation, 72 cạnh phân bào, 572 track) — không phải dự đoán:
+
+### a) Khoảng cách mẹ→con KHÔNG phải tín hiệu phân bào (bài học lớn nhất)
+
+| Loại bước (µm/khung) | n | median | IQR | p99 | max |
+|---|---:|---:|---|---:|---:|
+| continuation | 25.661 | 1,72 | 0,91–2,19 | 6,91 | 18,7 |
+| mẹ→con (division step) | 72 | 4,57 | 3,30–6,21 | 10,6 | 12,3 |
+| **2 con gái (sister sep.)** | 36 | **8,85** | 7,20–10,24 | 13,9 | **14,65** |
+
+- IQR của bước phân bào nằm **gần trọn trong vùng bước thường** → gate khoảng
+  cách đủ rộng để bắt median phân bào (≥5µm) thì cũng thu 722 bước thường,
+  **24:1 base rate** (tại 10µm: 38:1). *"Thất bại là base rate, không phải
+  vùng chồng lấn chỉnh gate được."*
+- **Sister separation là tín hiệu hình học mạnh nhất** (8,85 vs 1,72µm) nhưng
+  là thuộc tính của CẶP — chỉ dùng được sau khi đề xuất cặp.
+- **Bẫy đo trên node dự đoán**: cùng phân bào đó, median bước trên nhãn 6,36µm
+  nhưng trên node dự đoán 8,47µm (max 13,65) — sai số định vị detector cộng
+  dồn qua 2 đầu cạnh. **Tune gate phải trên nhãn GT, không tune trên output
+  chính mình.**
+
+### b) Tín hiệu APPEARANCE (ngoại hình) — mẹ sáng lên trước khi chia
+
+- Đỉnh cường độ (peak intensity) của mẹ tại khung tách phân biệt khỏi tế bào
+  thường ở **AUC 0,73** (con ở t+1..t+3: 0,68–0,70); local contrast 0,55–0,69.
+- Độ "mỏng/dài" (elongation) KHÔNG phân biệt (AUC ≈ 0,34–0,58 = random) —
+  có thể vì nhìn trễ 1–2 khung (hengck23: **đường sáng mảnh ở anaphase xuất
+  hiện VÀI KHUNG TRƯỚC** khung tách là manh mối rất tốt).
+- hengck23: nhiều phân bào **chưa được gắn nhãn** trong data Kaggle — "hiếm
+  khi chỉ 1 tế bào phân bào"; nhưng trên 36 phân bào có nhãn, các mốc tách
+  **không cluster** (spread median 32 khung/phim).
+
+### c) Cấu trúc nhãn GT (ảnh hưởng cách đọc metric)
+
+- **Mọi cạnh GT nối đúng 1 khung** (25.661/25.661 — không có skip edge) →
+  nội suy node ở khung mất (ver 2) là đúng hướng.
+- Nhãn theo **segment, không theo lineage trọn đời**: 351/572 track bắt đầu
+  sau frame 0, 391 kết thúc trước frame cuối, median 35 khung → 36 phân bào
+  chỉ là **tập con được gắn nhãn** → phát hiện phân bào thật nơi GT không nhãn
+  vẫn tính FP → **precision division quan trọng hơn recall**.
+
+### d) Nguồn ngoài + tham chiếu ultrack
+
+- **Dữ liệu ngoài KHỚP voxel Kaggle** (1,625/0,40625/0,40625 — đúng hệ):
+  `https://public.czbiohub.org/royerlab/ultrack/zebrafish_embryo.ome.zarr/`
+  — shape (522, 1, 505, 2170, 2217) uint16, cùng chế độ chụp → ứng viên
+  train detector phân bào (cần tải thành Kaggle Dataset, kiểm tra rules).
+  ⚠️ Bộ ZSNS001–005 (single-objective) có voxel 1,24/0,439/0,439 — KHÁC Kaggle.
+- Config ultrack zebrafish: `max_distance 10.0`, `max_neighbors 5`, penalty
+  appear/disappear/division rất nhỏ (0,001–0,1); fork công khai chỉnh
+  division 1,2 / disappear 1,5 **không bao giờ tối ưu** được.
+- Tool xem dữ liệu: napari (crop ROI quanh node t−10..t+10); focus3d hỗ trợ
+  human-in-the-loop annotation. "Lặp lại thí nghiệm Figure 6 của paper ultrack
+  là chìa khóa" (hengck23).
+
+### e) Áp dụng vào pipeline của ta
+
+| Hành động | Lý do |
+|---|---|
+| `SIBLING_GATE` 12 → **14,5µm** | max quan sát 14,65 — gate 12 bỏ lỡ ~10% cặp chị em |
+| `PARENT_GATE` 10 → **12µm** | bắt p99 (10,6) bước mẹ→con |
+| **Mới — kiểm tra "ổn định khối lượng mẹ"**: khối lượng blob mẹ tại khung tách ≤ ~1,7× baseline riêng của nó | merge-split giả: blob gộp 2 tế bào ≈ 2× đơn; phân bào thật chỉ sáng lên nhẹ (AUC 0,73) |
+| Giữ nội suy + xác nhận động học | GT 100% cạnh liền khung; base rate 24:1 |
+| Phân bổ công lực: 90% cho adjEJ (trọng số 1,0) — division chỉ 0,1 | Kể cả hạng 40 cũng hỏi "tín hiệu gì chạy được division > 0" |
+
+## ver 3 — Phân bào theo profile độ sáng (từ discussion #740573)
+
+- **Nguồn**: `ver-3/` · **kiểm chứng**: `ver-3/test-ver3-synth.py` — **21/21 ĐẠT**,
+  kèm đối chứng ver 2 trên cùng dữ liệu: ver 2 xác nhận nhầm merge-split khéo
+  (FP) và bỏ sót phân bào chị-em-xa; ver 3 chặn cái đầu (mass) bắt cái sau
+  (gate 14,5)
+- Tri thức mới (đo trên nhãn train thật — xem mục Insight ở trên):
+  1. **`DIV_SIBLING_GATE_UM` 12 → 14,5**: sister separation p99 = 13,9, max
+     = 14,65µm — gate cũ bỏ lỡ ~10% cặp chị em thật.
+  2. **`DIV_PARENT_GATE_UM` 10 → 12**: bắt p99 bước mẹ→con (10,6, max 12,3);
+     khoảng cách chỉ còn là *cửa sổ tìm kiếm*, không phải tín hiệu (base rate
+     24:1 — filter thật là sáng + động học + bảo toàn).
+  3. **Mới — "ổn định khối lượng mẹ"** (`DIV_MOM_MAX_RISE = 1,7`): track theo
+     dõi khối lượng (mass) từng node; baseline = trung vị ~8 giá trị gần nhất
+     (loại 2 khung cuối — đúng lúc sáng lên). Blob mẹ tại khung tách mà
+     ≥ 1,7× baseline riêng = **blob gộp 2 tế bào** (merge-split ≈ 2×) → từ
+     chối ứng viên phân bào. Phân bào thật chỉ sáng lên nhẹ (AUC 0,73) và
+     blob gộp FULL cũng không tách được bằng đỉnh → đây là cửa chặn chính.
+     Track non < 4 khung (chưa đủ baseline) → bỏ qua kiểm tra này.
+  4. **Mới — "mẹ sáng lên" ưu tiên ứng viên** (`DIV_MOM_BRIGHT_BONUS`): ứng
+     viên có mẹ sáng dần (mass tại tách / baseline ≥ 1,05) xếp trước trong
+     danh sách cạnh tranh — tín hiệu appearance (AUC 0,73) mạnh hơn hình học.
+  5. **Bug fix khi kiểm chứng — con kế thừa vận tốc MẸ** (không phải vectơ
+     mẹ→con): vectơ mẹ→con làm dự đoán khung sau vọt xa → con không match →
+     ứng viên chết "lost" và bị đề xuất lại MỖI KHUNG (vòng lặp vô hạn trên
+     dữ liệu kiểm chứng). Latent bug này cũng có trong ver 2 nhưng bị che bởi
+     gate hẹp (10µm) — trên Kaggle nó âm thầm giết các ứng viên phân bào.
+  6. Giữ nguyên lõi ver 2: tách blob theo đỉnh + xác nhận động học ≥3 khung
+     + nội suy khung mất + P90/MAX 3000 + gate 5–14µm + skip 2 khung.
+- Kỳ vọng: bắt thêm phân bào chị-em-xa (ver 2 bỏ sót) và chặn thêm
+  merge-split khéo (2 tế bào đi ra xa dần sau khi tách — vượt được kiểm tra
+  động học của ver 2 nhưng blob mẹ ≈ 2× đơn bị bắt bởi mass stability).
 
 ## ver 2 — Chống gộp blob + phân bào xác nhận (soạn thảo, đã kiểm chứng synthetic)
 
@@ -116,5 +218,8 @@ Top 1 (Sergio Alvarez) = **0.97** · top 10 ≈ 0.957 — khoảng cách còn r�
 - Nhận xét / hướng tune tiếp theo
 ```
 
-Lộ trình sau ver 2: Stage 1 thật sự (ngưỡng cục bộ thích ứng + DoG + watershed
-cho blob gộp đầy) → Stage 3 (U-Net nhẹ + transformer linking như baseline BTC).
+Lộ trình sau ver 3: (a) chạy pipeline ver 3 + local scorer trên train để
+đo trước khi submit; (b) Stage 1 thật sự (ngưỡng cục bộ thích ứng + DoG +
+watershed cho blob gộp đầy); (c) division detector học từ patch thời gian
+trên `zebrafish_embryo.ome.zarr` (voxel khớp Kaggle); (d) Stage 3 (U-Net
+nhẹ + transformer linking như baseline BTC).

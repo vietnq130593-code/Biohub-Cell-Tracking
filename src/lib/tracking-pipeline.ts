@@ -3,17 +3,24 @@
  * "Biohub — Cell Tracking During Development"
  *
  * Nội dung:
- *  1) Sinh dữ liệu GT (giữ nguyên hành vi bản cũ + thêm "cửa sổ mờ" — tế bào
- *     rơi ra khỏi mặt phẳng chiếu sáng vài khung → thuật toán thật sẽ bỏ sót)
- *  2) Render thể tích 3D tổng hợp (lưới downsample như notebook: z×2, xy×4)
- *  3) PORT TRUNG THÀNH 2 phiên bản thuật toán:
+ *  1) Sinh dữ liệu GT (+ "cửa sổ mờ" · mẹ sáng dần trước khi chia · cặp
+ *     merge-split quấn nhau · phân bào chị-em-xa bất đối xứng — đúng các
+ *     hiện tượng trong discussion #740573)
+ *  2) Render thể tích 3D tổng hợp (lưới downsample như notebook: z×2, xy×4;
+ *     lõi có gradient nhẹ để mỗi tế bào có MỘT đỉnh sáng duy nhất)
+ *  3) PORT TRUNG THÀNH 4 PHIÊN BẢN thuật toán:
  *     - ver 0 (baseline getting-started): P90 · 6-conn · tâm hình học ·
  *       Hungarian gate cố định 15 µm · không phân bào · không frame-skip
- *     - ver 1 (Stage 0+2): P92 · 26-conn · CoM theo cường độ · MIN/MAX voxels ·
- *       motion model EMA + gate thích ứng 5–12 µm · phân bào (10/12 µm + bảo
- *       toàn độ sáng) · frame-skip + nội suy node tại khung mất
- *  4) Bộ chấm điểm dùng chung + division Jaccard theo "dòng con" (lineage) —
- *     sát mô tả metric chính thức hơn bản trước
+ *     - ver 1 (Stage 0+2, Kaggle 0.198): P92 · 26-conn · CoM · MIN/MAX ·
+ *       motion EMA + gate 5–12 · phân bào 10/12 µm + bảo toàn sáng · skip 1
+ *     - ver 2 (chống gộp blob + xác nhận động học): P90 · MAX 3000 · tách
+ *       blob theo đỉnh maximum_filter · skip 2 + nội suy · gate 5–14 ·
+ *       phân bào HOÃN — chỉ ghi khi 2 con sống ≥3 khung và tách ≥15%
+ *     - ver 3 (profile độ sáng — discussion #740573): ver 2 + sister gate
+ *       14,5 · parent gate 12 · con kế thừa vận tốc mẹ · MỚI: mỗi track theo
+ *       dõi lịch sử khối lượng — blob "mẹ" ≥1,7× baseline = merge-split giả
+ *       → chặn; mẹ sáng dần ≥1,05× được ưu tiên (AUC 0,73)
+ *  4) Bộ chấm điểm dùng chung + division Jaccard theo dòng con (lineage)
  *
  * Toàn bộ deterministic (PRNG có seed) → tái lập được.
  * Không phụ thuộc DOM/React — chạy được trong harness bun.
@@ -79,14 +86,60 @@ const DIM_PROB = 0.42
 const DIM_I_LO = 25
 const DIM_I_HI = 45
 
+// --- cặp merge-split "quấn" (tái hiện hiện tượng merge-split của data thật:
+//     2 tế bào tiến sát → gộp 1 blob ~2× khối lượng → tách và đi xa DẦN) ---
+const ENTANGLE_PAIRS = 4
+const ENT_T0 = [15, 26, 37, 48] // khung bắt đầu gộp của từng cặp
+
 // --- ver 0 (baseline Kaggle gốc) ---
 const V0 = {
   percentile: 90,
   linkGateUm: 15,
 }
 
+/** Tham số pipeline có liên kết (ver 1/2/3) — port từ cell2code các ver */
+export interface VerParams {
+  percentile: number
+  smoothSize: number
+  minNvox: number
+  maxNvox: number
+  conn26: boolean
+  baseGateUm: number
+  gateMedianMult: number
+  gateMinUm: number
+  gateMaxUm: number
+  velSmooth: number
+  skipGateUm: number
+  maxSkipFrames: number
+  interpolate: boolean
+  divEnabled: boolean
+  divParentGateUm: number
+  divSiblingGateUm: number
+  divMinChildFrac: number
+  divBrightCheck: boolean
+  divBrightRatio: readonly [number, number]
+  /** cách đặt vận tốc ban đầu cho con thứ 2 (ver 1/2 dùng vectơ mẹ→con —
+   *  bug tiềm ẩn được giữ nguyên cho trung thành; ver 3 đã sửa) */
+  childVelMode: 'motherToChild' | 'inheritMother'
+  // --- ver 2+: tách blob theo đỉnh ---
+  splitMinNvox?: number
+  minPeakDistDs?: number
+  peakMinBright?: number
+  // --- ver 2+: phân bào xác nhận động học ---
+  divConfirmFrames?: number
+  divSepGrowth?: number
+  // --- ver 3: profile độ sáng ---
+  massHistory?: number
+  massSkipLast?: number
+  massBaseMinFrames?: number
+  divMomMaxRise?: number
+  divMomMinFrac?: number
+  divMomBrightBonus?: number
+}
+
+
 // --- ver 1 (đúng notebook kaggle/ver-1 · cell 2) ---
-const V1 = {
+const V1: VerParams = {
   percentile: 92,
   smoothSize: 3,
   minNvox: 4,
@@ -106,6 +159,40 @@ const V1 = {
   divMinChildFrac: 0.15,
   divBrightCheck: true,
   divBrightRatio: [0.55, 1.8] as const,
+  childVelMode: 'motherToChild', // đúng notebook ver 1 (con "bắn" theo vectơ mẹ→con)
+}
+
+// --- ver 2 (kaggle/ver-2 · cell 2) — tách blob + xác nhận động học ---
+// (bug vận tốc con đã sửa theo phát hiện ở ver 3 — ver 2 chỉ là bản nháp
+//  chưa submit nên được vá thẳng; notebook Kaggle gốc ver 1 giữ nguyên bug)
+const V2: VerParams = {
+  ...V1,
+  percentile: 90,
+  maxNvox: 3000,
+  baseGateUm: 9,
+  gateMaxUm: 14,
+  skipGateUm: 12,
+  maxSkipFrames: 2,
+  splitMinNvox: 90,
+  minPeakDistDs: 4.0,
+  peakMinBright: 1.15,
+  divConfirmFrames: 3,
+  divSepGrowth: 1.15,
+  childVelMode: 'inheritMother',
+}
+
+// --- ver 3 (kaggle/ver-3 · cell 2) — profile độ sáng cho phân bào ---
+const V3: VerParams = {
+  ...V2,
+  divParentGateUm: 12,
+  divSiblingGateUm: 14.5,
+  childVelMode: 'inheritMother', // con kế thừa vận tốc mẹ (bug fix ver 3)
+  massHistory: 12,
+  massSkipLast: 2,
+  massBaseMinFrames: 4,
+  divMomMaxRise: 1.7,
+  divMomMinFrac: 0.5,
+  divMomBrightBonus: 1.05,
 }
 
 // ---------------------------------------------------------------------------
@@ -261,6 +348,44 @@ export function buildSimulation(seed: number): SimData {
   const pending = new Map<number, Division>()
   for (const dv of divisions) pending.set(dv.frame, dv)
 
+  const byIdTmp = new Map<number, Track>()
+  for (const tr of tracks) byIdTmp.set(tr.id, tr)
+
+  // --- 4 cặp merge-split "quấn": B tiến sát A → gộp 3 khung → tách đi xa DẦN
+  // (đúng động học vượt được DIV_SEP_GROWTH — chỉ ver 3 chặn bằng mass) ---
+  interface Entangle { a: number; b: number; t0: number }
+  const entList: Entangle[] = []
+  const entExempt = new Set<string>()
+  {
+    const eRng = mulberry32((seed ^ 0x5eed11) >>> 0)
+    const used = new Set<number>()
+    const baseCells = tracks.filter(
+      (tr) => tr.start === 0 && tr.parent === null && tr.divisionFrame === null,
+    )
+    let guard = 0
+    while (entList.length < Math.min(ENTANGLE_PAIRS, ENT_T0.length) && guard++ < 300) {
+      const a = baseCells[Math.floor(eRng() * baseCells.length)]
+      if (a === undefined || used.has(a.id)) continue
+      // B = tế bào gần nhất chưa dùng (≤ 60 µm) — tránh mẹ/con phân bào
+      let bestB: Track | undefined
+      let bestD = 60
+      for (const cand of baseCells) {
+        if (cand.id === a.id || used.has(cand.id)) continue
+        const ca = rt.get(a.id)
+        const cb = rt.get(cand.id)
+        if (ca === undefined || cb === undefined) continue
+        const d = dist3(ca.pos[0], ca.pos[1], ca.pos[2] * Z_UM_PER_VOXEL, cb.pos[0], cb.pos[1], cb.pos[2] * Z_UM_PER_VOXEL)
+        if (d < bestD) { bestD = d; bestB = cand }
+      }
+      if (bestB === undefined) continue
+      used.add(a.id)
+      used.add(bestB.id)
+      entList.push({ a: a.id, b: bestB.id, t0: ENT_T0[entList.length]! })
+      entExempt.add(`${a.id}_${bestB.id}`)
+      entExempt.add(`${bestB.id}_${a.id}`)
+    }
+  }
+
   const swirlA = rng() * Math.PI * 2
   const intensitySum: number[] = new Array<number>(T).fill(0)
 
@@ -298,7 +423,8 @@ export function buildSimulation(seed: number): SimData {
     }
 
     // --- lượt 2: đẩy thể tích loại trừ (tissue mechanics) — giữ khoảng cách
-    // giữa các tế bào ~13 µm mãi mãi; MIỄN cặp mẹ–con mới sinh (≤ 10 khung) ---
+    // giữa các tế bào ~13 µm mãi mãi; MIỄN cặp mẹ–con mới sinh (≤ 10 khung)
+    // và cặp merge-split đang quấn nhau ---
     if (aliveNow.length > 1) {
       const stOf = (tr: Track): RtState | undefined => rt.get(tr.id)
       for (let a = 0; a < aliveNow.length; a++) {
@@ -310,6 +436,7 @@ export function buildSimulation(seed: number): SimData {
           if (A === undefined || B === undefined) continue
           // miễn đẩy: con mới sinh với mẹ & với chị em ruột (cần thời gian tách tự nhiên)
           const exempt =
+            entExempt.has(`${trA.id}_${trB.id}`) ||
             (trA.parent === trB.id && t - trA.start <= 10) ||
             (trB.parent === trA.id && t - trB.start <= 10) ||
             (trA.parent !== null && trA.parent === trB.parent && t - trA.start <= 10 && t - trB.start <= 10)
@@ -330,25 +457,73 @@ export function buildSimulation(seed: number): SimData {
       }
     }
 
+    // --- lượt 2b: kịch bản cặp merge-split (B tiến sát A → gộp → tách dần) ---
+    for (const ent of entList) {
+      if (t < ent.t0 - 4 || t > ent.t0 + 14) continue
+      const A = rt.get(ent.a)
+      const B = rt.get(ent.b)
+      if (A === undefined || B === undefined) continue
+      const trackA = byIdTmp.get(ent.a)
+      const trackB = byIdTmp.get(ent.b)
+      if (trackA === undefined || trackB === undefined) continue
+      if (t < trackA.start || t > trackA.end || t < trackB.start || t > trackB.end) continue
+      if (t < ent.t0) {
+        // tiến sát: 35% → 65% → 85% → 96% quãng đường về phía A
+        const frac = [0.35, 0.65, 0.85, 0.96][t - (ent.t0 - 4)] ?? 0.9
+        const tgt: [number, number, number] = [
+          A.pos[0] + (B.pos[0] - A.pos[0]) * (1 - frac),
+          A.pos[1] + (B.pos[1] - A.pos[1]) * (1 - frac),
+          A.pos[2] + (B.pos[2] - A.pos[2]) * (1 - frac),
+        ]
+        B.vel = [tgt[0] - B.pos[0], tgt[1] - B.pos[1], tgt[2] - B.pos[2]]
+        B.pos = tgt
+      } else if (t <= ent.t0 + 2) {
+        // gộp sâu: B ôm sát A (blob ~2× khối lượng, 1 đỉnh)
+        const dz = Math.hypot(B.pos[0] - A.pos[0], B.pos[1] - A.pos[1])
+        const ux = dz > 1e-6 ? (B.pos[0] - A.pos[0]) / dz : 1
+        const uy = dz > 1e-6 ? (B.pos[1] - A.pos[1]) / dz : 0
+        B.pos = [A.pos[0] + ux * 0.7, A.pos[1] + uy * 0.7, A.pos[2]]
+        B.vel = [0, 0, 0]
+      } else {
+        // tách TIẾN TRIỂN (vượt được xác nhận động học của ver 2!):
+        // vận tốc hướng ra tăng dần 0.7 → 1.5 µm/khung
+        const k = t - (ent.t0 + 3)
+        const sp = Math.min(1.5, 0.7 + 0.3 * k)
+        const dx = B.pos[0] - A.pos[0]
+        const dy = B.pos[1] - A.pos[1]
+        const dzz = (B.pos[2] - A.pos[2]) * 1.625
+        const d = Math.hypot(dx, dy, dzz)
+        if (d > 1e-6) {
+          B.vel = [(dx / d) * sp, (dy / d) * sp, (dzz / d) * sp / 1.625]
+        } else {
+          B.vel = [sp, 0, 0]
+        }
+        B.pos = [B.pos[0] + B.vel[0], B.pos[1] + B.vel[1], B.pos[2] + B.vel[2]]
+      }
+    }
+
     // --- lượt 3: ghi trạng thái khung ---
     for (const tr of aliveNow) {
       const s = rt.get(tr.id)
       if (s === undefined) continue
       const swell =
         tr.divisionFrame !== null && t >= tr.divisionFrame - 4
-          ? 1 + 0.3 * ((t - (tr.divisionFrame - 4)) / 4)
+          ? 1 + 0.1 * ((t - (tr.divisionFrame - 4)) / 4)
           : 1
-      const grow =
-        tr.parent !== null
-          ? 0.72 + 0.28 * clamp((t - tr.start) / 8, 0, 1)
+      // MẸ SÁNG DẦN trước khi chia (discussion #740573: peak intensity AUC 0,73;
+      // anaphase "đường sáng mảnh" vài khung trước tách)
+      const preGlow =
+        tr.divisionFrame !== null && t >= tr.divisionFrame - 3 && t <= tr.divisionFrame
+          ? 1 + 0.13 * ((t - (tr.divisionFrame - 3)) / 3)
           : 1
+      const grow = tr.parent !== null ? 0.94 + 0.06 * clamp((t - tr.start) / 8, 0, 1) : 1
 
       tr.frames.push({
         x: s.pos[0],
         y: s.pos[1],
         z: s.pos[2],
         r: s.rB * swell * grow,
-        i: Math.round(s.iB * (0.85 + rng() * 0.3)),
+        i: Math.round(s.iB * preGlow * (0.85 + rng() * 0.3)),
         labeled: true,
       })
       intensitySum[t] += s.iB
@@ -360,10 +535,14 @@ export function buildSimulation(seed: number): SimData {
       const ms = mother !== undefined ? rt.get(mother.id) : undefined
       if (mother !== undefined && ms !== undefined && mother.frames.length > 0) {
         const ang = rng() * Math.PI * 2
-        const off = 3.2 + rng() * 2.2
-        for (const [cid, sgn] of [
-          [dv.daughters[0], 1],
-          [dv.daughters[1], -1],
+        // 50% phân bào CHỊ EM XA (bất đối xứng — đúng phân bố thật: sister
+        // separation p99 13,9 max 14,65 µm; d2 sinh xa mẹ 9–11 µm)
+        const wide = rng() < 0.5
+        const offA = wide ? 2.0 + rng() * 0.6 : 3.2 + rng() * 2.2
+        const offB = wide ? 9.3 + rng() * 1.9 : 3.2 + rng() * 2.2
+        for (const [cid, sgn, off] of [
+          [dv.daughters[0], 1, offA],
+          [dv.daughters[1], -1, offB],
         ] as const) {
           const cs = rt.get(cid)
           if (cs !== undefined) {
@@ -373,8 +552,10 @@ export function buildSimulation(seed: number): SimData {
               ms.pos[2],
             ]
             cs.vel = [Math.cos(ang) * 1.0 * sgn, Math.sin(ang) * 1.0 * sgn, 0]
-            cs.rB = ms.rB * 0.75
-            cs.iB = ms.iB * (0.5 + rng() * 0.25) // mỗi con nhận ~0.5–0.75 độ sáng mẹ
+            // bảo toàn huỳnh quang: mẹ chia đôi THỂ TÍCH, nồng độ sáng giữ
+            // nguyên → mỗi con ≈ nửa khối lượng mẹ, 2 con ≈ mẹ (0,9–1,05)
+            cs.rB = ms.rB * 0.8
+            cs.iB = ms.iB * (0.92 + rng() * 0.12)
           }
         }
       }
@@ -556,7 +737,9 @@ function renderVolume(
           const q = qyz + (x - gx) * (x - gx) / (rcxy * rcxy)
           let v: number
           if (q <= 1) {
-            v = amp // lõi phẳng sáng
+            // lõi GẦN phẳng nhưng có gradient nhẹ về tâm — mỗi tế bào có
+            // MỘT đỉnh sáng duy nhất (cần cho tách blob theo đỉnh của ver 2/3)
+            v = amp * (1 - 0.055 * q)
           } else {
             const e = Math.sqrt(q) - 1
             v = amp * Math.exp(-0.5 * (e / EDGE_SIGMA) * (e / EDGE_SIGMA)) // mép sắc
@@ -658,7 +841,8 @@ interface CompStat {
   cz: number; cy: number; cx: number // Σ coord (tâm hình học)
 }
 
-/** Connected components trên vol > thr. conn26 = liên kết 26 ô, ngược lại 6 ô */
+/** Connected components trên vol > thr. conn26 = liên kết 26 ô, ngược lại 6 ô.
+ * Trả về cả mảng labels (1..n; 0 = nền) để tách blob theo đỉnh ở ver 2/3 */
 function labelComponents(
   vol: Float32Array,
   thr: number,
@@ -666,7 +850,7 @@ function labelComponents(
   Z: number,
   Y: number,
   X: number,
-): CompStat[] {
+): { comps: CompStat[]; labels: Int32Array } {
   const labels = new Int32Array(vol.length)
   const comps: CompStat[] = []
   const stack: number[] = []
@@ -721,7 +905,70 @@ function labelComponents(
       }
     }
   }
-  return comps
+  return { comps, labels }
+}
+
+/** maximum_filter tách biệt (kz, ky, kx lẻ) — như scipy.ndimage, biên clamp */
+function maxFilter3(
+  src: Float32Array,
+  out: Float32Array,
+  tmp: Float32Array,
+  Z: number,
+  Y: number,
+  X: number,
+  kz: number,
+  ky: number,
+  kx: number,
+): void {
+  const rz = (kz - 1) >> 1
+  const ry = (ky - 1) >> 1
+  const rx = (kx - 1) >> 1
+  // trục x: src → tmp
+  for (let z = 0; z < Z; z++) {
+    for (let y = 0; y < Y; y++) {
+      const base = (z * Y + y) * X
+      for (let x = 0; x < X; x++) {
+        let m = -Infinity
+        for (let d = -rx; d <= rx; d++) {
+          const xx = Math.min(X - 1, Math.max(0, x + d))
+          const v = src[base + xx]!
+          if (v > m) m = v
+        }
+        tmp[base + x] = m
+      }
+    }
+  }
+  // trục y: tmp → out
+  for (let z = 0; z < Z; z++) {
+    for (let y = 0; y < Y; y++) {
+      const base = (z * Y + y) * X
+      for (let x = 0; x < X; x++) {
+        let m = -Infinity
+        for (let d = -ry; d <= ry; d++) {
+          const yy = Math.min(Y - 1, Math.max(0, y + d))
+          const v = tmp[(z * Y + yy) * X + x]!
+          if (v > m) m = v
+        }
+        out[base + x] = m
+      }
+    }
+  }
+  // trục z: out → tmp (kết quả cuối)
+  for (let z = 0; z < Z; z++) {
+    for (let y = 0; y < Y; y++) {
+      const base = (z * Y + y) * X
+      for (let x = 0; x < X; x++) {
+        let m = -Infinity
+        for (let d = -rz; d <= rz; d++) {
+          const zz = Math.min(Z - 1, Math.max(0, z + d))
+          const v = out[(zz * Y + y) * X + x]!
+          if (v > m) m = v
+        }
+        tmp[base + x] = m
+      }
+    }
+  }
+  out.set(tmp)
 }
 
 // ---------------------------------------------------------------------------
@@ -1143,7 +1390,6 @@ export function scoreDetections(
 // PIPELINE — chạy thuật toán thật trên thể tích tổng hợp
 // ---------------------------------------------------------------------------
 
-export type PipelineVersion = 'ver0' | 'ver1'
 
 export interface PipelineStats {
   nodes: number
@@ -1194,7 +1440,7 @@ export function probeVolume(sim: SimData, seed: number, t: number): {
   renderVolume(sim, t, vol, glow, rng)
   smooth3(vol, sm, GZ, GY, GX)
   const thr = percentileOf(sm, V1.percentile)
-  const comps = labelComponents(sm, thr, true, GZ, GY, GX)
+  const { comps } = labelComponents(sm, thr, true, GZ, GY, GX)
   const alive = sim.tracks.filter((tr) => tr.start <= t && t <= tr.end).length
   let dets1 = 0
   for (const c of comps) {
@@ -1229,51 +1475,530 @@ export function probeVolume(sim: SimData, seed: number, t: number): {
   }
 }
 
-/** Chạy cả 2 phiên bản trên cùng một chuỗi thể tích (render 1 lần/khung) */
-export function runBothPipelines(sim: SimData, seed: number): {
-  ver0: PipelineRun
-  ver1: PipelineRun
+/** Phát hiện 1 khung (dùng chung ver 1/2/3 — khác tham số).
+ * ver 2/3: component lớn bị TÁCH theo các đỉnh cục bộ (maximum_filter) —
+ * 2 tế bào bị ngưỡng gộp thành 1 blob sẽ tách thành 2 node nếu có ≥ 2 đỉnh
+ * sáng cách nhau ≥ minPeakDistDs (z weighted ×2 như notebook). */
+function detectFrame(
+  sim: SimData,
+  t: number,
+  sm: Float32Array,
+  params: VerParams,
+  scratch: { mf: Float32Array; mfTmp: Float32Array },
+): Det[] {
+  const thr = percentileOf(sm, params.percentile)
+  const { comps, labels } = labelComponents(sm, thr, params.conn26, GZ, GY, GX)
+  const dets: Det[] = []
+
+  const pushDet = (gz: number, gy: number, gx: number, mass: number, nvox: number): void => {
+    const x = clamp(gx * DS_XY_UM, 0.5, WORLD_W - 0.5)
+    const y = clamp(gy * DS_XY_UM, 0.5, WORLD_H - 0.5)
+    const z = clamp(gz * 2, 0.5, 63.5)
+    dets.push({
+      x, y, z,
+      r: clamp(0.62 * Math.cbrt(Math.max(1, nvox)) * DS_XY_UM, 1.2, 5.5),
+      i: Math.round(mass / Math.max(1, nvox)),
+      mass,
+      src: nearestSrc(sim, t, x, y, z, 4.0),
+    })
+  }
+
+  const splitMin = params.splitMinNvox
+  const anyBig = splitMin !== undefined && comps.some((c) => c.count > splitMin)
+  if (!anyBig) {
+    for (const c of comps) {
+      if (c.count < params.minNvox || c.count > params.maxNvox || c.w <= 0) continue
+      pushDet(c.wz / c.w, c.wy / c.w, c.wx / c.w, c.w, c.count)
+    }
+    return dets
+  }
+
+  // ---- tách blob theo đỉnh (ver 2/3) ----
+  const minPeakDist = params.minPeakDistDs ?? 4.0
+  const peakMinBright = params.peakMinBright ?? 1.15
+  maxFilter3(sm, scratch.mf, scratch.mfTmp, GZ, GY, GX, 3, 5, 5)
+
+  const compVox = new Map<number, number[]>()
+  const compPeaks = new Map<number, { p: [number, number, number]; val: number }[]>()
+  const isBig = new Uint8Array(comps.length + 1)
+  comps.forEach((c, i) => {
+    if (c.count > splitMin!) isBig[i + 1] = 1
+  })
+  for (let idx = 0; idx < labels.length; idx++) {
+    const L = labels[idx]!
+    if (L === 0 || isBig[L] === 0) continue
+    let arr = compVox.get(L)
+    if (arr === undefined) {
+      arr = []
+      compVox.set(L, arr)
+    }
+    arr.push(idx)
+    const v = sm[idx]!
+    if (v === scratch.mf[idx]! && v >= thr * peakMinBright) {
+      const z = Math.floor(idx / (GY * GX))
+      const rem = idx - z * GY * GX
+      const y = (rem / GX) | 0
+      const x = rem - y * GX
+      let pk = compPeaks.get(L)
+      if (pk === undefined) {
+        pk = []
+        compPeaks.set(L, pk)
+      }
+      pk.push({ p: [z, y, x], val: v })
+    }
+  }
+
+  comps.forEach((c, ci) => {
+    const L = ci + 1
+    if (c.count < params.minNvox || c.count > params.maxNvox || c.w <= 0) return
+    if (isBig[L] === 0) {
+      pushDet(c.wz / c.w, c.wy / c.w, c.wx / c.w, c.w, c.count)
+      return
+    }
+    const peaks = [...(compPeaks.get(L) ?? [])].sort((a, b) => b.val - a.val)
+    // giữ đỉnh sáng nhất; bỏ đỉnh quá gần một đỉnh đã giữ (z ×2)
+    const kept: [number, number, number][] = []
+    for (const pk of peaks) {
+      const ok = kept.every(
+        (q) => Math.hypot((pk.p[0] - q[0]) * 2, pk.p[1] - q[1], pk.p[2] - q[2]) >= minPeakDist,
+      )
+      if (ok) kept.push(pk.p)
+    }
+    if (kept.length < 2) {
+      pushDet(c.wz / c.w, c.wy / c.w, c.wx / c.w, c.w, c.count)
+      return
+    }
+    // gán voxel → đỉnh gần nhất; CoM theo cường độ riêng từng vùng
+    const vox = compVox.get(L)!
+    const regs = kept.map(() => ({ n: 0, w: 0, wz: 0, wy: 0, wx: 0 }))
+    for (const idx of vox) {
+      const z = Math.floor(idx / (GY * GX))
+      const rem = idx - z * GY * GX
+      const y = (rem / GX) | 0
+      const x = rem - y * GX
+      let bi = 0
+      let bd = Infinity
+      kept.forEach((q, k) => {
+        const d = Math.hypot((z - q[0]) * 2, y - q[1], x - q[2])
+        if (d < bd) {
+          bd = d
+          bi = k
+        }
+      })
+      const r = regs[bi]!
+      const v = sm[idx]!
+      r.n++
+      r.w += v
+      r.wz += z * v
+      r.wy += y * v
+      r.wx += x * v
+    }
+    for (const r of regs) {
+      if (r.n < params.minNvox || r.w <= 0) continue
+      pushDet(r.wz / r.w, r.wy / r.w, r.wx / r.w, r.w, r.n)
+    }
+  })
+  return dets
+}
+
+// ---------------------------------------------------------------------------
+// TRACKER có liên kết (ver 1/2/3 — port class Tracker của notebook)
+// ---------------------------------------------------------------------------
+
+interface TrkEntry {
+  pos: [number, number, number]
+  vel: [number, number, number]
+  mass: number
+  ref: { t: number; i: number }
+  hist: number[] // lịch sử khối lượng theo track (ver 3)
+}
+
+interface DivCand {
+  t: number
+  motherRef: { t: number; i: number }
+  c2Ref: { t: number; i: number }
+  c1Key: string
+  c2Key: string
+  d0: number
+  age: number
+}
+
+/** Baseline khối lượng của track: percentile 25 của ~massHistory giá trị
+ * gần nhất, BỎ massSkipLast khung cuối (đúng khoảng mẹ sáng lên trước khi
+ * chia). Dùng p25 thay vì median: blob gộp merge-split (≈2×) tồn tại
+ * nửa cửa sổ vẫn không kéo được baseline lên — median thì được (bug đã
+ * bắt gặp khi kiểm chứng), còn p25 vẫn kháng được 1–2 khung mờ nháp. */
+function massBaselineOf(hist: number[], params: VerParams): number | null {
+  const H = params.massHistory ?? 12
+  const S = params.massSkipLast ?? 2
+  const minLen = (params.massBaseMinFrames ?? 6) + S
+  if (hist.length < minLen) return null
+  const kept = hist.slice(Math.max(0, hist.length - H - S), hist.length - S)
+  if (kept.length === 0) return null
+  const srt = [...kept].sort((a, b) => a - b)
+  return srt[Math.min(srt.length - 1, Math.floor(srt.length * 0.25))] ?? null
+}
+
+function createLinkedTracker(
+  sim: SimData,
+  params: VerParams,
+  det: Det[][],
+  edges: EdgeRef[],
+): {
+  step: (t: number) => void
+  divCount: () => number
+  rejStats: () => { mass: number; dyn: number; lost: number }
 } {
+  const active = new Map<number, TrkEntry>()
+  const pending = new Map<number, TrkEntry & { missed: number }>()
+  const recentSteps: number[] = []
+  let divPending: DivCand[] = []
+  let nid = 0
+  let divCount = 0
+  let nRejMass = 0
+  let nRejDyn = 0
+  let nRejLost = 0
+
+  const gate = (): number => {
+    if (recentSteps.length < 5) return params.baseGateUm
+    const srt = [...recentSteps].sort((a, b) => a - b)
+    const mid = srt[Math.floor(srt.length / 2)]!
+    return clamp(params.gateMedianMult * mid, params.gateMinUm, params.gateMaxUm)
+  }
+
+  const keyOf = (r: { t: number; i: number }): string => `${r.t}:${r.i}`
+
+  const pushHist = (h: number[], m: number): number[] => {
+    const o = [...h, m]
+    const cap = (params.massHistory ?? 8) + (params.massSkipLast ?? 2) + 2
+    return o.length > cap ? o.slice(o.length - cap) : o
+  }
+
+  const childVel = (jPos: [number, number, number], A: TrkEntry): [number, number, number] =>
+    params.childVelMode === 'inheritMother'
+      ? [A.vel[0], A.vel[1], A.vel[2]]
+      : [jPos[0] - A.pos[0], jPos[1] - A.pos[1], jPos[2] - A.pos[2]]
+
+  const step = (t: number): void => {
+    const dets = det[t] ?? []
+    const pos = dets.map((d): [number, number, number] => [d.z * Z_UM_PER_VOXEL, d.y, d.x])
+    const mass = dets.map((d) => d.mass)
+    const n = dets.length
+    const frameEdges: EdgeRef[] = []
+    const matchedCurr = new Map<number, number>() // curr idx → prev nid
+    const succ = new Map<string, string>() // key(prev node) → key(node khung này)
+
+    // ---- (a) Hungarian trên vị trí DỰ ĐOÁN, gate thích ứng ----
+    const prevIds = [...active.keys()]
+    if (prevIds.length > 0 && n > 0) {
+      const g = gate()
+      const D = prevIds.map((p) => {
+        const a = active.get(p)!
+        return pos.map((c) =>
+          physDist([a.pos[0] + a.vel[0], a.pos[1] + a.vel[1], a.pos[2] + a.vel[2]] as const, c),
+        )
+      })
+      const cost = D.map((row) => row.map((d) => (d <= g ? d : 1e9)))
+      const assign = hungarian(cost)
+      for (let ri = 0; ri < prevIds.length; ri++) {
+        const ci = assign[ri]
+        if (ci === null) continue
+        if (D[ri]![ci]! > g) continue
+        const p = prevIds[ri]!
+        const a = active.get(p)!
+        matchedCurr.set(ci, p)
+        succ.set(keyOf(a.ref), keyOf({ t, i: ci }))
+        frameEdges.push({ at: t - 1, ai: a.ref.i, bt: t, bi: ci })
+        recentSteps.push(physDist(pos[ci]!, a.pos))
+      }
+      if (recentSteps.length > 200) recentSteps.splice(0, 100)
+    }
+
+    const newActive = new Map<number, TrkEntry>()
+    for (const [ci, p] of matchedCurr) {
+      const a = active.get(p)!
+      const disp: [number, number, number] = [
+        pos[ci]![0] - a.pos[0],
+        pos[ci]![1] - a.pos[1],
+        pos[ci]![2] - a.pos[2],
+      ]
+      newActive.set(p, {
+        pos: pos[ci]!,
+        vel: [
+          params.velSmooth * disp[0] + (1 - params.velSmooth) * a.vel[0],
+          params.velSmooth * disp[1] + (1 - params.velSmooth) * a.vel[1],
+          params.velSmooth * disp[2] + (1 - params.velSmooth) * a.vel[2],
+        ],
+        mass: mass[ci]!,
+        ref: { t, i: ci },
+        hist: pushHist(a.hist, mass[ci]!),
+      })
+    }
+
+    // ---- (b) phân bào ứng viên ----
+    let unmatched: number[] = []
+    for (let j = 0; j < n; j++) if (!matchedCurr.has(j)) unmatched.push(j)
+    if (params.divEnabled && matchedCurr.size > 0) {
+      const cands: { prio: number; dP: number; p: number; ci: number; j: number }[] = []
+      const confirm = params.divConfirmFrames
+      for (const [ci, p] of matchedCurr) {
+        const A = active.get(p)!
+        const P = A.pos
+        const mP = A.mass
+        const C1 = pos[ci]!
+        const mC1 = mass[ci]!
+        const base = params.massHistory !== undefined ? massBaselineOf(A.hist, params) : null
+        for (const j of unmatched) {
+          const B2 = pos[j]!
+          const mB2 = mass[j]!
+          const dP = physDist(P, B2)
+          if (dP > params.divParentGateUm) continue
+          const dS = physDist(C1, B2)
+          if (dS > params.divSiblingGateUm) continue
+          if (mP > 0) {
+            if (mB2 < params.divMinChildFrac * mP) continue
+            if (params.divBrightCheck) {
+              const ratio = (mC1 + mB2) / mP
+              if (ratio < params.divBrightRatio[0] || ratio > params.divBrightRatio[1]) continue
+            }
+          }
+          // ver 3: ỔN ĐỊNH KHỐI LƯỢNG MẸ — blob gộp 2 tế bào ≈ 2× baseline
+          // riêng → merge-split giả; mẹ thật chỉ sáng lên nhẹ (AUC 0,73)
+          let rise: number | null = null
+          if (base !== null && base > 0) rise = mP / base
+          if (rise !== null) {
+            if (rise > (params.divMomMaxRise ?? 1.7) || rise < (params.divMomMinFrac ?? 0.5)) {
+              nRejMass++
+              continue
+            }
+          }
+          // ver 3: ưu tiên ứng viên có mẹ sáng dần (tín hiệu appearance)
+          const bright = rise !== null && rise >= (params.divMomBrightBonus ?? 1.05)
+          cands.push({ prio: bright ? 0 : 1, dP, p, ci, j })
+        }
+      }
+      cands.sort((a, b) => a.prio - b.prio || a.dP - b.dP)
+      const usedP = new Set<number>()
+      const usedJ = new Set<number>()
+      for (const cand of cands) {
+        if (usedP.has(cand.p) || usedJ.has(cand.j)) continue
+        usedP.add(cand.p)
+        usedJ.add(cand.j)
+        const A = active.get(cand.p)!
+        nid++
+        newActive.set(nid, {
+          pos: pos[cand.j]!,
+          vel: childVel(pos[cand.j]!, A),
+          mass: mass[cand.j]!,
+          ref: { t, i: cand.j },
+          hist: [mass[cand.j]!],
+        })
+        if (confirm === undefined) {
+          // ver 1: ghi cạnh + phân bào NGAY (không xác nhận)
+          frameEdges.push({ at: t - 1, ai: A.ref.i, bt: t, bi: cand.j })
+          divCount++
+        } else {
+          // ver 2/3: cạnh divergence HOÃN chờ xác nhận động học ở (e)
+          divPending.push({
+            t,
+            motherRef: A.ref,
+            c2Ref: { t, i: cand.j },
+            c1Key: keyOf({ t, i: cand.ci }),
+            c2Key: keyOf({ t, i: cand.j }),
+            d0: physDist(pos[cand.ci]!, pos[cand.j]!),
+            age: 0,
+          })
+        }
+      }
+      unmatched = unmatched.filter((j) => !usedJ.has(j))
+    }
+
+    // ---- (c) frame-skip + nội suy node tại khung mất ----
+    if (pending.size > 0 && unmatched.length > 0) {
+      const pendIds = [...pending.keys()]
+      const pred = pendIds.map((q) => {
+        const Q = pending.get(q)!
+        const m = Q.missed + 1
+        return [
+          Q.pos[0] + Q.vel[0] * m,
+          Q.pos[1] + Q.vel[1] * m,
+          Q.pos[2] + Q.vel[2] * m,
+        ] as [number, number, number]
+      })
+      const C = unmatched.map((j) => pos[j]!)
+      const D = pred.map((pp) => C.map((c) => physDist(pp, c)))
+      const cost = D.map((row) => row.map((d) => (d <= params.skipGateUm ? d : 1e9)))
+      const assign = hungarian(cost)
+      const takenJ = new Set<number>()
+      for (let ri = 0; ri < pendIds.length; ri++) {
+        const ci = assign[ri]
+        if (ci === null) continue
+        if (D[ri]![ci]! > params.skipGateUm) continue
+        const q = pendIds[ri]!
+        const j = unmatched[ci]!
+        takenJ.add(j)
+        const Q = pending.get(q)!
+        const gap = Q.missed + 1
+        let chain = Q.ref
+        if (params.interpolate && gap >= 2) {
+          for (let k = 1; k < gap; k++) {
+            const tk = t - gap + k
+            const pm: [number, number, number] = [
+              Q.pos[0] + (pos[j]![0] - Q.pos[0]) * (k / gap),
+              Q.pos[1] + (pos[j]![1] - Q.pos[1]) * (k / gap),
+              Q.pos[2] + (pos[j]![2] - Q.pos[2]) * (k / gap),
+            ]
+            const x = pm[2]
+            const y = pm[1]
+            const z = pm[0] / Z_UM_PER_VOXEL
+            det[tk]!.push({
+              x, y, z,
+              r: 2.6,
+              i: Math.round((Q.mass + mass[j]!) / 54),
+              mass: (Q.mass + mass[j]!) / 2,
+              src: nearestSrc(sim, tk, x, y, z, 4.0),
+            })
+            const midIdx = det[tk]!.length - 1
+            frameEdges.push({ at: chain.t, ai: chain.i, bt: tk, bi: midIdx })
+            chain = { t: tk, i: midIdx }
+          }
+        }
+        frameEdges.push({ at: chain.t, ai: chain.i, bt: t, bi: j })
+        succ.set(keyOf(Q.ref), keyOf({ t, i: j }))
+        newActive.set(q, {
+          pos: pos[j]!,
+          vel: [
+            (pos[j]![0] - Q.pos[0]) / gap,
+            (pos[j]![1] - Q.pos[1]) / gap,
+            (pos[j]![2] - Q.pos[2]) / gap,
+          ],
+          mass: mass[j]!,
+          ref: { t, i: j },
+          hist: pushHist(Q.hist, mass[j]!),
+        })
+        pending.delete(q)
+      }
+      unmatched = unmatched.filter((j) => !takenJ.has(j))
+    }
+
+    // ---- (d) dọn dẹp ----
+    for (const [q, st] of pending) {
+      st.missed++
+      if (st.missed > params.maxSkipFrames) pending.delete(q)
+    }
+    const matchedPrev = new Set(matchedCurr.values())
+    for (const p of prevIds) {
+      if (matchedPrev.has(p) || newActive.has(p)) continue
+      const a = active.get(p)!
+      pending.set(p, { ...a, missed: 1 })
+    }
+    for (const j of unmatched) {
+      if ([...newActive.values()].some((s) => s.ref.t === t && s.ref.i === j)) continue
+      nid++
+      newActive.set(nid, { pos: pos[j]!, vel: [0, 0, 0], mass: mass[j]!, ref: { t, i: j }, hist: [mass[j]!] })
+    }
+
+    // ---- (e) xác nhận phân bào (ver 2/3): 2 con sống đủ lâu + tách đủ nhanh ----
+    if (params.divConfirmFrames !== undefined) {
+      const posOf = new Map<string, [number, number, number]>()
+      for (const e of newActive.values()) posOf.set(keyOf(e.ref), e.pos)
+      const still: DivCand[] = []
+      for (const cand of divPending) {
+        if (cand.age === 0) {
+          cand.age = 1
+          still.push(cand)
+          continue
+        }
+        const c1n = succ.get(cand.c1Key)
+        const c2n = succ.get(cand.c2Key)
+        if (c1n === undefined || c2n === undefined) {
+          nRejLost++
+          continue
+        }
+        cand.c1Key = c1n
+        cand.c2Key = c2n
+        cand.age++
+        if (cand.age > params.divConfirmFrames) {
+          const p1 = posOf.get(cand.c1Key)
+          const p2 = posOf.get(cand.c2Key)
+          if (
+            p1 !== undefined && p2 !== undefined &&
+            physDist(p1, p2) >= (params.divSepGrowth ?? 1.15) * cand.d0
+          ) {
+            // XÁC NHẬN: ghi cạnh hoãn (mẹ t-1 → con thứ 2 t) — liền khung
+            edges.push({
+              at: cand.motherRef.t,
+              ai: cand.motherRef.i,
+              bt: cand.c2Ref.t,
+              bi: cand.c2Ref.i,
+            })
+            divCount++
+            continue
+          }
+          nRejDyn++
+          continue
+        }
+        still.push(cand)
+      }
+      divPending = still
+    }
+
+    active.clear()
+    for (const [k, v] of newActive) active.set(k, v)
+    edges.push(...frameEdges)
+  }
+
+  return {
+    step,
+    divCount: () => divCount,
+    rejStats: () => ({ mass: nRejMass, dyn: nRejDyn, lost: nRejLost }),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Chạy 4 phiên bản trên cùng một chuỗi thể tích (render 1 lần/khung)
+// ---------------------------------------------------------------------------
+
+export type PipelineVersion = 'ver0' | 'ver1' | 'ver2' | 'ver3'
+
+export interface PipelineRunV3 extends PipelineRun {
+  /** ver 2/3: số ứng viên phân bào bị từ chối theo lý do */
+  rej: { mass: number; dyn: number; lost: number }
+}
+
+export function runAllPipelines(
+  sim: SimData,
+  seed: number,
+): Record<PipelineVersion, PipelineRunV3> {
   const vol = new Float32Array(GZ * GY * GX)
   const smoothed = new Float32Array(GZ * GY * GX)
   const sub0 = new Float32Array(GZ0 * GY * GX)
   const sm0 = new Float32Array(GZ0 * GY * GX)
   const glow = makeGlowField(seed)
+  const scratch = { mf: new Float32Array(GZ * GY * GX), mfTmp: new Float32Array(GZ * GY * GX) }
 
-  const det0: Det[][] = Array.from({ length: T }, () => [])
-  const det1: Det[][] = Array.from({ length: T }, () => [])
-  const edges0: EdgeRef[] = []
-  const edges1: EdgeRef[] = []
+  const det: Record<PipelineVersion, Det[][]> = {
+    ver0: Array.from({ length: T }, () => []),
+    ver1: Array.from({ length: T }, () => []),
+    ver2: Array.from({ length: T }, () => []),
+    ver3: Array.from({ length: T }, () => []),
+  }
+  const edges: Record<PipelineVersion, EdgeRef[]> = {
+    ver0: [], ver1: [], ver2: [], ver3: [],
+  }
 
   // ---- tracker ver 0: Hungarian gate 15 µm, không motion/division/skip ----
   const active0 = new Map<number, { pos: [number, number, number]; ref: { t: number; i: number } }>()
   let nid0 = 0
 
-  // ---- tracker ver 1: port class Tracker của notebook ----
-  const active1 = new Map<
-    number,
-    { pos: [number, number, number]; vel: [number, number, number]; mass: number; ref: { t: number; i: number } }
-  >()
-  const pending1 = new Map<
-    number,
-    { pos: [number, number, number]; vel: [number, number, number]; mass: number; ref: { t: number; i: number }; missed: number }
-  >()
-  const recentSteps: number[] = []
-  let nid1 = 0
-  let divCount1 = 0
-
-  const gate1 = (): number => {
-    if (recentSteps.length < 5) return V1.baseGateUm
-    const srt = [...recentSteps].sort((a, b) => a - b)
-    const mid = srt[Math.floor(srt.length / 2)]!
-    return clamp(V1.gateMedianMult * mid, V1.gateMinUm, V1.gateMaxUm)
-  }
+  const trk1 = createLinkedTracker(sim, V1, det.ver1, edges.ver1)
+  const trk2 = createLinkedTracker(sim, V2, det.ver2, edges.ver2)
+  const trk3 = createLinkedTracker(sim, V3, det.ver3, edges.ver3)
 
   const t0 = performance.now()
   let ms0 = 0
-  let ms1 = 0
-  let nodes30v0 = 0, edges30v0 = 0, nodes30v1 = 0, edges30v1 = 0, div30v1 = 0
-  let ms30v0 = 0, ms30v1 = 0
+  let ms123 = 0
+  const at30 = { n: [0, 0, 0, 0], e: [0, 0, 0, 0], d: [0, 0, 0, 0], ms: [0, 0, 0, 0] }
 
   for (let t = 0; t < T; t++) {
     const rng = mulberry32((seed * 7919 + t * 104729) >>> 0)
@@ -1288,13 +2013,13 @@ export function runBothPipelines(sim: SimData, seed: number): {
     smooth3(sub0, sm0, GZ0, GY, GX)
     {
       const thr = percentileOf(sm0, V0.percentile)
-      const comps = labelComponents(sm0, thr, false, GZ0, GY, GX)
+      const { comps } = labelComponents(sm0, thr, false, GZ0, GY, GX)
       for (const c of comps) {
         if (c.count <= 0) continue
         const x = clamp((c.cx / c.count) * DS_XY_UM, 0.5, WORLD_W - 0.5)
         const y = clamp((c.cy / c.count) * DS_XY_UM, 0.5, WORLD_H - 0.5)
         const z = clamp((c.cz / c.count) * 4, 0.5, 63.5)
-        det0[t]!.push({
+        det.ver0[t]!.push({
           x, y, z,
           r: clamp(0.62 * Math.cbrt(Math.max(1, c.count)) * DS_XY_UM, 1.2, 5.5),
           i: Math.round(c.w / c.count),
@@ -1305,7 +2030,7 @@ export function runBothPipelines(sim: SimData, seed: number): {
     }
     // ---- VER 0 · link: Hungarian gate 15 µm ----
     {
-      const pos0 = det0[t]!.map(
+      const pos0 = det.ver0[t]!.map(
         (d): [number, number, number] => [d.z * Z_UM_PER_VOXEL, d.y, d.x],
       )
       const prevIds = [...active0.keys()]
@@ -1322,7 +2047,7 @@ export function runBothPipelines(sim: SimData, seed: number): {
           const ci = assign[pi]
           if (ci === null) continue
           const st = active0.get(prevIds[pi]!)!
-          edges0.push({ at: t - 1, ai: st.ref.i, bt: t, bi: ci })
+          edges.ver0.push({ at: t - 1, ai: st.ref.i, bt: t, bi: ci })
           next0.set(prevIds[pi]!, { pos: pos0[ci]!, ref: { t, i: ci } })
         }
       }
@@ -1336,250 +2061,50 @@ export function runBothPipelines(sim: SimData, seed: number): {
     }
     ms0 += performance.now() - ta
 
-    // ---- VER 1 · detect: CoM, 26-conn, MIN/MAX voxels ----
+    // ---- VER 1/2/3 · detect + track ----
     const tb = performance.now()
     smooth3(vol, smoothed, GZ, GY, GX)
-    {
-      const thr = percentileOf(smoothed, V1.percentile)
-      const comps = labelComponents(smoothed, thr, V1.conn26, GZ, GY, GX)
-      for (const c of comps) {
-        if (c.count < V1.minNvox || c.count > V1.maxNvox) continue
-        if (c.w <= 0) continue
-        const x = clamp((c.wx / c.w) * DS_XY_UM, 0.5, WORLD_W - 0.5)
-        const y = clamp((c.wy / c.w) * DS_XY_UM, 0.5, WORLD_H - 0.5)
-        const z = clamp((c.wz / c.w) * 2, 0.5, 63.5)
-        det1[t]!.push({
-          x, y, z,
-          r: clamp(0.62 * Math.cbrt(Math.max(1, c.count)) * DS_XY_UM, 1.2, 5.5),
-          i: Math.round(c.w / c.count),
-          mass: c.w,
-          src: nearestSrc(sim, t, x, y, z, 4.0),
-        })
-      }
-    }
-
-    // ---- VER 1 · tracker (port Tracker.step) ----
-    {
-      const pos = det1[t]!.map(
-        (d): [number, number, number] => [d.z * Z_UM_PER_VOXEL, d.y, d.x],
-      )
-      const mass = det1[t]!.map((d) => d.mass)
-      const n = det1[t]!.length
-      const frameEdges: EdgeRef[] = []
-      const matchedCurr = new Map<number, number>() // curr idx → prev nid
-
-      const prevIds = [...active1.keys()]
-      if (prevIds.length > 0 && n > 0) {
-        const gate = gate1()
-        const D: number[][] = prevIds.map((p) => {
-          const a = active1.get(p)!
-          const pred: [number, number, number] = [
-            a.pos[0] + a.vel[0],
-            a.pos[1] + a.vel[1],
-            a.pos[2] + a.vel[2],
-          ]
-          return pos.map((c) => physDist(pred, c))
-        })
-        const cost = D.map((row) => row.map((d) => (d <= gate ? d : 1e9)))
-        const assign = hungarian(cost)
-        for (let ri = 0; ri < prevIds.length; ri++) {
-          const ci = assign[ri]
-          if (ci === null) continue
-          if (D[ri]![ci]! > gate) continue
-          const p = prevIds[ri]!
-          matchedCurr.set(ci, p)
-          const st = active1.get(p)!
-          frameEdges.push({ at: t - 1, ai: st.ref.i, bt: t, bi: ci })
-          recentSteps.push(physDist(pos[ci]!, st.pos))
-        }
-        if (recentSteps.length > 200) recentSteps.splice(0, 100)
-      }
-
-      const newActive = new Map<number, { pos: [number, number, number]; vel: [number, number, number]; mass: number; ref: { t: number; i: number } }>()
-      for (const [ci, p] of matchedCurr) {
-        const a = active1.get(p)!
-        const disp: [number, number, number] = [
-          pos[ci]![0] - a.pos[0],
-          pos[ci]![1] - a.pos[1],
-          pos[ci]![2] - a.pos[2],
-        ]
-        newActive.set(p, {
-          pos: pos[ci]!,
-          vel: [
-            V1.velSmooth * disp[0] + (1 - V1.velSmooth) * a.vel[0],
-            V1.velSmooth * disp[1] + (1 - V1.velSmooth) * a.vel[1],
-            V1.velSmooth * disp[2] + (1 - V1.velSmooth) * a.vel[2],
-          ],
-          mass: mass[ci]!,
-          ref: { t, i: ci },
-        })
-      }
-
-      // (b) phân bào: mẹ đã match nhận thêm con thứ 2
-      let unmatched: number[] = []
-      for (let j = 0; j < n; j++) if (!matchedCurr.has(j)) unmatched.push(j)
-      if (V1.divEnabled && matchedCurr.size > 0) {
-        const cands: { dP: number; p: number; j: number }[] = []
-        for (const [ci, p] of matchedCurr) {
-          const aP = active1.get(p)!
-          const P = aP.pos
-          const mP = aP.mass
-          const C1 = pos[ci]!
-          const mC1 = mass[ci]!
-          for (const j of unmatched) {
-            const B2 = pos[j]!
-            const mB2 = mass[j]!
-            const dP = physDist(P, B2)
-            if (dP > V1.divParentGateUm) continue
-            const dS = physDist(C1, B2)
-            if (dS > V1.divSiblingGateUm) continue
-            if (mP > 0) {
-              if (mB2 < V1.divMinChildFrac * mP) continue
-              if (V1.divBrightCheck) {
-                const ratio = (mC1 + mB2) / mP
-                if (ratio < V1.divBrightRatio[0] || ratio > V1.divBrightRatio[1]) continue
-              }
-            }
-            cands.push({ dP, p, j })
-          }
-        }
-        cands.sort((a, b) => a.dP - b.dP)
-        const usedP = new Set<number>()
-        const usedJ = new Set<number>()
-        for (const { dP, p, j } of cands) {
-          if (usedP.has(p) || usedJ.has(j)) continue
-          usedP.add(p)
-          usedJ.add(j)
-          const aP = active1.get(p)!
-          const P = aP.pos
-          nid1++
-          newActive.set(nid1, {
-            pos: pos[j]!,
-            vel: [pos[j]![0] - P[0], pos[j]![1] - P[1], pos[j]![2] - P[2]],
-            mass: mass[j]!,
-            ref: { t, i: j },
-          })
-          frameEdges.push({ at: t - 1, ai: aP.ref.i, bt: t, bi: j })
-          divCount1++
-        }
-        unmatched = unmatched.filter((j) => !usedJ.has(j))
-      }
-
-      // (c) frame-skip + nội suy node tại khung mất
-      if (pending1.size > 0 && unmatched.length > 0) {
-        const pendIds = [...pending1.keys()]
-        const pred = pendIds.map((q) => {
-          const Q = pending1.get(q)!
-          const m = Q.missed + 1
-          return [
-            Q.pos[0] + Q.vel[0] * m,
-            Q.pos[1] + Q.vel[1] * m,
-            Q.pos[2] + Q.vel[2] * m,
-          ] as [number, number, number]
-        })
-        const C = unmatched.map((j) => pos[j]!)
-        const D = pred.map((pp) => C.map((c) => physDist(pp, c)))
-        const cost = D.map((row) => row.map((d) => (d <= V1.skipGateUm ? d : 1e9)))
-        const assign = hungarian(cost)
-        const takenJ = new Set<number>()
-        for (let ri = 0; ri < pendIds.length; ri++) {
-          const ci = assign[ri]
-          if (ci === null) continue
-          if (D[ri]![ci]! > V1.skipGateUm) continue
-          const q = pendIds[ri]!
-          const j = unmatched[ci]!
-          takenJ.add(j)
-          const Q = pending1.get(q)!
-          const gap = Q.missed + 1
-          let chain = Q.ref
-          if (V1.interpolate && gap >= 2) {
-            for (let k = 1; k < gap; k++) {
-              const tk = t - gap + k
-              const pm: [number, number, number] = [
-                Q.pos[0] + (pos[j]![0] - Q.pos[0]) * (k / gap),
-                Q.pos[1] + (pos[j]![1] - Q.pos[1]) * (k / gap),
-                Q.pos[2] + (pos[j]![2] - Q.pos[2]) * (k / gap),
-              ]
-              const x = pm[2]
-              const y = pm[1]
-              const z = pm[0] / Z_UM_PER_VOXEL
-              det1[tk]!.push({
-                x, y, z,
-                r: 2.6,
-                i: Math.round((Q.mass + mass[j]!) / 54),
-                mass: (Q.mass + mass[j]!) / 2,
-                src: nearestSrc(sim, tk, x, y, z, 4.0),
-              })
-              const midIdx = det1[tk]!.length - 1
-              frameEdges.push({ at: chain.t, ai: chain.i, bt: tk, bi: midIdx })
-              chain = { t: tk, i: midIdx }
-            }
-          }
-          frameEdges.push({ at: chain.t, ai: chain.i, bt: t, bi: j })
-          newActive.set(q, {
-            pos: pos[j]!,
-            vel: [
-              (pos[j]![0] - Q.pos[0]) / gap,
-              (pos[j]![1] - Q.pos[1]) / gap,
-              (pos[j]![2] - Q.pos[2]) / gap,
-            ],
-            mass: mass[j]!,
-            ref: { t, i: j },
-          })
-          pending1.delete(q)
-        }
-        unmatched = unmatched.filter((j) => !takenJ.has(j))
-      }
-
-      // (d) dọn dẹp
-      for (const [q, st] of pending1) {
-        st.missed++
-        if (st.missed > V1.maxSkipFrames) pending1.delete(q)
-      }
-      const matchedPrev = new Set(matchedCurr.values())
-      for (const p of prevIds) {
-        if (matchedPrev.has(p) || newActive.has(p)) continue
-        const a = active1.get(p)!
-        pending1.set(p, { ...a, missed: 1 })
-      }
-      for (const j of unmatched) {
-        if ([...newActive.values()].some((s) => s.ref.t === t && s.ref.i === j)) continue
-        nid1++
-        newActive.set(nid1, { pos: pos[j]!, vel: [0, 0, 0], mass: mass[j]!, ref: { t, i: j } })
-      }
-      active1.clear()
-      for (const [k, v] of newActive) active1.set(k, v)
-      edges1.push(...frameEdges)
-    }
-    ms1 += performance.now() - tb
+    det.ver1[t] = detectFrame(sim, t, smoothed, V1, scratch)
+    // ver 2/3 dùng chung detection (P90 + tách đỉnh) — mảng riêng vì nội suy
+    // node được đẩy vào mảng det của từng tracker độc lập
+    const d23 = detectFrame(sim, t, smoothed, V2, scratch)
+    det.ver2[t] = [...d23]
+    det.ver3[t] = [...d23]
+    trk1.step(t)
+    trk2.step(t)
+    trk3.step(t)
+    ms123 += performance.now() - tb
 
     if (t === 29) {
-      nodes30v0 = det0.reduce((s, f) => s + f.length, 0)
-      edges30v0 = edges0.length
-      nodes30v1 = det1.reduce((s, f) => s + f.length, 0)
-      edges30v1 = edges1.length
-      div30v1 = divCount1
-      ms30v0 = ms0
-      ms30v1 = ms1
+      at30.n = [det.ver0, det.ver1, det.ver2, det.ver3].map((dd) => dd.reduce((s, f) => s + f.length, 0))
+      at30.e = [edges.ver0, edges.ver1, edges.ver2, edges.ver3].map((ee) => ee.length)
+      at30.d = [0, trk1.divCount(), trk2.divCount(), trk3.divCount()]
+      at30.ms = [ms0, ms123 / 3, ms123 / 3, ms123 / 3]
     }
   }
 
-  const stats0: PipelineStats = {
-    nodes: det0.reduce((s, f) => s + f.length, 0),
-    edges: edges0.length,
-    divisions: 0,
-    ms: ms0,
-    nodes30: nodes30v0, edges30: edges30v0, div30: 0, ms30: ms30v0,
-  }
-  const stats1: PipelineStats = {
-    nodes: det1.reduce((s, f) => s + f.length, 0),
-    edges: edges1.length,
-    divisions: divCount1,
-    ms: ms1,
-    nodes30: nodes30v1, edges30: edges30v1, div30: div30v1, ms30: ms30v1,
-  }
+  const total = performance.now() - t0
+  const mk = (v: PipelineVersion, i: number, div: number, rej: { mass: number; dyn: number; lost: number }): PipelineRunV3 => ({
+    version: v,
+    stats: {
+      nodes: det[v].reduce((s, f) => s + f.length, 0),
+      edges: edges[v].length,
+      divisions: div,
+      ms: v === 'ver0' ? ms0 : ms123 / 3,
+      nodes30: at30.n[i]!,
+      edges30: at30.e[i]!,
+      div30: at30.d[i]!,
+      ms30: at30.ms[i]!,
+    },
+    det: det[v],
+    edges: edges[v],
+    rej,
+  })
+  void total
   return {
-    ver0: { version: 'ver0', stats: stats0, det: det0, edges: edges0 },
-    ver1: { version: 'ver1', stats: stats1, det: det1, edges: edges1 },
+    ver0: mk('ver0', 0, 0, { mass: 0, dyn: 0, lost: 0 }),
+    ver1: mk('ver1', 1, trk1.divCount(), { mass: 0, dyn: 0, lost: 0 }),
+    ver2: mk('ver2', 2, trk2.divCount(), trk2.rejStats()),
+    ver3: mk('ver3', 3, trk3.divCount(), trk3.rejStats()),
   }
 }

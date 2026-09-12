@@ -268,3 +268,28 @@ Work Log:
 
 Stage Summary:
 - Bài học đã tổng hợp gửi user (chat): khoảng cách KHÔNG phải tín hiệu phân bào (base rate); sister separation + brightness là tín hiệu; nội suy đúng hướng (GT không skip edge); division nên thận trọng (GT thưa, nhiều phân bào thật không nhãn → FP); đề xuất ver 3: thêm temporal brightness profile + cân nhắc SIBLING_GATE 12→14µm + dữ liệu ultrack ngoài để train detector
+
+---
+Task ID: 16
+Agent: main
+Task: Cập nhật kaggle/README.md với insight discussion #740573; xây ver 3 (phân bào theo profile độ sáng); port ver 2+3 vào trình mô phỏng web
+
+Work Log:
+- README: thêm mục "Insight từ discussion #740573" (bảng thống kê bước di chuyển, base rate 24:1, sister sep p99 13,9/max 14,65, AUC 0,73, cấu trúc GT segment, ultrack external data khớp voxel) + section ver 3 + lộ trình mới
+- Viết kaggle/ver-3/cell1..4code.py: SIBLING_GATE 14,5 · PARENT_GATE 12 · theo dõi mass_hist từng track (baseline p25 của 12 khung, skip 2 cuối) · DIV_MOM_MAX_RISE 1,7 chặn blob gộp ~2× · DIV_MOM_BRIGHT_BONUS 1,05 ưu tiên mẹ sáng dần · con kế thừa vận tốc MẸ
+- test-ver3-synth.py: 6 kịch bản (mẹ sáng dần, chị em xa 13,4µm, merge-split khéo gộp sâu 4 khung rồi tách tăng dần, regression ver 2) + CHẠY ĐỐI CHỨNG ver 2 trên cùng zarr
+- 3 vòng debug py: (1) vòng lặp "lost" — vận tốc con = vectơ mẹ→con làm con không match → đề xuất lại mỗi khung (17 lost); vá con kế thừa vận tốc mẹ; (2) MASS_BASE_MIN_FRAMES 6 làm baseline skip (lịch sử mẹ G/H chỉ 7 khung) → về 4; (3) median baseline bị blob ngập nửa cửa sổ → p25
+- QUYẾT ĐỊNH: vá bug vận tốc cả ở ver-2 py (bản nháp chưa submit); test ver-2 regression vẫn ĐẠT TẤT CẢ
+- KẾT QUẢ ver 3 py: 21/21 ĐẠT — chặn merge-split khéo mà ver 2 xác nhận nhầm (FP), bắt chị-em-xa 13,4µm mà ver 2 bỏ sót, nội suy + tách blob + format đều pass
+- Port TS tracking-pipeline.ts (~2100 dòng): VerParams interface, detectFrame với tách blob theo đỉnh maximum_filter (maxFilter3 mới), createLinkedTracker hợp nhất ver 1/2/3 (5 cửa phân bào + xác nhận động học + mass stability), runAllPipelines 4 phiên bản (ver2/3 dùng chung detection)
+- Nâng cấp mô phỏng: mẹ sáng dần ×1,13 trước khi chia · 4 cặp merge-split "quấn" (tiến sát → gộp 3 khung → tách tiến triển 0,7→1,5µm/khung — vượt được động học ver 2) · 50% phân bào chị-em-xa bất đối xứng (d2 xa mẹ 9,3–11,2µm) · con gái = nửa thể tích mẹ cùng nồng độ sáng (bảo toàn huỳnh quang) · lõi render có gradient nhẹ (mỗi tế bào 1 đỉnh duy nhất)
+- 2 vòng debug TS: thiếu frameEdges.push cạnh chính trong (a) (điểm sụp 0,07) · p25/12-khung cho mass baseline
+- Harness 3 seed: ver0 0,33 → ver1 0,64–0,70 → ver2 0,96–1,03 → ver3 1,00–1,03; divJ ver3 ≥ ver2 mọi seed; mass check bắn đúng entangle
+- tracking-demo.tsx: mode 5 nút (ver0..ver3 + custom, mặc định ver 3), console log thêm dòng phân bào xác nhận/từ chối (mass/dyn/lost) cho ver 2/3, bảng so sánh 4 cột với ▲ ô tốt nhất mỗi hàng, mô tả nhắc discussion #740573
+- E2E agent-browser: tải trang OK không lỗi; đủ 5 nút phiên bản; đổi ver 0/2 đổi log đúng; canvas 1230×692 có 8847 mẫu sáng; reseed OK; mobile 390px scrollWidth 390; bảng 4 cột: divJ 0,000→0,143→0,444→0,500, điểm 0,320→0,608→0,999→1,005; tsc src sạch, lint sạch
+- Sinh download/ver3-cell-tracking.ipynb (nbformat 4, 1 md + 4 code) để import thẳng Kaggle
+
+Stage Summary:
+- Sản phẩm: kaggle/ver-3/* (21/21 pass + đối chứng ver 2 minh hoạ FP/miss), kaggle/ver-2/cell3code.py vá bug vận tốc (regression pass), download/ver3-cell-tracking.ipynb, README registry đầy đủ insight, tracking-pipeline.ts 4 phiên bản, tracking-demo.tsx so sánh 4 cột
+- Kiến trúc delta chính của ver 3 so với ver 2: KHÔNG dùng khoảng cách làm tín hiệu (chỉ là cửa sổ), thay bằng (a) mass stability p25/12-khung chặn blob 2×, (b) mẹ sáng dần ưu tiên, (c) gate rộng theo phân bố thật, (d) con kế thừa vận tốc mẹ
+- Bước tiếp theo cho user: dán 4 cell ver 3 vào notebook Kaggle (hoặc import ipynb) → chạy local scorer trên train trước khi submit
