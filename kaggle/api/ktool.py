@@ -69,6 +69,7 @@ VER8W1_DATASETS = [
     "vietnguyen130593/biohub-v7-heldout-preds",
     "pilkwang/biohub-deepcenter-unet3d-center-prior-v1",
     "giorgosi/biohub-divnet-v2",
+    "vietnguyen130593/biohub-wave1-features",
 ]
 VER8W1_SLUG = "biohub-ver8-wave1"
 # ver-8: Phase D — re-parenting division recovery + DivNet RANK-ONLY (gate gốc)

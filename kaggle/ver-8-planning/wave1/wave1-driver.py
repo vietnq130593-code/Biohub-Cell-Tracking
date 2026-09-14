@@ -85,6 +85,8 @@ _env['BIOHUB_DEEPCENTER_SAFE_DIV_VETO'] = '1'
 _env['BIOHUB_DEEPCENTER_SAFE_DIV_THRESHOLD'] = '0.20'
 _env['BIOHUB_DEEPCENTER_SCORE_CACHE_MAX_FRAMES'] = '512'
 _env['BIOHUB_DIVNET_ENABLE'] = '0'
+# [v3] E1 đã chốt từ run v2 (adjEJ 0.9280, div 2/1/10, selfcheck ĐẠT) — skip để nhanh
+_env['BIOHUB_WAVE1_SKIP_E1'] = '1'
 _env['BIOHUB_DIVNET_REQUIRE'] = '0'
 # E1 selected overrides của ver-7 (ppsweep đã chọn khi chạy 0.947):
 E1_SELECTED = {'MOTION_RELINK_TIGHT_UM': 5.5, 'DEEPCENTER_GAP_THRESHOLD': 0.35}

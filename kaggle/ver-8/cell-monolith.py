@@ -85,9 +85,9 @@ os.environ['BIOHUB_REPARENT_ENABLE'] = '1'
 os.environ['BIOHUB_REPARENT_MAX_UM'] = '12.0'
 os.environ['BIOHUB_REPARENT_SISTER_UM'] = '16.0'
 os.environ['BIOHUB_REPARENT_TAU'] = '1.0'
-os.environ['BIOHUB_REPARENT_EDGE_PROB'] = '0.35'
+os.environ['BIOHUB_REPARENT_EDGE_PROB'] = '0.25'
 os.environ['BIOHUB_REPARENT_CURRENT_FAR_UM'] = '7.5'
-os.environ['BIOHUB_REPARENT_MIN_PDIV'] = '0.3'
+os.environ['BIOHUB_REPARENT_MIN_PDIV'] = '0.5'
 os.environ['BIOHUB_REPARENT_W_UM'] = '15.0'
 os.environ['BIOHUB_REPARENT_DIVERGE_UM'] = '2.25'
 os.environ['BIOHUB_REPARENT_FRAME_FRAC_CAP'] = '0.0076'
@@ -3146,11 +3146,6 @@ def add_reparent_divisions_postlink(nodes_by_id: dict[int, dict[str, object]], e
 
             if child_dist > REPARENT_SISTER_UM:
                 continue
-            p_m = pdiv_of(m_id)
-
-            if REPARENT_MIN_PDIV > 0.0 and (p_m is None or p_m < REPARENT_MIN_PDIV):
-                stats['reparent_pdiv_rejected'] += 1
-                continue
 
             for d2_id in child_frame_ids:
                 if d2_id == d1_id:
@@ -3182,6 +3177,14 @@ def add_reparent_divisions_postlink(nodes_by_id: dict[int, dict[str, object]], e
                 if not current_is_weak:
                     continue
                 stats['reparent_candidates'] += 1
+
+                # [ver8] P_div(M) tính SAU geometric (cache) — tránh truy vấn DivNet
+                # cho mọi node mẹ: chỉ những cặp đã qua lọc hình học mới chạm DivNet.
+                p_m = pdiv_of(m_id)
+
+                if REPARENT_MIN_PDIV > 0.0 and (p_m is None or p_m < REPARENT_MIN_PDIV):
+                    stats['reparent_pdiv_rejected'] += 1
+                    continue
 
                 if REPARENT_TAU > 0.0:
                     symmetry_denominator = max((child_dist + parent_dist) / 2.0, 1e-6)
@@ -4107,7 +4110,7 @@ def aggregate_official(sample_rows):
 
 import copy as _copy
 
-PP_SWEEP_KEYS = ['SAFE_DIV_MAX_UM', 'SAFE_DIV_SISTER_MAX_UM', 'SAFE_DIV_DIVERGE_UM', 'SAFE_DIV_SISTER_SYMMETRY_TAU', 'SAFE_DIV_EXISTING_CHILD_MAX_UM', 'SAFE_DIV_FRAME_FRAC_CAP', 'SAFE_DIV_GLOBAL_FRAC_CAP', 'DEEPCENTER_SAFE_DIV_THRESHOLD', 'DEEPCENTER_GAP_THRESHOLD', 'GAP_CLOSE_UM', 'OUTPUT_MIN_TRACK_LEN', 'SHORT_TRACK_RESCUE_MIN_MEAN_EDGE_PROB', 'MOTION_RELINK_TIGHT_UM', 'MOTION_RELINK_RELAXED_UM', 'GAP2_MAX_STEP_UM', 'GAP2_MAX_TOTAL_UM', 'MOTION_RELINK_LEARNED_BONUS', 'MOTION_RELINK_VELOCITY_WEIGHT', 'GAP_CLOSE_REUSE_UM', 'OUTPUT_EDGE_MAX_UM', 'REPARENT_MAX_UM', 'REPARENT_SISTER_UM', 'REPARENT_TAU', 'REPARENT_EDGE_PROB', 'REPARENT_CURRENT_FAR_UM', 'REPARENT_MIN_PDIV', 'REPARENT_W_UM', 'REPARENT_DIVERGE_UM', 'REPARENT_FRAME_FRAC_CAP', 'REPARENT_GLOBAL_FRAC_CAP']
+PP_SWEEP_KEYS = ['SAFE_DIV_MAX_UM', 'SAFE_DIV_SISTER_MAX_UM', 'SAFE_DIV_DIVERGE_UM', 'SAFE_DIV_SISTER_SYMMETRY_TAU', 'SAFE_DIV_EXISTING_CHILD_MAX_UM', 'SAFE_DIV_FRAME_FRAC_CAP', 'SAFE_DIV_GLOBAL_FRAC_CAP', 'DEEPCENTER_SAFE_DIV_THRESHOLD', 'DEEPCENTER_GAP_THRESHOLD', 'GAP_CLOSE_UM', 'OUTPUT_MIN_TRACK_LEN', 'SHORT_TRACK_RESCUE_MIN_MEAN_EDGE_PROB', 'MOTION_RELINK_TIGHT_UM', 'MOTION_RELINK_RELAXED_UM', 'GAP2_MAX_STEP_UM', 'GAP2_MAX_TOTAL_UM', 'MOTION_RELINK_LEARNED_BONUS', 'MOTION_RELINK_VELOCITY_WEIGHT', 'GAP_CLOSE_REUSE_UM', 'OUTPUT_EDGE_MAX_UM', 'REPARENT_ENABLE', 'REPARENT_MAX_UM', 'REPARENT_SISTER_UM', 'REPARENT_TAU', 'REPARENT_EDGE_PROB', 'REPARENT_CURRENT_FAR_UM', 'REPARENT_MIN_PDIV', 'REPARENT_W_UM', 'REPARENT_DIVERGE_UM', 'REPARENT_FRAME_FRAC_CAP', 'REPARENT_GLOBAL_FRAC_CAP']
 PP_BASE_CONFIG = {key: globals()[key] for key in PP_SWEEP_KEYS}
 for key in PP_SWEEP_KEYS:
     pass
@@ -4217,7 +4220,7 @@ if VALIDATOR_ENABLE and val_stems:
             writer.writerow(row)
 
 # Retain the narrow post-process candidate set used by the 0.946 pipeline
-PP_CANDIDATES: dict[str, dict] = {'gap45': {'GAP_CLOSE_UM': 4.5}, 'tight55': {'MOTION_RELINK_TIGHT_UM': 5.5}, 'relaxed9': {'MOTION_RELINK_RELAXED_UM': 9.0}, 'bonus125': {'MOTION_RELINK_LEARNED_BONUS': 1.25}, 'gap2step40': {'GAP2_MAX_STEP_UM': 4.0}, 'reuse28': {'GAP_CLOSE_REUSE_UM': 2.8}, 'dcgap035': {'DEEPCENTER_GAP_THRESHOLD': 0.35}, 'rp-strict': {'REPARENT_MIN_PDIV': 0.5, 'REPARENT_EDGE_PROB': 0.25}, 'rp-pdiv50': {'REPARENT_MIN_PDIV': 0.5}, 'rp-far8': {'REPARENT_CURRENT_FAR_UM': 8.0}, 'rp-max11': {'REPARENT_MAX_UM': 11.0}, 'rp-tau08': {'REPARENT_TAU': 0.8}}
+PP_CANDIDATES: dict[str, dict] = {'gap45': {'GAP_CLOSE_UM': 4.5}, 'tight55': {'MOTION_RELINK_TIGHT_UM': 5.5}, 'relaxed9': {'MOTION_RELINK_RELAXED_UM': 9.0}, 'bonus125': {'MOTION_RELINK_LEARNED_BONUS': 1.25}, 'gap2step40': {'GAP2_MAX_STEP_UM': 4.0}, 'reuse28': {'GAP_CLOSE_REUSE_UM': 2.8}, 'dcgap035': {'DEEPCENTER_GAP_THRESHOLD': 0.35}, 'rp-off': {'REPARENT_ENABLE': False}, 'rp-pdiv30': {'REPARENT_MIN_PDIV': 0.3}, 'rp-ep35': {'REPARENT_EDGE_PROB': 0.35}, 'rp-far8': {'REPARENT_CURRENT_FAR_UM': 8.0}, 'rp-max11': {'REPARENT_MAX_UM': 11.0}, 'rp-tau08': {'REPARENT_TAU': 0.8}}
 PP_SELECT_MARGIN = float(os.environ.get('BIOHUB_PPSWEEP_SELECT_MARGIN', '0.002'))
 PP_MAX_ADJ_LOSS = float(os.environ.get('BIOHUB_PPSWEEP_MAX_ADJ_LOSS', '0.0005'))
 PP_SWEEP_RESULTS_PATH = WORKING_DIR / 'ppsweep_results.csv'

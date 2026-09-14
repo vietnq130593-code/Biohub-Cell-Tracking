@@ -85,6 +85,8 @@ _env['BIOHUB_DEEPCENTER_SAFE_DIV_VETO'] = '1'
 _env['BIOHUB_DEEPCENTER_SAFE_DIV_THRESHOLD'] = '0.20'
 _env['BIOHUB_DEEPCENTER_SCORE_CACHE_MAX_FRAMES'] = '512'
 _env['BIOHUB_DIVNET_ENABLE'] = '0'
+# [v3] E1 đã chốt từ run v2 (adjEJ 0.9280, div 2/1/10, selfcheck ĐẠT) — skip để nhanh
+_env['BIOHUB_WAVE1_SKIP_E1'] = '1'
 _env['BIOHUB_DIVNET_REQUIRE'] = '0'
 # E1 selected overrides của ver-7 (ppsweep đã chọn khi chạy 0.947):
 E1_SELECTED = {'MOTION_RELINK_TIGHT_UM': 5.5, 'DEEPCENTER_GAP_THRESHOLD': 0.35}
@@ -2695,39 +2697,51 @@ def wave1_main():
         return WAVE1_FRAME_CACHES[stem]
 
     # =====================================================================
-    # E1 — SYSTEM VIEW OFFICIAL (config production + selected tight55/dcgap035)
+    # E1 — SYSTEM VIEW OFFICIAL (config production + selected tight55+dcgap035)
+    # [v3] BỎ QUA được qua BIOHUB_WAVE1_SKIP_E1=1 — E1 đã chốt từ run v2
+    # (adjEJ 0.9280, div 2/1/10, proxy 0.9434, selfcheck ĐẠT 2 lớp).
     # =====================================================================
     e1_rows = []
     e1_stage_stats = {}
     e1_internal_rows = []
-    saved = wave1_pp_apply(E1_SELECTED)
-    try:
-        for stem in WAVE1_STEMS:
-            t0 = time.time()
-            raw_nodes, raw_edges = RAW[stem]
-            pn, pe, st = wave1_run_pipeline(raw_nodes, raw_edges, stem, deepcenter_bundle, None)
-            e1_stage_stats[stem] = st
-            irow = wave1_internal_score(pn, pe, GT_PLAIN[stem], GT_TTRUE[stem])
-            irow['stem'] = stem
-            irow['safe_divisions_added'] = st.get('safe_divisions_added', 0)
-            e1_internal_rows.append(irow)
-            out_geff = WAVE1_OUT / f'e1_system_{stem}.geff'
-            wave1_write_system_geff(pn, pe, out_geff)
-            row = wave1_official_score_geff(out_geff, TRAIN_DIR / f'{stem}.geff', td_metrics, td_div)
-            e1_rows.append(row)
-            wave1_log(f"E1 {stem}: adjEJ={row['adjusted_edge_jaccard']:.4f} "
-                      f"div={row['div_tp']}/{row['div_fp']}/{row['div_fn']} "
-                      f"({time.time() - t0:.0f}s)")
-    finally:
-        wave1_pp_restore(saved)
-    e1_micro = wave1_official_micro(e1_rows)
-    wave1_dump_json('wave1_e1_system_eval.json', {
-        'schema': 'wave1-e1/1', 'tag': WAVE1_TAG,
-        'config': 'ver-7 production + selected(tight55+dcgap035)',
-        'samples': e1_rows, 'micro': e1_micro})
-    wave1_log(f"E1 SYSTEM VIEW official: adjEJ={e1_micro['adjusted_edge_jaccard']:.4f} "
-              f"div={e1_micro['div_tp']}/{e1_micro['div_fp']}/{e1_micro['div_fn']} "
-              f"divJ={e1_micro['division_jaccard']} proxy={e1_micro['proxy_score']:.4f}")
+    if _os.environ.get('BIOHUB_WAVE1_SKIP_E1', '0') == '1':
+        wave1_log('E1 BỎ QUA (cached v2: adjEJ 0.9280 div 2/1/10 proxy 0.9434)')
+    else:
+        saved = wave1_pp_apply(E1_SELECTED)
+        try:
+            for stem in WAVE1_STEMS:
+                t0 = time.time()
+                raw_nodes, raw_edges = RAW[stem]
+                pn, pe, st = wave1_run_pipeline(raw_nodes, raw_edges, stem, deepcenter_bundle, None)
+                e1_stage_stats[stem] = st
+                irow = wave1_internal_score(pn, pe, GT_PLAIN[stem], GT_TTRUE[stem])
+                irow['stem'] = stem
+                irow['safe_divisions_added'] = st.get('safe_divisions_added', 0)
+                e1_internal_rows.append(irow)
+                out_geff = WAVE1_OUT / f'e1_system_{stem}.geff'
+                wave1_write_system_geff(pn, pe, out_geff)
+                row = wave1_official_score_geff(out_geff, TRAIN_DIR / f'{stem}.geff', td_metrics, td_div)
+                e1_rows.append(row)
+                wave1_log(f"E1 {stem}: adjEJ={row['adjusted_edge_jaccard']:.4f} "
+                          f"div={row['div_tp']}/{row['div_fp']}/{row['div_fn']} "
+                          f"({time.time() - t0:.0f}s)")
+        finally:
+            wave1_pp_restore(saved)
+    if e1_rows:
+        e1_micro = wave1_official_micro(e1_rows)
+        wave1_dump_json('wave1_e1_system_eval.json', {
+            'schema': 'wave1-e1/1', 'tag': WAVE1_TAG,
+            'config': 'ver-7 production + selected(tight55+dcgap035)',
+            'samples': e1_rows, 'micro': e1_micro})
+        wave1_log(f"E1 SYSTEM VIEW official: adjEJ={e1_micro['adjusted_edge_jaccard']:.4f} "
+                  f"div={e1_micro['div_tp']}/{e1_micro['div_fp']}/{e1_micro['div_fn']} "
+                  f"divJ={e1_micro['division_jaccard']} proxy={e1_micro['proxy_score']:.4f}")
+    else:
+        e1_micro = {'n': 8, 'edge_tp': 5539, 'edge_fp': 237, 'edge_fn': 212,
+                    'edge_jaccard': 0.9250167, 'adjusted_edge_jaccard': 0.9280329,
+                    'div_tp': 2, 'div_fp': 1, 'div_fn': 10,
+                    'division_jaccard': 0.1538462, 'proxy_score': 0.9434175,
+                    'source': 'cached_v2'}
 
     # =====================================================================
     # E0 — GATE AUDIT + GRID (pre-safe-div cache 1 lần, replay từng combo)
@@ -2810,14 +2824,27 @@ def wave1_main():
     # (run v1 mất 1000s/stem cho khâu này) + có dữ liệu phân tích local.
     FEATURES_PATH = WAVE1_OUT / 'wave1_features.json.gz'
     FEATURES = {}
-    if FEATURES_PATH.exists():
-        import gzip as _gzip
+    _feat_src = None
+    _feat_cands = [FEATURES_PATH,
+                   *sorted(_Path('/kaggle/input').rglob('wave1_features.json.gz')),
+                   *sorted(_Path('/kaggle/input').rglob('wave1_features.json'))]
+    for _fc in _feat_cands:
+        if not _fc.exists():
+            continue
         try:
-            FEATURES = _json.loads(_gzip.decompress(FEATURES_PATH.read_bytes()))
-            wave1_log(f'nạp FEATURES từ đĩa: {sum(len(v["features"]) for v in FEATURES.values())} cặp')
+            _raw_bytes = _fc.read_bytes()
+            if _fc.suffix == '.gz':
+                import gzip as _gzip
+                _raw_bytes = _gzip.decompress(_raw_bytes)
+            _loaded = _json.loads(_raw_bytes)
+            if set(WAVE1_STEMS) <= set(_loaded.keys()) and sum(len(v['features']) for v in _loaded.values()) > 1000:
+                FEATURES = _loaded
+                _feat_src = _fc
+                wave1_log(f'nạp FEATURES từ {_fc}: {sum(len(v["features"]) for v in FEATURES.values())} cặp')
+                break
+            wave1_log(f'FEATURES tại {_fc} thiếu stem/quá ít — bỏ qua')
         except Exception as _exc:
-            wave1_log(f'không đọc được FEATURES ({_exc}) — thu lại từ đầu')
-            FEATURES = {}
+            wave1_log(f'không đọc được FEATURES {_fc} ({_exc})')
     for stem in WAVE1_STEMS:
         if stem in FEATURES and FEATURES[stem].get('features'):
             continue
@@ -2831,7 +2858,7 @@ def wave1_main():
         n_gt_hit = sum(1 for f in FEATURES[stem]['features'] if f['gt_div_edge'])
         wave1_log(f'audit {stem}: {n_feats} cặp / {n_gt_div} GT-div, trong tầm: {n_gt_hit} '
                   f'({time.time() - t0:.0f}s)')
-    if not FEATURES_PATH.exists():
+    if _feat_src is None:
         import gzip as _gzip
         FEATURES_PATH.write_bytes(_gzip.compress(
             _json.dumps(FEATURES, default=str).encode('utf-8')))
@@ -2866,7 +2893,7 @@ def wave1_main():
         added_r = [(int(a['source_id']), int(a['target_id'])) for a in replay_added]
         # đối chiếu thêm với E1 (pipeline đầy đủ — có thể lệch do pre-state khác)
         verbatim_n = e1_stage_stats[stem].get('safe_divisions_added', 0)
-        if sorted(added_v) != sorted(added_r) or verbatim_n != len(added_r):
+        if sorted(added_v) != sorted(added_r) or (e1_stage_stats and verbatim_n != len(added_r)):
             selfcheck['ok'] = False
             selfcheck['diffs'].append({'stem': stem, 'verbatim_added': verbatim_n,
                                        'replay_added': len(added_r),
@@ -2980,20 +3007,20 @@ def wave1_main():
     # ---- E0 GRID ------------------------------------------------------------
     E0_GRID = [
         ('base-v7', {}, None),
-        ('dn-w15', {}, ('divnet', 15.0, None)),
-        ('tau08-dn15', {'SAFE_DIV_SISTER_SYMMETRY_TAU': 0.8}, ('divnet', 15.0, None)),
-        ('tau10-dn15', {'SAFE_DIV_SISTER_SYMMETRY_TAU': 1.0}, ('divnet', 15.0, None)),
-        ('div15-dn15', {'SAFE_DIV_DIVERGE_UM': 1.5}, ('divnet', 15.0, None)),
-        ('div10-dn15', {'SAFE_DIV_DIVERGE_UM': 1.0}, ('divnet', 15.0, None)),
-        ('tau08-div15-dn15', {'SAFE_DIV_SISTER_SYMMETRY_TAU': 0.8, 'SAFE_DIV_DIVERGE_UM': 1.5}, ('divnet', 15.0, None)),
-        ('tau10-div10-dn15', {'SAFE_DIV_SISTER_SYMMETRY_TAU': 1.0, 'SAFE_DIV_DIVERGE_UM': 1.0}, ('divnet', 15.0, None)),
-        ('tau08-div15-dn25', {'SAFE_DIV_SISTER_SYMMETRY_TAU': 0.8, 'SAFE_DIV_DIVERGE_UM': 1.5}, ('divnet', 25.0, None)),
-        ('tau10-div10-dn25', {'SAFE_DIV_SISTER_SYMMETRY_TAU': 1.0, 'SAFE_DIV_DIVERGE_UM': 1.0}, ('divnet', 25.0, None)),
-        ('max12-tau08-div15-dn15', {'SAFE_DIV_MAX_UM': 12.0, 'SAFE_DIV_SISTER_SYMMETRY_TAU': 0.8, 'SAFE_DIV_DIVERGE_UM': 1.5}, ('divnet', 15.0, None)),
-        ('max12-tau10-div10-dn25', {'SAFE_DIV_MAX_UM': 12.0, 'SAFE_DIV_SISTER_SYMMETRY_TAU': 1.0, 'SAFE_DIV_DIVERGE_UM': 1.0}, ('divnet', 25.0, None)),
-        ('tau08-div15-dn15-pf50', {'SAFE_DIV_SISTER_SYMMETRY_TAU': 0.8, 'SAFE_DIV_DIVERGE_UM': 1.5}, ('divnet', 15.0, 0.5)),
-        ('tau10-div10-dn25-pf50', {'SAFE_DIV_SISTER_SYMMETRY_TAU': 1.0, 'SAFE_DIV_DIVERGE_UM': 1.0}, ('divnet', 25.0, 0.5)),
-        ('tau10-div10-dn25-pf30', {'SAFE_DIV_SISTER_SYMMETRY_TAU': 1.0, 'SAFE_DIV_DIVERGE_UM': 1.0}, ('divnet', 25.0, 0.3)),
+        ('dn-w15', {}, (15.0, None)),
+        ('tau08-dn15', {'SAFE_DIV_SISTER_SYMMETRY_TAU': 0.8}, (15.0, None)),
+        ('tau10-dn15', {'SAFE_DIV_SISTER_SYMMETRY_TAU': 1.0}, (15.0, None)),
+        ('div15-dn15', {'SAFE_DIV_DIVERGE_UM': 1.5}, (15.0, None)),
+        ('div10-dn15', {'SAFE_DIV_DIVERGE_UM': 1.0}, (15.0, None)),
+        ('tau08-div15-dn15', {'SAFE_DIV_SISTER_SYMMETRY_TAU': 0.8, 'SAFE_DIV_DIVERGE_UM': 1.5}, (15.0, None)),
+        ('tau10-div10-dn15', {'SAFE_DIV_SISTER_SYMMETRY_TAU': 1.0, 'SAFE_DIV_DIVERGE_UM': 1.0}, (15.0, None)),
+        ('tau08-div15-dn25', {'SAFE_DIV_SISTER_SYMMETRY_TAU': 0.8, 'SAFE_DIV_DIVERGE_UM': 1.5}, (25.0, None)),
+        ('tau10-div10-dn25', {'SAFE_DIV_SISTER_SYMMETRY_TAU': 1.0, 'SAFE_DIV_DIVERGE_UM': 1.0}, (25.0, None)),
+        ('max12-tau08-div15-dn15', {'SAFE_DIV_MAX_UM': 12.0, 'SAFE_DIV_SISTER_SYMMETRY_TAU': 0.8, 'SAFE_DIV_DIVERGE_UM': 1.5}, (15.0, None)),
+        ('max12-tau10-div10-dn25', {'SAFE_DIV_MAX_UM': 12.0, 'SAFE_DIV_SISTER_SYMMETRY_TAU': 1.0, 'SAFE_DIV_DIVERGE_UM': 1.0}, (25.0, None)),
+        ('tau08-div15-dn15-pf50', {'SAFE_DIV_SISTER_SYMMETRY_TAU': 0.8, 'SAFE_DIV_DIVERGE_UM': 1.5}, (15.0, 0.5)),
+        ('tau10-div10-dn25-pf50', {'SAFE_DIV_SISTER_SYMMETRY_TAU': 1.0, 'SAFE_DIV_DIVERGE_UM': 1.0}, (25.0, 0.5)),
+        ('tau10-div10-dn25-pf30', {'SAFE_DIV_SISTER_SYMMETRY_TAU': 1.0, 'SAFE_DIV_DIVERGE_UM': 1.0}, (25.0, 0.3)),
     ]
     e0_rows = []
     for label, overrides, rank_mode in E0_GRID:

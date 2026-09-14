@@ -13,7 +13,8 @@
     "dalloliogm/biohub-official-scorer-patched",
     "vietnguyen130593/biohub-v7-heldout-preds",
     "pilkwang/biohub-deepcenter-unet3d-center-prior-v1",
-    "giorgosi/biohub-divnet-v2"
+    "giorgosi/biohub-divnet-v2",
+    "vietnguyen130593/biohub-wave1-features"
   ],
   "competition_sources": [
     "biohub-cell-tracking-during-development"

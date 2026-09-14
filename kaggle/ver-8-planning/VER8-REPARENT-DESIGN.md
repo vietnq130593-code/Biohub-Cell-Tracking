@@ -89,3 +89,43 @@ Với mỗi node M (frame t) có đúng 1 cạnh ra M→D1:
   **proxy +0.015** → LB ước 0.950-0.955 (nếu MAP sang test giữ tỉ lệ ~50%).
 - Thận trọng (thu 1/6): +0.008 → LB ~0.947-0.949.
 - Rủi ro: div_fp nổ → cổng chặn submit (như ver-7b) — mất 1 lần chạy GPU (~2h).
+
+---
+
+## 7. CHUẨN HÓA THỰC TẾ TỪ WAVE-1 v2 DIAGNOSTICS (14/9 17:15)
+
+### 7.1 Sự kiện 6 ca re-parent (tất cả cạnh hiện tại ĐỀU GT-WRONG như lý thuyết)
+
+| # | stem | \|M→D2\| | \|Y→D2\| (cạnh sai) | prob(Y→D2) | Ghi chú |
+|---|---|---|---|---|---|
+| 1 | 44b6_12dfb391 | 5.39 | 5.14 | **0.647** | hai cha gần như nhau |
+| 2 | 44b6_267148e4 | 5.86 | 5.86 | **không có trong raw (→0)** | hai cha tie |
+| 3 | 44b6_2a2eff9f | 11.26 | **1.62** | **0.914** | division RỘNG, cạnh sai rất gần — khó nhất |
+| 4 | 6bba_07e24132(a) | 11.02 | 2.81 | **0.494** | division rộng |
+| 5 | 6bba_07e24132(b) | 5.14 | **0.33** | **không có trong raw (→0)** | cạnh sai siêu gần |
+| 6 | 6bba_09961292 | 6.70 | 3.63 | **0.700** | |
+
+**Kết luận chuẩn hóa:**
+- Bằng chứng "cạnh hiện tại yếu" (prob ≤ 0.35 hoặc dist ≥ 7.5µm) chỉ bắt được **2/6**
+  (ca 2, 5 — cạnh không có trong raw → prob 0). Ca 4 (0.494) cần ngưỡng 0.5.
+- **4/6 cạnh sai CẦN DivNet P_div(M) + sister-geometry + divergence** — edge_prob
+  không đủ (3/6 cạnh sai có prob 0.65–0.91: transformer tin cạnh sai!).
+- prob(M→D2) khi xuất hiện trong raw: 0.858 (ca 2) — transformer ĐÃ chấm cặp mẹ–con
+  cao nhưng ILP không chọn được (assignment 1-1 không cho out-degree 2).
+- P_div của 3 mẹ (nhóm có cặp): 0.89–0.95 → mẹ phân bào thật có P_div cao.
+
+### 7.2 Tham số chốt cho ver-8 (base) + PPSWEEP tự chọn
+
+- Base (env): `MIN_PDIV=0.5`, `EDGE_PROB=0.25`, `MAX_UM=12`, `SISTER=16`, `TAU=1.0`,
+  `DIVERGE=2.25`, `CURRENT_FAR=7.5`, caps như safe-div.
+- PPSWEEP candidates thêm: **`rp-off`** (tắt hoàn toàn — van thoát nếu re-parent
+  gây hại), `rp-pdiv30`, `rp-ep35`, `rp-far8`, `rp-max11`, `rp-tau08`.
+- Hiệu năng: P_div lazy — chỉ tính sau khi cặp qua lọc hình học (không quét 25k
+  node mẹ/stem).
+
+### 7.3 Kỳ vọng hiệu chỉnh
+
+- Kịch bản an toàn (bắt 2 ca weak-edge + pdiv lọc sạch FP): div 4/1/8 → divJ 0.308
+  → proxy +0.015 so với 0.9434.
+- Kịch bản đầy đủ (DivNet mở thêm ca 4, 6): div 6/1–2/6 → +0.02–0.03.
+- Rủi ro div_fp: kiểm soát bằng MIN_PDIV 0.5 + rp-off escape + cổng Phase B.
