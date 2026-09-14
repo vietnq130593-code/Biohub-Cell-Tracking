@@ -18,6 +18,8 @@ notebook Kaggle gốc rồi **Save & Run All → Submit**.
 | 3 | Phân bào theo profile độ sáng (từ discussion #740573) | soạn thảo ✓ | — |
 | 4 | Stitching hậu kiểm (nối lại track đứt) | soạn thảo ✓ | — |
 | 5 | Fork giải pháp ML 0.945 — cell 5 ver 5.1 nâng cấp | nghiên cứu ✓ + nâng cấp ✓ | — |
+| 6 | Ensemble 2 lượt + retention guard | **0.945** ×2 deterministic | 13/09/2026 |
+| 7 | Port monolith Reyhan 0.947 + Phase B official eval | **đang chấm** (ref 56217216) | 14/09/2026 |
 
 ## Hotfix — NameError STRUCT26 (rơi trên Kaggle 13/09/2026)
 
@@ -154,6 +156,24 @@ continuation, 72 cạnh phân bào, 572 track) — không phải dự đoán:
 | **Mới — kiểm tra "ổn định khối lượng mẹ"**: khối lượng blob mẹ tại khung tách ≤ ~1,7× baseline riêng của nó | merge-split giả: blob gộp 2 tế bào ≈ 2× đơn; phân bào thật chỉ sáng lên nhẹ (AUC 0,73) |
 | Giữ nội suy + xác nhận động học | GT 100% cạnh liền khung; base rate 24:1 |
 | Phân bổ công lực: 90% cho adjEJ (trọng số 1,0) — division chỉ 0,1 | Kể cả hạng 40 cũng hỏi "tín hiệu gì chạy được division > 0" |
+
+## ver 7 — Port monolith Reyhan 0.947 + Phase B official eval (đang chấm)
+
+- 14/09/2026 · đã submit ref **56217216** (00:10 — đang chấm, kỳ vọng ≈0.947) · kernel `vietnguyen130593/biohub-ver7`
+- Port nguyên khối monolith LB 0.947 của Reyhan (vá 5 nhóm path pilkwang), TTA 3 view, PPSWEEP tight55 — không đổi thuật toán, chỉ verify từng bước theo `ver-7-planning/PORT-CHECKLIST.md`
+- Run T4×2 117 phút (21:40→23:36) · 0 lỗi · submission.csv 241.356 dòng (sha256 `d34533806b3153dd…`) · retention guard sạch (metric_hack=False)
+- **Phase B rà soát (checklist A–H)**: official eval self 8 video held-out → adjEJ micro **0.9345** (div 0/0/12) · baseline ver-6 chấm lại bằng mini-kernel CPU `biohub-eval-v6` 4 video → adjEJ micro **0.9201** (xác nhận double-reading divJ 0.2 của rule cũ) · `eval/compare.py` paired A/B trên 4 video chung: ΔadjEJ **+0.0000** (CI95 ±0.0001), guards 5/5 → không regression
+- 3 bug phát hiện & vá trong rà soát: (1) eval cell path mount `datasets/<owner>/<slug>`; (2) compare.py G3 so node budget trên stem chung; (3) mini-kernel gắn support-pack + pip offline `--no-index --no-deps`
+- File: `ver-7/cell-monolith.py` · `ver-7/make-ver7-ipynb.py` · `download/ver7-cell-tracking.ipynb` · `ver-7-planning/{VER7-PLAN, PORT-CHECKLIST, REVIEW-PHASE-B}.md` · `eval/{cell-eval-official.py, compare.py}` · `eval/reports/ver7-vs-ver6-official.md`
+- **ver-7b (Phase C)** — DivNet RANK-ONLY W=15µm + nới gate tau 0.6→1.2 / diverge 2.25→1.0: div_tp 3→4 nhưng div_fp 1→21 → proxy 0.9511→0.9380 = regression → **KHÔNG nộp** (phán quyết `eval/reports/ver7b-phase-c-verdict.md`; hướng v2: giữ gate gốc + RANK-ONLY)
+
+## ver 6 — Ensemble 2 lượt phát hiện + retention guard (LB 0.945 ×2 deterministic)
+
+- 13/09/2026 · đã submit ×2: ref **56207468** (13:03) + **56210873** (16:18) — đều **0.945 COMPLETE**, khớp tuyệt đối → deterministic
+- 2 lượt phát hiện độc lập (seed khác nhau) → fusion theo src → Hungarian 7,2µm → safe-div động học → retention guard 3,6 + 0,4×gap
+- Validator proxy 0.9430 · adj_edge_jaccard 0.9230 · division_jaccard 0.2000 (điểm yếu đã biết → ver-7b nhắm đúng div_fn=12)
+- Retention worst 0.453 @ video 44b6_0b24845f frame 95 · 65/400 frame fallback
+- Bài học: hai lần chạy deterministic cùng ra 0.945 — tín hiệu tin được; mọi artifact quan trọng phải sống trên Kaggle (kernel + dataset + submission), local chỉ là bản sao
 
 ## ver 5 — Fork giải pháp ML 0.945 (nghiên cứu cell 5) + VER 5.1 nâng cấp cell 5
 

@@ -457,3 +457,23 @@ CẬP NHẬT CUỐI TASK 35 (02:50 14/9): KẾT QUẬ ver-7b + PHÁN QUYẾT PHA
 - Báo cáo phán quyết: kaggle/eval/reports/ver7b-phase-c-verdict.md (+ ppsweep csv 2 bản). Hướng Phase C v2: giữ gate gốc (tau 0.6/diverge 2.25) + RANK-ONLY, hoặc thêm ngưỡng P_div khi nới gate.
 - App cập nhật trạng thái ver-7b (COMPLETE/KHÔNG nộp + notes phán quyết) — render xác minh OK, lint sạch.
 - ver-7 (56217216) vẫn đang chấm — kỳ vọng ≈0.947; ver-6 = 0.945 ×2 deterministic.
+
+---
+Task ID: 37
+Agent: main (Z.ai Code)
+Task: Push toàn bộ code lên GitHub sau khi hoàn tất ver-7 + Phase B/C — xử lý lệch nhánh local/remote do rollback + cứu ver-5.1 bị mất local.
+
+Work Log:
+- Kaggle status trước push: ver-7 (56217216) vẫn PENDING lúc ~08:00 14/9 (~7h50m trôi qua, cửa sổ chấm 6-12h); ver-6 v2/v3 = 0.945 COMPLETE ×2. (Lưu ý: 403 khi list submissions do sai slug — đúng là `biohub-cell-tracking-during-development`.)
+- Phát hiện lệch nhánh: local 2 commit vs remote 1 commit — ver-4 hai bên TRÙNG NỘI DUNG chỉ khác file mode 755↔644 (hệ quả sandbox rollback 13/9). Rebase --onto bỏ bản trùng → lịch sử tuyến tính qua 853efcb.
+- Amend thông điệp commit UUID "e61a4d70-…" thành mô tả đầy đủ ver-7 + Phase B/C + phục hồi → b543a1e (149 file, +269.908 dòng).
+- Push đầu bị từ chối → fetch phát hiện remote có thêm ad55b2d "ver 5.1 (Task 19-21)" — phần việc BỊ MẤT local do rollback nhưng vẫn sống trên GitHub → quyết định MERGE (không ghi đè) để cứu.
+- Merge ad55b2d: 8 file chồng lấn nhưng toàn bộ thay đổi src/ phía remote chỉ là mode (0 dòng nội dung) → git tự lấy nội dung Task-36 của local. Xung đột DUY NHẤT: worklog.md → giải thủ công: chèn Task 19/20/21 (remote) TRƯỚC Task 35/36 (local) đúng thứ tự thời gian, không mất dòng nào. Khôi phục .zscripts/dev.pid về PID server đang chạy.
+- kaggle/README.md sau merge = bản thời ver-5.1 (bản mới hơn đã bị rollback xoá) → cập nhật lại: bảng điểm thêm ver 6 (0.945 ×2) + ver 7 (đang chấm 56217216); thêm 2 section registry đầy đủ theo template (ver 7: port + Phase B 3 bug + ver-7b không nộp; ver 6: ensemble + điểm yếu định lượng).
+- Quét bảo mật trước push: diff commit mới không chứa bí mật (ktool.py chỉ có code xử lý token generic); token GitHub nằm trong remote URL (ngoài nội dung commit); token Kaggle sống ngoài repo (~/.kaggle/) — cũng đã biến mất sau lần restore sandbox nữa nhưng CLI vẫn hoạt động.
+- Push 2 commit (b5dcb42 merge + b543a1e) + commit docs lên github.com/vietnq130593-code/Biohub-Cell-Tracking.git.
+
+Stage Summary:
+- GitHub giờ chứa chuỗi đầy đủ: ver-4 → ver-5.1 (Task 19-21 CỨU ĐƯỢC từ remote — ver 5.1 cell5code.py 57/57 test, CELL5-TRIEN-KHAI.md 31,7KB, nghiên cứu pawanmali 0.945) → ver-7 bundle (149 file: ver-7/ver-7b, eval tools + reports, planning docs, ktool.py --ver 6/7/7b, notebook ver7/ver7b, app Task-34/36) → merge commit → README ver-6/7.
+- ver-7 (56217216) đang chấm; ver-6 = 0.945 ×2 deterministic; ver-7b KHÔNG nộp (regression proxy).
+- Bài học: push thường xuyên — remote GitHub đã cứu ver-5.1 khi rollback xoá local; 2 lần rollback sandbox liên tiếp trong 24h.
