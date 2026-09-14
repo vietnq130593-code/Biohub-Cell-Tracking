@@ -591,3 +591,21 @@ Stage Summary:
 - App Biohub Cell Tracking chạy ổn định tại port 3000 (gateway user nhìn thấy), source đồng bộ tại /home/z/my-project.
 - PM2 quản lý app với tên "biohub-web": autorestart + backoff + tự dọn port mồ côi → giao diện luôn được duy trì kể cả khi process bị kill -9. Logs tại /home/z/my-project/dev.log và pm2 logs biohub-web.
 - Lệnh quản trị: pm2 status | restart biohub-web | stop biohub-web | logs biohub-web; cấu hình: /home/z/my-project/ecosystem.config.js; wrapper: /home/z/my-project/scripts/pm2-start.sh.
+
+---
+Task ID: BIO-RESEARCH-1
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: Nghiên cứu toàn bộ tài liệu ver-8 (mục tiêu 0.947 → ≥0.948) và trình bày phát hiện + đề xuất cho user.
+
+Work Log:
+- Đọc VER8-RESEARCH.md (22,4KB) + VER8-REPARENT-DESIGN.md (7,7KB) — chiến lược 3 đòn (A division evidence-ranking, B PPSWEEP-2, C sửa hệ đo) + thiết kế re-parenting đầy đủ 7 bằng chứng e1-e7.
+- Đọc toàn bộ worklog 594 dòng: lịch sử ver-1 (0.198) → ver-4 stitching → ver-5.1 fork pawanmali → ver-6 (0.945 ×2) → ver-7 port Reyhan (0.947, ref 56217216) → ver-7b không nộp (regression) → Wave-1 E0-E4 → ver-8 pushed.
+- Đọc code ver-8/cell-monolith.py (4446 dòng): khối re-parent add_reparent_divisions_postlink (L3089-3243), DivNet rerank _divnet_rerank_proposals (L2923), safe-div gốc (L2946-3087), PP_CANDIDATES 16 mục (L4223) gồm rp-off escape + 5 biến thể rp-* + 3 adjEJ (vw060/gap2step48/minlen5), VALIDATOR_N_PER_TYPE=4, PP_MAX_ADJ_LOSS 0.0005.
+- Đọc E4-KET-QUA.md (6 notebook sjlee101 — mở gate thuần vô dụng, div 4/1/8 giống hệt cả 6 biến thể) + megayak-analysis-notes.md (hoá thạch 0.966 = lỗi metric đã vá aa65e90 17/7; gate audit 151 GT div → 35 reachable; divergence 2.25 = median, symmetry 0.6 = p60; budget ~5 fork/khung bị geometry rank tiêu vào duplicates; offline div metric public stack đọc GẤP ĐÔI official).
+- Đọc eval_report_official_self.json (per-stem: 44b6_12dfb391 adjEJ 0.9045 div 0/0/1; 44b6_267148e4 0.8508 0/0/1...) + ppsweep_selected.json (tight55+dcgap035, base 0.9359 → selected 0.9380) + E2 PP2_GRID 18 global + 2 per-prefix trong wave1-driver-part2.py.
+- Kiểm tra hạ tầng: Kaggle CLI + token KHÔNG có trong sandbox (~/.kaggle mất sau rollback) → không kiểm tra được trạng thái run ver-8 GPU (pushed 18:42:54 UTC 14/9, đã ~3,7h) và wave1 v5 (E2+E3) — cần user cấp token Kaggle.
+
+Stage Summary:
+- Đã nắm toàn bộ tri thức ver-8: công thức điểm adjEJ + 0.1×divJ (đối chiếu 3 nguồn), phân rã 12 GT division (3 nhóm A/B/C), 4 bằng chứng độc lập chứng minh "ràng buộc là RANKING không phải GATES", 6 ca re-parent chi tiết (2/6 cạnh yếu + 4/6 cần DivNet; prob(M→D2)=0.858; 3/6 cạnh sai có prob 0.65-0.91), E0 grid 15 combo không tăng div_tp quá 3, E1 system-view adjEJ 0.9280 + div 2/1/10 → proxy 0.9434.
+- Kịch bản điểm ver-8: an toàn (thu 2/6 re-parent) → proxy +0.015 → LB ước 0.950-0.955; thận trọng (1/6) → +0.008 → 0.947-0.949; rủi ro div_fp nổ → cổng Phase B v2 chặn.
+- Đã trình bày báo cáo phát hiện + đề xuất xếp hạng cho user (kiểm tra kết quả ver-8 cần token Kaggle; các đòn kế tiếp: PPSWEEP chọn config, DIVERGE_UM 4.0-4.5 insight kimi-v18 chưa sweep, per-prefix tight, wave-3 tuỳ chọn).
