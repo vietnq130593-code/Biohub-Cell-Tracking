@@ -336,6 +336,71 @@ Stage Summary:
 - Bước tiếp theo cho user: Import ver4-train-eval.ipynb vào Kaggle → Run All → đọc score offline (so ver 1 = 0.198) → tune cell 2 (PERCENTILE, STITCH_*) → khi tốt hơn thì Import ver4-cell-tracking.ipynb → Save & Run All → Submit
 
 ---
+Task ID: 19
+Agent: main
+Task: User báo NameError maximum_filter trên Kaggle khi chạy ver-4 cell 3 — chẩn đoán, vá cell 3, kiểm chứng, regenerate notebook, báo cáo
+
+Work Log:
+- CHẨN ĐOÁN: traceback khớp từng dòng file gốc (user line 675/118 = file line 675/118, offset 0) → cell 3 dán đúng nguyên văn; NameError vì cell 3 dùng maximum_filter (dòng 118) nhưng KHÔNG có dòng import nào — nó trông chờ cell 1 (ver-1..4 đều import ở cell1code dòng 13, maximum_filter chỉ được thêm từ ver-3). Notebook Kaggle của user giữ cell 1 BẢN CŨ (trước ver-3) trong khi cell 2/3 đã là ver-4 (bằng chứng: DATA_DIR — hằng chỉ có ở cell 2 ver-4 — đã chạy được trước khi lỗi). Test cục bộ lọt lưới vì harness load_cells chạy cell1code.py (có import) trước cell 3.
+- AUDIT AST: cell 3 phụ thuộc 60 tên ngoài (11 import: blosc2/cdist/center_of_mass/json/label/linear_sum_assignment/maximum_filter/np/os/time/uniform_filter + 49 hằng số cấu hình từ cell 2, gồm 6 STITCH_* mới) → chỉ vá maximum_filter thì sẽ dính NameError kế tiếp nếu cell 2 cũng cũ.
+- VÁ cell3code.py: (1) khối IMPORT TỰ CHỨA đầu cell — import lại idempotent, blosc2 guard try/except với thông báo hướng dẫn; (2) khối CẤU HÌNH MẶC ĐỊNH ver-4 (49 hằng, giá trị copy nguyên văn cell 2, chú thích ĐỒNG BỘ) chỉ áp khi globals() thiếu PIPELINE_CONFIG_VERSION (=4) — tôn trọng DATA_DIR/RUN_PREVIEW ai đặt sẵn; (3) header ghi rõ hotfix 14/09.
+- VÁ cell2code.py: thêm PIPELINE_CONFIG_VERSION = 4 cuối cell (tín hiệu "cell 2 ver-4 đã chạy" → cell 3 giữ núm tune của cell 2, không ghi đè). VÁ cell4code.py: import pandas tự chữa.
+- THIẾT KẾ sentinel: paste-only-cell-3 + cell 1/2 cũ → dùng mặc định ver-4 ✓; cell 2 ver-4 chạy rồi (Run All / tune) → cell 2 thắng ✓; notebook train-eval (cell 2' có TRAIN_DIR) → giữ DATA_DIR=train ✓; chạy lại cell 2 sau khi tune → vẫn đúng ✓.
+- TEST: test-ver4-synth.py thêm 3 kiểm TỰ CHỨA — namespace ISO trống (không exec cell 1/2, mô phỏng đúng sự cố Kaggle), chỉ đặt DATA_DIR/RUN_PREVIEW → cell 3+4 chạy được và submission y hệt từng hàng so với chạy đầy đủ (iso.equals(sub4) True). KẾT QUẢ: ĐẠT TẤT CẢ 28+3.
+- TEST E2E: test-ver4-train-eval.py exec đúng 7 cell của download/ver4-train-eval.ipynb (sinh lại trước đó) → score 1.1000 (adjEJ 1.0 · divJ 1.0 · recall 1.0) — ĐẠT TẤT CẢ.
+- TOOL: viết kaggle/ver-4/make-ver4-ipynb.py (giữ vĩnh viễn, không còn là script tạm như Task 18) — sinh 2 notebook từ cell1-4code.py + kaggle/scorer/*.py + markdown nhúng, có compile-check và assert phép biến đổi cell 2 bản train. Đã regenerate cả 2 ipynb; đối chiếu source ipynb == .py trên đĩa.
+- README: thêm mục "Hotfix 2 — NameError maximum_filter (14/09/2026)" (hiện tượng/gốc rễ/vá/kiểm chứng) + cập nhật ver-4 section (28+3, dán đơn lẻ cell 3 giờ chạy được).
+- dev.log sạch (website không đổi — task chỉ chạm kaggle/ + download/).
+
+Stage Summary:
+- Gốc rễ: notebook Kaggle giữ cell 1 bản cũ (thiếu maximum_filter — chỉ ver-3+ mới import) trong khi cell 2/3 là ver-4; cell 3 không tự chứa import.
+- Sản phẩm: cell 3 ver-4 TỰ CHỨA HOÀN TOÀN (import + 49 hằng mặc định qua sentinel PIPELINE_CONFIG_VERSION) · cell 2 có sentinel · cell 4 tự import pandas · 2 ipynb regenerate + tool make-ver4-ipynb.py giữ lại · README hotfix 2.
+- Kiểm chứng: synth 28+3 ĐẠT TẤT CẢ (submission chỉ-cell-3 y hệt từng hàng chạy đầy đủ) · train-eval E2E 1.1000 · ipynb == .py.
+- Bài học: (a) cell "thuật toán" phải tự chứa cả import lẫn cấu hình mặc định nếu header cho phép dán đơn lẻ; (b) harness test phải exec cell trong namespace sạch mới bắt được lỗi phụ thuộc cell khác; (c) sentinel version là cách hoà giải giữa "tự chứa" và "cell 2 là nơi tune".
+- Bước tiếp theo cho user: dán lại Cell 3 ver-4 (mới) vào notebook Kaggle rồi Run All — không cần sửa cell 1/2; hoặc Import download/ver4-cell-tracking.ipynb.
+
+---
+Task ID: 20
+Agent: main
+Task: Nghiên cứu notebook kaggle.com/code/pawanmali/biohub-942proxy-fork-v1, viết tài liệu triển khai cell 5, xác định có "bài thi mẫu" không (nếu có copy làm nền), tìm điểm cải tiến
+
+Work Log:
+- TẢI NOTEBOOK: page_reader chỉ ra shell SPA (text 0) → agent-browser mở trang, đọc TOC + thông tin (0.945 · GPU T4×2 · 36m34s · internet tắt · 4 input: competition + 3 dataset pilkwang) → click Download .ipynb → /home/z/Downloads/biohub-942proxy-fork-v1.ipynb (462KB) → copy vào kaggle/ver-5/original-biohub-942proxy-fork-v1.ipynb.
+- PHÂN TÍCH CẤU TRÚC: 29 cell = 8 markdown (lịch sử thí nghiệm v10 0.923 → v28 0.942 → v29 0.944+ → v30 0.945, tiếng Nga) + 10 section code đánh số (S1 cấu hình 45 env · S2 configuration guard · S3 imports/đường dẫn · S4 cài deps + verify SHA256 3 model + 12 file repo · S5 patch suy luận + chạy song song 49.8KB · S6 hậu xử lý 70KB · S7 audit · S8-S9 validator (matching ≤7µm, adjEJ+divJ) · S10 manifest).
+- ĐỌC KỸ S5 (= "cell 5" theo TOC): 6 bản vá string-patch lên scripts/predict_unet_transformer.py — (1) TTA 4→8 hướng D4 (không lật z); (2) dual-seed calibrated: z-align logit phụ→chính, 4 link_mode (raw/calibrated/adaptive/low_margin_consensus — bản 0.945 chạy low_margin_consensus, LOW_MARGIN_MAX 0.35); (3) retention guard 0.90 (blend mất >10% ứng viên → dùng det gốc, log JSONL); (4) bidirectional harmonic fusion w=0.15 (guard ép cứng) + coordinate manifest SHA256; (5) EDGE_FEATURE_TTA — trung bình feature map 8 view (model chính, 2 guard shape/no-op); (6) SECONDARY_EDGE_TTA w=0.75 (model phụ) — rồi chạy dự đoán chia 2 GPU (round-robin i::2, CUDA_VISIBLE_DEVICES từng process, merge có verify phủ đủ + staging + atomic rename, single-process nếu 1 GPU). Cơ chế vá: count==1 bắt buộc + compile() trước khi ghi + verify chuỗi đánh dấu sau ghi.
+- TRẢ LỜI "BÀI THI MẪU": CÓ theo nghĩa giải pháp nền (markdown cell 6: "bản sao mổ xẻ chi tiết của một public work tốt nhất" — pipeline hoàn chỉnh 0.945); KHÔNG theo nghĩa notebook starter gốc của competition. Đã copy nền: cell5code.py = section 5 NGUYÊN VĂN (không sửa, kèm header nguồn gốc, compile-check OK) + ipynb nguyên vẹn + original-analysis-notes.md (8 cell markdown).
+- TÀI LIỆU: kaggle/ver-5/CELL5-TRIEN-KHAI.md — 0. tóm tắt · 1. nguồn gốc + provenance chain (học từ 6 public work 0.938-0.946) + câu trả lời bài thi mẫu · 2. vị trí cell 5 trong 10 section (bảng phụ thuộc) · 3. kiến trúc (sơ đồ) · 4. chi tiết 6 patch + chạy song song · 5. bảng env tiêu thụ (SEC_DET 0.80 = SECONDARY_DETECTION_WEIGHT, EDGE_WEIGHT 0.20, BIDIR 0.15…) · 6. bảng 8 điểm cải tiến xếp hạng (PPSWEEP trên graph cache từ work 0.946 — fork bỏ vì sợ 35→80 phút trong khi budget 12h vs chạy 36 phút · VALIDATOR_N 4→8 · true link-logit TTA (markdown v30 tuyên bố nhưng code chỉ làm mức feature) · division model (divJ kẹt 0.23, 15% trọng số) · fp16+inference_mode TTA · bền hóa patch chain · model thứ 3 · báo cáo retention) · 7. hội tụ với ver-3/4 của ta (SAFE_DIV_SISTER 14 ↔ DIV_SIBLING_GATE 14.5, parent mid-track ↔ C1, SYMMETRY_TAU ↔ mass-stability, GAP_CLOSE ↔ stitching) · 8. kế hoạch ver-5 (fork nguyên vẹn trước, tinh chỉnh sau).
+- README: thêm dòng ver-5 bảng điểm + section ver-5 đầy đủ.
+
+Stage Summary:
+- Sản phẩm: kaggle/ver-5/ (original ipynb 462KB + cell5code.py nền nguyên văn + original-analysis-notes.md + CELL5-TRIEN-KHAI.md) + README ver-5.
+- Phát hiện chính: notebook chứa đầy đủ giải pháp nền 0.945 để fork; cell 5 = 6 string-patch + dual-GPU; chuỗi provenance minh bạch; proxy↔LB có thể lệch nhau (3/8 phiên bản) → không tune chỉ theo proxy.
+- Bài học: (a) Kaggle notebook tải được qua nút Download của agent-browser khi page_reader chỉ ra SPA shell; (b) exact-string patch + count==1 + compile là pattern fail-fast đáng học; (c) budget runtime 12h cho phép PPSWEEP mà fork bỏ qua — cơ hội trực tiếp nhất.
+- Bước tiếp theo cho user: Kaggle → Copy & Edit notebook gốc → Add 4 Input (competition + biohub-tracking-support-pack-50ep-v1 + biohub-deepcenter-unet3d-center-prior-v1 + biohub-temporal-unet3d-seed314159-v1, đều của pilkwang) → GPU T4×2 → Save & Run All (~36 phút) → Submit (kỳ vọng ≈ 0.94x vs ver-1 = 0.198); sau đó mới tính PPSWEEP/VALIDATOR_N=8 theo tài liệu mục 6+8.
+
+---
+Task ID: 21
+Agent: main (Mr. Bio)
+Task: Review CELL5-TRIEN-KHAI.md (tìm lỗi/thiếu sót) + nâng cấp Cell 5 từ nền nguyên văn 0.945 lên ver 5.1 + push code
+
+Work Log:
+- REVIEW TÀI LIỆU (đối chiếu máy, không cảm tính): diff cell5code.py cũ vs section 5 notebook gốc theo từng byte → KHỚP tuyệt đối (49.800 bytes) — bản sao nền trung thành. Đếm cell: 29 = 12 code + 17 markdown. Audit env S1 (46)/S3 (88)/S4 (13)/S8; S2 guard đúng 9 số + 2 text.
+- 3 SAI SÓT TÀI LIỆU đã sửa: (1) §3 mô tả "cơ chế vá chung" SAI cho patch 1 — thực tế patch 1 chỉ `if _old in _s` + in warning, replace MỌI match, KHÔNG compile (fail-fast chỉ gián tiếp qua patch 2 anchor); (2) §5 bảng env ghi sai chỗ đặt 4 biến — EDGE_FEATURE_TTA, SECONDARY_EDGE_FEATURE_TTA(+_WEIGHT) do CHÍNH CELL 5 đặt cuối patch 5/6, còn DUAL_SEED_MIN_CANDIDATE_RETENTION bị cell 5 GHI ĐÈ cứng 0.90 (S1 đặt gì cũng bị bỏ — bẫy tune); (3) §6 #2 gọi sai núm — thật là BIOHUB_VALIDATOR_N_PER_TYPE (S8, mặc định "2"/loại ≈ 4 video). Bổ sung BIOHUB_DUAL_SEED_EDGE_THRESHOLD vào bảng.
+- KIẾN TRÚC SUBSTRING CỦA PATCH 6 được hiểu rõ: anchor 8-sp khớp giữa dòng 12-sp (substring match ăn 8/12 spaces cuối) — hoạt động nhưng mong manh; giữ nguyên trong ver 5.1 vì đã chạy 0.945.
+- 5 ĐIỂM YẾU ĐIỀU PHỐI của bản nền (đều đối chứng bằng test): ghi đĩa tuần tự (hỏng giữa chừng = file vá dở), patch 1 thiếu fail-fast, không re-run được không cần S4, ghi đè env S1, không có báo cáo retention ngay.
+- NÂNG CẤP VER 5.1 (kaggle/ver-5/cell5code.py): CHỈ đổi điều phối — payload 6 patch + section 8 trích NGUYÊN VĂN khỏi file nền bằng make-ver5-upgrade.py (ast.get_source_segment + ast.literal_eval, không gõ tay). Nâng cấp: (1) hai pha verify-then-write — verify từng anchor count==1 + áp trong BỘ NHỚ theo đúng thứ tự → compile 1 lần → GHI 1 LẦN → đọc lại xác nhận 3 marker; (2) patch 1 fail-fast hoá; (3) re-run an toàn qua 6 marker (mỗi marker chỉ tồn tại sau patch tương ứng) → "Patch phase skipped"; (4) 4 env đổi sang os.environ.setdefault (S1 thắng, mặc định = đúng 0.945); (5) preflight manifest in cấu hình hiệu dụng; (6) section 9 tổng hợp retention_guard_*.jsonl (per-dataset guarded/total + worst) + throughput videos/h.
+- TEST test-ver5-cell5.py — 57/57 ĐẠT, không cần GPU: mock predict script dựng từ CHÍNH anchor trích ra file nền (ast.literal_eval), torch giả + subprocess giả (sinh .geff theo --slice/--method, ghi retention JSONL theo shard). T2 = ĐẲNG THỨC: vá mock bằng bản nền vs ver 5.1 → file kết quả GIỐNG HỆT TỪNG BYTE. T5 = hỏng anchor cuối (coordinate manifest): ver 5.1 dừng TRƯỚC KHI GHI (file nguyên vẹn, thông điệp chỉ đúng "4/2 coordinate-manifest"), bản nền để FILE VÁ DỞ 3/6 patch — điểm yếu tái hiện đúng. T7 = luồng 2 GPU đầy đủ: env shard đúng, merge 5 .geff, dọn thư mục, tổng hợp retention đúng số (1/4 guarded, worst 0.830 video_a frame 12). T8 = env: preset 0.85 được GIỮ NGUYÊN ở ver 5.1 / bị ghi đè thành 0.90 ở bản nền.
+- 3 VÒNG SỬA TEST: (1) thiếu fake torch trong sys.modules cho mọi exec → exec_cell tiêm tự động; (2) kịch bản drift chọn sai anchor — corrupt P1 thì bản nền chết ngay ở patch 2 (patch 2 bám văn bản sau patch 1) chưa kịp ghi dở → đổi sang corrupt anchor CUỐI chuỗi (coordinate manifest) mới chứng minh được ghi dở; (3) retention records nhân đôi theo shard → lọc theo dataset của shard.
+- TÀI LIỆU: CELL5-TRIEN-KHAI.md thêm §0.1 (3 sai sót đã sửa), sửa §3/§5/§6 #2, bảng §6 thêm hàng #0 (ver 5.1), §8 cập nhật cách dùng, THÊM §9 đầy đủ về ver 5.1 (triết lý/bảng 7 nâng cấp/cấu trúc/bảng test T1–T10/giới hạn). README: bảng phiên bản + section ver-5 viết lại (ver 5.1, 57/57, cách dán).
+- File nền đổi tên: cell5code.py (cũ nguyên văn) → cell5-foundation-verbatim.py; cell5code.py mới = ver 5.1. make-ver5-upgrade.py giữ vĩnh viễn (tái sinh deterministic — đã chạy lại lần 2 ra đúng 54.683 bytes).
+
+Stage Summary:
+- Sản phẩm: kaggle/ver-5/cell5code.py (ver 5.1 — 54,7KB, 550 dòng) · cell5-foundation-verbatim.py (nền 49,8KB) · make-ver5-upgrade.py (AST tool) · test-ver5-cell5.py (57/57) · CELL5-TRIEN-KHAI.md (31,7KB, có §9) · README ver-5 cập nhật.
+- Đảm bảo cốt lõi: payload + section 8 của ver 5.1 GIỐNG HỆT bản nền từng byte (T2) → chạy Kaggle cho kết quả vá như bản 0.945; mọi nâng cấp đều nằm ở lớp điều phối đã kiểm chứng.
+- Bài học: (a) mô tả "cơ chế chung" phải đối chiếu MỖI nhánh code — patch 1 là ngoại lệ của chính quy tắc notebook tự hào; (b) test tính năng "hai pha" phải chọn hỏng hóc ở CUỐI chuỗi — hỏng đầu chuỗi cả hai bản đều chết sớm, không phân biệt được; (c) anchor substring ăn theo indent (8sp khớp giữa dòng 12sp) — hoạt động nhưng phải hiểu trước khi tái sử dụng.
+- Bước tiếp theo cho user: Copy & Edit notebook gốc → Add 4 Input → GPU T4×2 → THAY cell "## 5." bằng ver-5/cell5code.py → Save & Run All → Submit (kỳ vọng ≈ 0.94x). Sau đó: BIOHUB_VALIDATOR_N_PER_TYPE=4 + PPSWEEP theo §8.
+---
+
 Task ID: 35
 Agent: main (Z.ai Code)
 Task: Triển khai ver-7 (port 0.947) đến Phase B → rà soát toàn bộ → khắc phục → submit → triển khai Phase C (ver-7b). Kèm: sự cố sandbox rollback 22:30 13/9 + phục hồi toàn bộ.

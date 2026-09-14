@@ -17,6 +17,7 @@ notebook Kaggle gốc rồi **Save & Run All → Submit**.
 | 2 | Chống gộp blob + phân bào xác nhận | soạn thảo ✓ | — |
 | 3 | Phân bào theo profile độ sáng (từ discussion #740573) | soạn thảo ✓ | — |
 | 4 | Stitching hậu kiểm (nối lại track đứt) | soạn thảo ✓ | — |
+| 5 | Fork giải pháp ML 0.945 — cell 5 ver 5.1 nâng cấp | nghiên cứu ✓ + nâng cấp ✓ | — |
 
 ## Hotfix — NameError STRUCT26 (rơi trên Kaggle 13/09/2026)
 
@@ -44,6 +45,35 @@ Cell 3:
 ```python
 STRUCT26 = np.ones((3, 3, 3), dtype=bool)
 ```
+
+## Hotfix 2 — NameError maximum_filter (rơi trên Kaggle 14/09/2026)
+
+**Hiện tượng**: Cell 3 ver-4 báo `NameError: name 'maximum_filter' is not
+defined` tại `mf = maximum_filter(smoothed, size=PEAK_SIZE)` trong
+`detect_nodes` — ngay khung đầu của dataset đầu.
+
+**Gốc rễ**: traceback khớp **từng dòng** file gốc (offset 0) → cell 3 được dán
+đúng nguyên văn. Vấn đề nằm ở chỗ cell 3 **thiếu import** — nó trông chờ
+cell 1 import `maximum_filter` (chỉ được thêm từ ver-3), nhưng notebook Kaggle
+đang giữ **cell 1 bản cũ** (chưa từng có `maximum_filter`) trong khi cell 2/3
+đã dán ver-4. Test cục bộ không bắt được vì harness chạy `cell1code.py`
+(trong đó có import) trước khi exec cell 3.
+
+**Vá (mức gốc)**: cell 3 ver-4 giờ **tự chứa hoàn toàn**:
+- khối **IMPORT TỰ CHỮA** đầu cell (import lại vô hại, kèm thông báo rõ nếu
+  thiếu blosc2);
+- khối **CẤU HÌNH MẶC ĐỊNH ver-4** chỉ áp khi cell 2 ver-4 **chưa** chạy
+  (cờ `PIPELINE_CONFIG_VERSION` cuối cell 2) và chưa ai tự đặt `DATA_DIR` →
+  dán đè **đơn lẻ** cell 3 vào notebook giữ cell 1/2 cũ vẫn chạy đúng núm
+  ver-4; cell 2 ver-4 đã chạy thì núm tune ở đó vẫn thắng.
+- cell 4 tự import `pandas` (cùng cơ chế).
+
+**Kiểm chứng lại**: `test-ver4-synth.py` **ĐẠT TẤT CẢ 28+3** — thêm 3 kiểm
+**TỰ CHỨA**: chỉ exec cell 3+4 trong namespace trống (không cell 1/2, mô phỏng
+đúng sự cố) → chạy được **và cho submission y hệt từng hàng** so với chạy đầy
+đủ cell 1+2+3; `test-ver4-train-eval.py` E2E vẫn **1.1000**. Script sinh
+notebook được giữ lại: `ver-4/make-ver4-ipynb.py` (2 ipynb trong `download/`
+đã regenerate).
 
 Top 1 (Sergio Alvarez) = **0.97** · top 10 ≈ 0.957 — khoảng cách còn rất lớn.
 
@@ -125,10 +155,48 @@ continuation, 72 cạnh phân bào, 572 track) — không phải dự đoán:
 | Giữ nội suy + xác nhận động học | GT 100% cạnh liền khung; base rate 24:1 |
 | Phân bổ công lực: 90% cho adjEJ (trọng số 1,0) — division chỉ 0,1 | Kể cả hạng 40 cũng hỏi "tín hiệu gì chạy được division > 0" |
 
+## ver 5 — Fork giải pháp ML 0.945 (nghiên cứu cell 5) + VER 5.1 nâng cấp cell 5
+
+- **Nguồn**: `ver-5/` · notebook gốc: `pawanmali/biohub-942proxy-fork-v1` (public 0.945,
+  GPU T4×2, 36 phút, internet tắt) — **bản sao mổ xẻ của public work 0.923
+  "Dual-Seed + Harmonic Bidirectional Fusion"**, nâng qua v28 (0.942) → v29 → v30.
+  Pipeline: TemporalUNet3D + Node Transformer + ILP (pyscipopt) + DeepCenter veto +
+  dual-seed (seed 314159) + TTA 8 hướng + bidirectional harmonic fusion.
+- **Tài liệu**: `ver-5/CELL5-TRIEN-KHAI.md` — triển khai đầy đủ section 5 (patch suy
+  luận + dự đoán song song 2 GPU): 6 bản vá string-patch, CSDL env, bảng cải tiến xếp
+  hạng (PPSWEEP / VALIDATOR_N_PER_TYPE / true logit-TTA / division model / fp16 /
+  bền hóa patch chain) + **mục 9: bản nâng cấp ver 5.1**.
+- **Nền đã copy**: `original-biohub-942proxy-fork-v1.ipynb` (nguyên vẹn 29 cell) ·
+  `cell5-foundation-verbatim.py` (section 5 nguyên văn — đã diff khớp notebook gốc
+  từng byte) · `original-analysis-notes.md` (lịch sử thí nghiệm v10→v30).
+- **VER 5.1 (15/09, Task 21) — `cell5code.py` bản nâng cấp cell 5**, chỉ thay đổi phần
+  điều phối, **payload 6 patch giữ nguyên từng byte** (trích bằng AST khỏi file nền,
+  test T2 chứng minh file vá ra giống hệt bản nền):
+  1. **Hai pha verify-then-write** — anchor hỏng thì dừng TRƯỚC KHI GHI (bản nền ghi
+     đĩa tuần tự, hỏng giữa chừng để file vá dở — đối chứng test T5); patch 1 được
+     fail-fast hoá như 5 patch kia.
+  2. **Re-run an toàn** — script đã vá đủ (6 marker) thì bỏ qua khối vá, chạy thẳng
+     dự đoán (không cần chạy lại S4).
+  3. **Tôn trọng env S1** — 4 env (`RETENTION`, `EDGE_FEATURE_TTA`, 2 secondary) đổi từ
+     ghi đè cứng sang `setdefault`; tune giờ chỉ cần sửa S1 (bản nền bỏ qua giá trị S1
+     — đối chứng test T8).
+  4. **Preflight manifest** (cấu hình hiệu dụng trước khi chạy) + **tổng hợp retention
+     guard** ngay trong cell (không đợi S7) + throughput.
+  - Kiểm chứng: `ver-5/test-ver5-cell5.py` — **57/57 ĐẠT** (mock dựng từ anchor thật,
+    torch/subprocess giả, luồng 1 GPU + 2 GPU đầy đủ).
+  - Tool lắp ráp: `ver-5/make-ver5-upgrade.py` (giữ vĩnh viễn, tái sinh được).
+- **Hội tụ với ver-3/4 của ta**: SAFE_DIV_SISTER 14µm ↔ DIV_SIBLING_GATE 14.5 ·
+  parent mid-track ↔ C1 · SYMMETRY_TAU/mass ↔ mass-stability · GAP_CLOSE ↔ stitching.
+- **Bước tiếp theo**: Copy & Edit notebook gốc trên Kaggle → Add 4 Input (competition +
+  3 dataset `pilkwang`) → GPU T4×2 → **thay cell "## 5." bằng `ver-5/cell5code.py`
+  (ver 5.1)** → Save & Run All (~36 phút) → Submit. Kỳ vọng ≈ 0.94x (ver-1 = 0.198).
+  Sau đó mới thêm `BIOHUB_VALIDATOR_N_PER_TYPE=4` + PPSWEEP theo tài liệu §6/§8.
+
 ## ver 4 — Stitching hậu kiểm (nối lại track đứt)
 
 - **Nguồn**: `ver-4/` · **kiểm chứng**: `ver-4/test-ver4-synth.py` — **ĐẠT TẤT CẢ
-  28/28** (đối chứng stitch TẮT: 3 kịch bản đứt đều hỏng) + `ver-4/test-ver4-train-eval.py`
+  28+3** (đối chứng stitch TẮT: 3 kịch bản đứt đều hỏng; +3 kiểm tự chứa sau
+  hotfix 14/09) + `ver-4/test-ver4-train-eval.py`
   — E2E chạy notebook `download/ver4-train-eval.ipynb` trên synthetic có nhãn
   .geff: **score 1.100/1.100** (EJ 1.0 · divJ 1.0 · recall 1.0)
 - **Bối cảnh**: chẩn đoán ver 3 trên test — trung vị 2–3 node/track (GT: 35
@@ -153,7 +221,8 @@ continuation, 72 cạnh phân bào, 572 track) — không phải dự đoán:
   cạnh nhảy không tồn tại (chuỗi nội suy) · con của phân bào đã xác nhận có
   cạnh vào nên không bị nối nhầm.
 - **Dùng**: dán 4 cell `ver-4/` vào notebook Kaggle, hoặc Import
-  `download/ver4-cell-tracking.ipynb`. Đo điểm offline: Import
+  `download/ver4-cell-tracking.ipynb`. Từ hotfix 14/09, **dán đè đơn lẻ cell 3
+  cũng chạy** (tự import + cấu hình mặc định ver-4). Đo điểm offline: Import
   `download/ver4-train-eval.ipynb` (cell 2 đã trỏ `DATA_DIR` vào train,
   chạy xong tự chấm bằng port metric chính thức — xem mục Local scorer).
 

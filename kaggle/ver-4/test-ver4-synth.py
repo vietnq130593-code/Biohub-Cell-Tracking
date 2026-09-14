@@ -342,6 +342,25 @@ for (t, z, y, x) in TRUE:
         acc_ok = False
 check('node khớp vị trí ≤ 7 µm (kể cả khung mờ/gộp)', acc_ok, f'worst={worst:.2f} µm')
 
+# ---------- TỰ CHỨA (hotfix 14/09): chỉ cell 3+4, KHÔNG chạy cell 1/2 ----------
+# Mô phỏng đúng sự cố Kaggle: notebook giữ cell 1 BẢN CŨ (không có
+# maximum_filter) và user chỉ dán đè cell 3. Cell 3 phải tự import + tự dùng
+# bộ cấu hình mặc định ver-4 (DATA_DIR/RUN_PREVIEW đặt sẵn thì được tôn trọng)
+# và cho kết quả Y HỆT chạy đầy đủ cell 1+2+3.
+ISO = {'__name__': '__main__'}
+ISO['DATA_DIR'] = test_dir
+ISO['RUN_PREVIEW'] = False
+os.makedirs(f'{ROOT}/out4iso', exist_ok=True)
+os.chdir(f'{ROOT}/out4iso')
+load_cells(ISO, BASE4, ['cell3code.py', 'cell4code.py'])
+iso = ISO['submission']
+check('TỰ CHỨA: chỉ cell 3+4 (không cell 1/2) vẫn chạy được',
+      len(iso) == len(sub4), f'{len(iso)} vs {len(sub4)} hàng')
+check('TỰ CHỨA: kết quả y hệt chạy đầy đủ cell 1+2+3',
+      iso.equals(sub4))
+check('TỰ CHỨA: khối mặc định tự tắt khi có PIPELINE_CONFIG_VERSION',
+      ISO['PIPELINE_CONFIG_VERSION'] == 4)
+
 # ---------- thống kê ----------
 per_frame = {}
 for r in nodes4:
