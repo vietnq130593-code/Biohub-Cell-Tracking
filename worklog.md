@@ -567,3 +567,12 @@ Work Log:
 Stage Summary:
 - App phản ánh đúng trạng thái ver-8: badge hero + selector mặc định + console log 8 dòng + card Wave-1 + hàng bảng KAGGLE_RESULTS đều "ĐANG CHẠY" amber, mọi số chưa chấm hiển thị "—".
 - Không đổi route, không đụng file ngoài 4 file trên, không thêm deadline/prize, layout/footer giữ nguyên.
+
+---
+CẬP NHẬT TASK 39 (22:50 14/9): ⚠️ SANDBOX ROLLBACK LẦN 3 (22:35) + PHỤC HỒI
+- ROLLBACK: git HEAD về 13/9 21:06, mất local: kaggle/ver-8/*, kaggle/ver-8-planning/*, worklog Task 35-39, ~/.kaggle (TOKEN), /tmp (wave1-out* + ver7b-out + datasets staging), pip kaggle package.
+- AN TOÀN (đã push trước rollback): GitHub 5e669a2 có TẤT CẢ ver-8 (cell-monolith 17-test PASS + notebook + ktool --ver 8/8w1 + VER8-REPARENT-DESIGN + wave1 driver v5 + E4 + app Task APP-VER8). Kaggle: 2 kernel ĐANG CHẠY (biohub-ver8 v1 GPU 21:20 ~3h + biohub-ver8-wave1 v5 E2+E3) + 2 dataset (biohub-v7-heldout-preds, biohub-wave1-features 29.096 cặp) + submissions history.
+- PHỤC HỒI: git reset --hard origin/main (100% files) + pip install kaggle 2.2.4 + app verify 200 OK (ver-8 state hiển thị đúng).
+- BLOCKER: token Kaggle MẤT — không thể check status / tải output / submit cho tới khi user cấp token mới (kaggle.com → Settings → API → Generate New Token → python3 kaggle/api/ktool.py token '<token>').
+- KHI CÓ TOKEN: (1) ktool status --ver 8 + 8w1; (2) tải output cả 2 kernel; (3) chấm cổng: ver-8 eval cell tự chấm official (so sánh với E1 baseline 0.9280/2-1-10/0.9434 — cổng: div_tp ≥ +2, div_fp ≤ +3, ΔadjEJ ≥ −0.0005, guards); (4) submit nếu xanh (quota còn 4/5 hôm nay); (5) phân tích wave1 v5 E2/E3 cho báo cáo.
+- E0 GRID ĐÃ LƯU (từ v4, phân tích đầy đủ trong worklog trên): base-v7 tối ưu — không combo gate nào tăng div_tp quá 3 → re-parenting là con đường duy nhất. Bảng 15 combo đã ghi ở trên.
