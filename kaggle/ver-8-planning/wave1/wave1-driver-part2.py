@@ -634,7 +634,7 @@ def wave1_main():
             FEATURES[stem]['features'], edges, prod_gates, None, nodes_by_id)
         added_r = [(int(a['source_id']), int(a['target_id'])) for a in replay_added]
         # đối chiếu thêm với E1 (pipeline đầy đủ — có thể lệch do pre-state khác)
-        verbatim_n = e1_stage_stats[stem].get('safe_divisions_added', 0)
+        verbatim_n = e1_stage_stats.get(stem, {}).get('safe_divisions_added', 0)
         if sorted(added_v) != sorted(added_r) or (e1_stage_stats and verbatim_n != len(added_r)):
             selfcheck['ok'] = False
             selfcheck['diffs'].append({'stem': stem, 'verbatim_added': verbatim_n,
