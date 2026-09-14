@@ -282,6 +282,25 @@ export const KAGGLE_RESULTS: KaggleVersionResult[] = [
       "Run T4×2 ~105 phút COMPLETE · submission 241.643 dòng (không nộp) · core view = ver-7 (adjEJ 0.9345)",
     ],
   },
+  {
+    id: "ver8",
+    label: "Ver 8 · Phase D re-parenting",
+    kaggleRef: "vietnguyen130593/biohub-ver8 v1 · GPU T4×2",
+    lbScore: null,
+    submittedAt: "2026-09-14 21:20 · ĐANG CHẠY (~2,5–3 h)",
+    status: "RUNNING",
+    runSeconds: null,
+    submissionRows: null,
+    proxy: null,
+    adjEJ: null,
+    divJ: null,
+    notes: [
+      "Cơ chế MỚI re-parenting division recovery: 6/12 sự kiện phân bào GT held-out có cả 2 con đã detect nhưng con thứ 2 bị nối nhầm cha — tháo cạnh sai Y→D2, nối mẹ thật M→D2 khi DivNet + geometry + DeepCenter đồng thuận (mỗi ca ≈ +0,0077 điểm)",
+      "DivNet RANK-ONLY W=15 µm giữ NGUYÊN gate production tau 0,6/diverge 2,25 (khác ver-7b đã thất bại vì nới gate)",
+      "PPSWEEP 16 candidates: 6 rp-* (re-parent tuning + rp-off escape) + 7 gốc + 3 adjEJ mới — validator held-out tự chọn theo gate ±0,0005 adjEJ",
+      "Cơ sở: Wave-1 E0 grid 15 combo (CPU) chứng minh safe-div đã đạt trần div_tp=3 — mở gate chỉ thêm FP; re-parenting là con đường duy nhất còn lại",
+    ],
+  },
 ];
 
 /** Bối cảnh leaderboard cập nhật 14/9 (sau ver-7 chấm xong) */

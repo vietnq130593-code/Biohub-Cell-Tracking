@@ -1001,6 +1001,111 @@ function VersionsTab() {
     <div className="space-y-6">
       {/* Registry phiên bản */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {/* ver 8 — đang chạy */}
+        <Card className="border-amber-500/40 bg-amber-500/[0.03] md:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+              <span className="flex items-center gap-2">
+                <GitFork className="h-4 w-4 text-amber-600 dark:text-amber-300" aria-hidden />
+                ver 8 · Phase D re-parenting
+              </span>
+              <Badge className="bg-amber-500 text-[10px] leading-4 text-amber-950 hover:bg-amber-500 sm:text-xs">
+                ĐANG CHẠY · GPU T4×2 (~2,5–3 H)
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              Kernel{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                vietnguyen130593/biohub-ver8 v1
+              </code>{" "}
+              — push 21:20 ngày 14/9, 8 input, ước lượng 2,5–3 h trên T4×2.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="space-y-3">
+              <p className="text-sm font-medium">Kiến trúc (trên nền ver-7):</p>
+              <ul className="space-y-1.5 text-sm text-muted-foreground">
+                <li>
+                  • <span className="font-semibold text-foreground">DivNet rank</span>{" "}
+                  RANK-ONLY W=15 µm — giữ NGUYÊN gate production tau 0.6 /
+                  diverge 2.25 (khác ver-7b đã thất bại vì nới gate → div_fp
+                  1→21, không nộp)
+                </li>
+                <li>
+                  • <span className="font-semibold text-foreground">Re-parenting division recovery</span> —
+                  tháo cạnh sai Y→D2, nối mẹ thật M→D2 khi DivNet + geometry +
+                  DeepCenter đồng thuận
+                </li>
+                <li>
+                  • <span className="font-semibold text-foreground">PPSWEEP 16 candidates</span>:
+                  6 rp-* (re-parent tuning + rp-off escape) + 7 gốc + 3 adjEJ
+                  mới — validator held-out tự chọn theo gate ±0.0005 adjEJ
+                </li>
+              </ul>
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+                <p className="font-mono font-semibold">
+                  6/12 sự kiện phân bào GT held-out → re-parent (≈ +0.0077
+                  điểm/ca)
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Cả 2 con đã detect nhưng con thứ 2 bị nối nhầm cha — đúng
+                  phân rã Wave-1: 9/12 FN không thể cứu bằng safe-div gate.
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Cơ sở Wave-1 (CPU — đã chạy xong)
+              </p>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">thí nghiệm</TableHead>
+                      <TableHead className="text-xs">kết quả</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="py-1.5 text-xs">
+                        E1 · system view official (8 video held-out)
+                      </TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">
+                        adjEJ 0.9280 · div 2/1/10 · proxy 0.9434
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="py-1.5 text-xs">
+                        E0 · grid 15 combo gate
+                      </TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px]">
+                        KHÔNG combo tăng div_tp — trần safe-div, mở gate chỉ
+                        thêm FP
+                      </TableCell>
+                    </TableRow>
+                    <TableRow className="bg-muted/50 font-semibold">
+                      <TableCell className="py-1.5 text-xs">
+                        Phân rã 12 sự kiện GT division
+                      </TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px]">
+                        6/12 → re-parent · 3/12 thiếu detection
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                Số liệu từ kernel{" "}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                  biohub-ver8-wave1
+                </code>{" "}
+                (CPU, 0 GPU quota) — E1 dùng scorer official 075fc5f đúng luật
+                chấm.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* ver 7 — featured */}
         <Card className="border-emerald-500/40 bg-emerald-500/[0.03] md:col-span-2">
           <CardHeader>

@@ -4,7 +4,13 @@
  * Trình mô phỏng & chấm điểm bài nộp
  * Kaggle: "Biohub - Cell Tracking During Development"
  *
- * Môi trường mô phỏng nội bộ các phiên bản pipeline ver-6 / ver-7:
+ * Môi trường mô phỏng nội bộ các phiên bản pipeline ver-6 / ver-7 / ver-8:
+ *  - ver 8 · Phase D re-parenting (ĐANG CHẠY trên Kaggle GPU T4×2): nền
+ *    ver-7 + DivNet RANK-ONLY W=15 µm (giữ NGUYÊN gate production tau
+ *    0.6 / diverge 2.25 — khác ver-7b đã thất bại vì nới gate) + re-parenting
+ *    division recovery (tháo cạnh sai Y→D2, nối mẹ thật M→D2 khi DivNet +
+ *    geometry + DeepCenter đồng thuận) + PPSWEEP 16 candidates — phần mô
+ *    phỏng chạy trên nền ensemble ver-7
  *  - ver 7 · port notebook Reyhan 0.947 (public LB 0.947 ✓): nền ver-6 +
  *    DeepCenter veto (bỏ node sửa chữa có center-prior thấp) + TTA 8-view
  *    × 3 chip + PPSWEEP chọn tight55 (MOTION_RELINK_TIGHT_UM 5.5)
@@ -378,20 +384,29 @@ interface RuntimeState {
   sparse: boolean
 }
 
-type Mode = 'ver6' | 'ver7' | 'custom'
+type Mode = 'ver8' | 'ver6' | 'ver7' | 'custom'
 
 const MODE_LABEL: Record<Mode, string> = {
+  ver8: 'Ver 8 · đang chạy',
   ver7: 'Ver 7 · Kaggle 0.947',
   ver6: 'Ver 6 · Kaggle 0.945',
   custom: 'Tùy chỉnh',
 }
 
-/** Các phiên bản ensemble chạy trên cùng dữ liệu (mặc định Ver 7) */
+/** Các phiên bản ensemble chạy trên cùng dữ liệu (mặc định Ver 8 — tái dùng nền ver-7) */
 const ENSEMBLE_RUNS = ['ver6', 'ver7'] as const
 type EnsembleKey = (typeof ENSEMBLE_RUNS)[number]
 
-/** Pipeline chips hiển thị cho từng phiên bản (đúng kernel biohub-ver6/ver7) */
-const VERSION_INFO: Record<EnsembleKey, string[]> = {
+/** Pipeline chips hiển thị cho từng phiên bản (đúng kernel biohub-ver6/ver7/ver8) */
+const VERSION_INFO: Record<Exclude<Mode, 'custom'>, string[]> = {
+  ver8: [
+    'nền ver-7 (dual-seed + fusion + safe-div + retention + DeepCenter + TTA)',
+    'divnet division rank: RANK-ONLY W=15 µm · giữ gate gốc tau 0.6 / diverge 2.25',
+    're-parenting: tháo cạnh sai Y→D2 · nối mẹ thật M→D2',
+    'đồng thuận DivNet + geometry + DeepCenter — 6/12 sự kiện GT (≈ +0.0077 điểm/ca)',
+    'PPSWEEP 16 candidates: 6 rp-* (tuning + rp-off escape) + 7 gốc + 3 adjEJ mới',
+    'validator held-out tự chọn theo gate ±0.0005 adjEJ',
+  ],
   ver6: [
     '2 lượt phát hiện độc lập (primary + seed 314159)',
     'fusion theo src: cả hai thấy → trung bình vị trí',
@@ -434,7 +449,7 @@ export default function TrackingDemo() {
   const [seed, setSeed] = useState(20260911)
   const sim = useMemo(() => buildSimulation(seed), [seed])
 
-  const [mode, setMode] = useState<Mode>('ver7')
+  const [mode, setMode] = useState<Mode>('ver8')
   const [params, setParams] = useState<Params>({ ...DEFAULT_PARAMS })
   const [sparseMode, setSparseMode] = useState(true)
 
@@ -471,7 +486,7 @@ export default function TrackingDemo() {
   const analysis: Analysis =
     mode === 'custom'
       ? customAnalysis
-      : ensembleAnalyses[mode]
+      : ensembleAnalyses[mode === 'ver8' ? 'ver7' : mode]
 
   const [playing, setPlaying] = useState(true)
   const [speed, setSpeed] = useState(1)
@@ -962,7 +977,9 @@ export default function TrackingDemo() {
               Chạy <span className="font-semibold text-emerald-700 dark:text-emerald-300">thật</span>{' '}
               thuật toán từng phiên bản nộp bài (port JS từ notebook Kaggle) trên
               thể tích 3D tổng hợp của phôi zebrafish, rồi chấm điểm đúng metric
-              cuộc thi. Ver 7 (port notebook Reyhan — public LB 0.947, hạng 342/3523) và Ver 6
+              cuộc thi. Ver 8 (Phase D re-parenting) đang chạy trên Kaggle
+              (GPU T4×2) — phần mô phỏng dưới đây chạy trên nền ver-7. Ver 7
+              (port notebook Reyhan — public LB 0.947, hạng 342/3523) và Ver 6
               (Kaggle 0.945 deterministic) cho số GẦN NHAU trên cùng dữ liệu —
               đúng bằng chứng paired A/B thật: ΔadjEJ +0.0000. Đổi phiên bản để
               so sánh, hoặc dùng chế độ{' '}
@@ -1156,11 +1173,14 @@ export default function TrackingDemo() {
                 size="sm"
                 value={mode}
                 onValueChange={(v) => {
-                  if (v === 'ver6' || v === 'ver7' || v === 'custom') setMode(v)
+                  if (v === 'ver8' || v === 'ver6' || v === 'ver7' || v === 'custom') setMode(v)
                 }}
                 aria-label="Chọn phiên bản thuật toán"
                 className="flex-wrap"
               >
+                <ToggleGroupItem value="ver8" aria-label="Ver 8, Phase D re-parenting division recovery — đang chạy trên Kaggle">
+                  Ver 8 · đang chạy
+                </ToggleGroupItem>
                 <ToggleGroupItem value="ver7" aria-label="Ver 7, port notebook Reyhan — public LB 0.947">
                   Ver 7 · 0.947
                 </ToggleGroupItem>
@@ -1260,10 +1280,10 @@ export default function TrackingDemo() {
             </>
           ) : (
             <>
-              {/* console log mô phỏng Kaggle — 10 dòng (ver-7) / 9 dòng (ver-6) */}
+              {/* console log mô phỏng Kaggle — 8 dòng (ver-8) / 10 dòng (ver-7) / 9 dòng (ver-6) */}
               <pre className="mb-4 max-h-72 overflow-auto rounded-lg bg-[#04100b] p-3 font-mono text-[11px] leading-relaxed text-emerald-200/90">
                 {(() => {
-                  const run = ensembles[mode]
+                  const run = ensembles[mode === 'ver8' ? 'ver7' : mode]
                   const st = run.stats
                   const base = [
                     `[ensemble] 2 lượt phát hiện độc lập · primary + seed 314159 · ${st.rawA} + ${st.rawB} node`,
@@ -1271,6 +1291,15 @@ export default function TrackingDemo() {
                     `[link] Hungarian gate 7.2 µm · ${st.edges} cạnh · retention nối ${st.retPairs} track · +${st.retInterp} node`,
                     `[safe-div] xác nhận ${st.divisions} · từ chối động học ${st.divRejDyn} · mất con ${st.divRejLost}`,
                   ]
+                  if (mode === 'ver8') {
+                    return [
+                      ...base,
+                      `[ver8·divnet] division rank RANK-ONLY W=15 µm · giữ NGUYÊN gate production tau 0.6 / diverge 2.25 (khác ver-7b nới gate đã thất bại)`,
+                      `[ver8·re-parent] tháo cạnh sai Y→D2 · nối mẹ thật M→D2 · DivNet + geometry + DeepCenter đồng thuận · 6/12 sự kiện GT (≈ +0.0077 điểm/ca)`,
+                      `[ppsweep] 16 candidates: 6 rp-* (re-parent tuning + rp-off escape) + 7 gốc + 3 adjEJ mới — validator held-out tự chọn (gate ±0.0005 adjEJ)`,
+                      `[submit] biohub-ver8 v1 · GPU T4×2 · push 21:20 14/9 → ĐANG CHẠY (~2,5–3 h)`,
+                    ].join('\n')
+                  }
                   if (mode === 'ver7') {
                     return [
                       ...base,

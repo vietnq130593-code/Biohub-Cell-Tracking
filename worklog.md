@@ -549,3 +549,21 @@ CẬP NHẬT TASK 39 (21:20 14/9): WAVE-1 KẾT QUẢ E0 QUYẾT ĐỊNH + VER-8
 - VER-8 CHUẨN HÓA: lazy P_div (chỉ tính sau geometric lọc — tránh 25k truy vấn/stem), base MIN_PDIV 0.5 + EDGE_PROB 0.25 (chặt), candidate 'rp-off' (escape), 'rp-pdiv30'/'rp-ep35' (nới), + vw060/gap2step48/minlen5 (adjEJ). 17 unit test PASS.
 - PUSH ver-8 GPU (biohub-ver8 v1, T4×2, 8 input) 21:20 — ước 2.5-3h. Song song wave1 v5 (E2+E3, skip E0/E1 đã có) đang chạy.
 - v5 fixes: unlink .geff dir → rmtree; skip E0 grid+official (đủ dữ liệu); guard e1_stage_stats.
+
+---
+Task ID: APP-VER8
+Agent: frontend subagent
+Task: Cập nhật app Next.js (route /) với tiến độ ver-8 (Phase D re-parenting) — chỉ dữ liệu + thêm 1 mục version, KHÔNG đổi cấu trúc trang.
+
+Work Log:
+- Đọc worklog Task 36/38/39 (ngữ cảnh ver-7 0.947, Wave-1 E0/E1, re-parenting 6/12).
+- src/lib/competition-data.ts: THÊM mục ver-8 vào cuối KAGGLE_RESULTS (id "ver8", label "Ver 8 · Phase D re-parenting", kaggleRef biohub-ver8 v1 GPU T4×2, status RUNNING, tất cả số liệu null — type KaggleVersionResult đã cho phép null nên không cần chỉnh type; 4 notes: cơ chế re-parenting tháo Y→D2 nối M→D2 ≈ +0,0077/ca, DivNet RANK-ONLY giữ gate gốc, PPSWEEP 16 candidates, cơ sở E0 trần safe-div). Lưu ý nhỏ: sửa 1 đoạn "已达" (lẫn chữ Hán trong đề bài) thành "đã đạt" cho nhất quán tiếng Việt. Comment LB_CONTEXT + HELDOUT_STEMS/HELDOUT_MICRO_ADJEJ giữ nguyên.
+- src/components/competition/tracking-demo.tsx: type Mode thêm 'ver8' (đứng đầu); MODE_LABEL thêm "Ver 8 · đang chạy"; default mode = 'ver8'; VERSION_INFO đổi type Record<Exclude<Mode,'custom'>,…> + thêm 6 chips pipeline ver-8; analysis + console log map ver8 → tái dùng ensemble ver-7 (đúng thực tế core view ver-8 = ver-7 + postprocess re-parenting; không đụng tracking-pipeline.ts); selector ToggleGroup thêm mục "Ver 8 · đang chạy" ở ĐẦU danh sách; console log ver-8 đúng 8 dòng: ensemble → fusion → link → safe-div → [ver8·divnet] rank RANK-ONLY giữ gate gốc → [ver8·re-parent] (tháo cạnh sai Y→D2, nối M→D2, 6/12 GT ≈ +0.0077/ca) → [ppsweep] 16 candidates (6 rp-* + 7 gốc + 3 adjEJ, gate ±0.0005 adjEJ) → [submit] biohub-ver8 v1 T4×2 ĐANG CHẠY (~2,5–3 h); CardDescription + header comment thêm câu ver-8. Bảng so sánh 2 phiên bản (ver6/ver7) giữ nguyên.
+- src/components/competition/hero.tsx: badge "Ver 7 · PUBLIC LB 0.947…" → badge amber "Ver 8 · re-parenting division recovery — ĐANG CHẠY (GPU T4×2)" (icon Loader2 animate-spin, border/bg/text amber); 4 stat thành tích giữ nguyên (0.947 LB · 241.356 dòng · 117 phút · bức tường 401 đội).
+- src/components/competition/submission-lab.tsx: tab "Phiên bản & điểm" THÊM card ver-8 (md:col-span-2, amber) ở đầu registry: badge "ĐANG CHẠY · GPU T4×2 (~2,5–3 H)", kiến trúc (DivNet rank RANK-ONLY giữ gate gốc khác ver-7b / re-parenting Y→D2→M→D2 / PPSWEEP 16 candidates + validator ±0.0005 adjEJ), hộp amber 6/12 sự kiện ≈ +0.0077/ca, bảng "Cơ sở Wave-1": E1 system view official adjEJ 0.9280 · div 2/1/10 · proxy 0.9434 / E0 grid 15 combo không tăng div_tp (trần safe-div) / phân rã 12 GT division 6 re-parent + 3 thiếu detection. Các card ver-7/ver-6 giữ nguyên.
+- LINT: bun run lint EXIT 0 sạch; tsc --noEmit 0 lỗi phần src/ (chỉ examples/skills có sẵn — không phải app).
+- BROWSER VERIFY (agent-browser, dev server có sẵn port 3000): trang 200, 0 lỗi console (chỉ HMR info), 0 page errors; hero badge amber "Ver 8 · re-parenting… ĐANG CHẠY (GPU T4×2)"; selector 3 mục với "Ver 8 · đang chạy" đứng đầu + bấm hoạt động (Ver 6 → 9 dòng log, quay lại Ver 8 → đúng 8 dòng [ver8·divnet]/[ver8·re-parent]/[ppsweep 16]/[submit đang chạy]); bảng KAGGLE_RESULTS có hàng Ver 8 (null → "—") + notes re-parent; card ver-8 hiển thị E1/E0/6-12 (badge "ĐANG CHẠY · GPU T4×2 (~2,5–3 H)"); mobile 390px scrollWidth=390 không tràn ngang; footer đáy (footerAtBottom=true), layout/footer không đụng. Screenshots: kaggle/tools/e2e-ver8-{hero,selector,card,mobile-footer}.png.
+
+Stage Summary:
+- App phản ánh đúng trạng thái ver-8: badge hero + selector mặc định + console log 8 dòng + card Wave-1 + hàng bảng KAGGLE_RESULTS đều "ĐANG CHẠY" amber, mọi số chưa chấm hiển thị "—".
+- Không đổi route, không đụng file ngoài 4 file trên, không thêm deadline/prize, layout/footer giữ nguyên.
