@@ -173,6 +173,7 @@ continuation, 72 cạnh phân bào, 572 track) — không phải dự đoán:
 - 2 lượt phát hiện độc lập (seed khác nhau) → fusion theo src → Hungarian 7,2µm → safe-div động học → retention guard 3,6 + 0,4×gap
 - Validator proxy 0.9430 · adj_edge_jaccard 0.9230 · division_jaccard 0.2000 (điểm yếu đã biết → ver-7b nhắm đúng div_fn=12)
 - Retention worst 0.453 @ video 44b6_0b24845f frame 95 · 65/400 frame fallback
+- File: `ver-6/` (cell1..10code.py + README — **phục hồi byte-exact từ kernel Kaggle 14/9** sau khi rollback xoá local) · `download/ver6-cell-tracking.ipynb` (sha256 `22bbd49af25c87af…`)
 - Bài học: hai lần chạy deterministic cùng ra 0.945 — tín hiệu tin được; mọi artifact quan trọng phải sống trên Kaggle (kernel + dataset + submission), local chỉ là bản sao
 
 ## ver 5 — Fork giải pháp ML 0.945 (nghiên cứu cell 5) + VER 5.1 nâng cấp cell 5
