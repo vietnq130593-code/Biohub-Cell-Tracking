@@ -47,7 +47,7 @@ export default function Home() {
               <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em]">
                 adj_edge + 0.1 × division
               </code>
-              . Hãy đổi giữa Ver 7 (đang chấm — port 0.947) ↔ Ver 6 (Kaggle
+              . Hãy đổi giữa Ver 7 (public LB 0.947) ↔ Ver 6 (Kaggle
               0.945) — hoặc chỉnh tham số ở chế độ Tùy chỉnh — để xem điểm thay
               đổi tức thì!
             </p>

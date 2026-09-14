@@ -5,7 +5,7 @@
  * Kaggle: "Biohub - Cell Tracking During Development"
  *
  * Môi trường mô phỏng nội bộ các phiên bản pipeline ver-6 / ver-7:
- *  - ver 7 · port notebook Reyhan 0.947 (đang chấm public LB): nền ver-6 +
+ *  - ver 7 · port notebook Reyhan 0.947 (public LB 0.947 ✓): nền ver-6 +
  *    DeepCenter veto (bỏ node sửa chữa có center-prior thấp) + TTA 8-view
  *    × 3 chip + PPSWEEP chọn tight55 (MOTION_RELINK_TIGHT_UM 5.5)
  *  - ver 6 · Kaggle 0.945 deterministic ×2 (kernel biohub-ver6): 2 lượt phát
@@ -381,7 +381,7 @@ interface RuntimeState {
 type Mode = 'ver6' | 'ver7' | 'custom'
 
 const MODE_LABEL: Record<Mode, string> = {
-  ver7: 'Ver 7 · port Reyhan (đang chấm)',
+  ver7: 'Ver 7 · Kaggle 0.947',
   ver6: 'Ver 6 · Kaggle 0.945',
   custom: 'Tùy chỉnh',
 }
@@ -962,7 +962,7 @@ export default function TrackingDemo() {
               Chạy <span className="font-semibold text-emerald-700 dark:text-emerald-300">thật</span>{' '}
               thuật toán từng phiên bản nộp bài (port JS từ notebook Kaggle) trên
               thể tích 3D tổng hợp của phôi zebrafish, rồi chấm điểm đúng metric
-              cuộc thi. Ver 7 (port notebook Reyhan 0.947 — đang chấm) và Ver 6
+              cuộc thi. Ver 7 (port notebook Reyhan — public LB 0.947, hạng 342/3523) và Ver 6
               (Kaggle 0.945 deterministic) cho số GẦN NHAU trên cùng dữ liệu —
               đúng bằng chứng paired A/B thật: ΔadjEJ +0.0000. Đổi phiên bản để
               so sánh, hoặc dùng chế độ{' '}
@@ -1161,8 +1161,8 @@ export default function TrackingDemo() {
                 aria-label="Chọn phiên bản thuật toán"
                 className="flex-wrap"
               >
-                <ToggleGroupItem value="ver7" aria-label="Ver 7, port notebook Reyhan 0.947 — đang chấm public LB">
-                  Ver 7 · đang chấm
+                <ToggleGroupItem value="ver7" aria-label="Ver 7, port notebook Reyhan — public LB 0.947">
+                  Ver 7 · 0.947
                 </ToggleGroupItem>
                 <ToggleGroupItem value="ver6" aria-label="Ver 6, dual-seed ensemble — Kaggle 0.945 deterministic">
                   Ver 6 · Kaggle 0.945
@@ -1279,7 +1279,7 @@ export default function TrackingDemo() {
                       `[ppsweep] chọn tight55 · MOTION_RELINK_TIGHT_UM 5.5`,
                       `[validator] proxy held-out 0.9490 → 0.9511 (tight55) · adjEJ micro 0.9345`,
                       `[kaggle] 241.356 dòng · sha256 d34533806b3153dd… · T4×2 117 phút COMPLETE`,
-                      `[submit] đang chấm public LB (6–12 h) — kỳ vọng ≈ 0.947 (bức tường 360 đội)`,
+                      `[submit] 56217216 → PUBLIC LB 0.947 ✓ (+0.002 so với ver-6) · hạng 342 — mục tiêu ver-8: ≥ 0.948`,
                     ].join('\n')
                   }
                   return [

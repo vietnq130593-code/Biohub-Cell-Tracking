@@ -244,10 +244,10 @@ export const KAGGLE_RESULTS: KaggleVersionResult[] = [
   {
     id: "ver7",
     label: "Ver 7 · port Reyhan 0.947",
-    kaggleRef: "vietnguyen130593/biohub-ver7 v1",
-    lbScore: null,
-    submittedAt: "Nộp hôm nay · đang chấm (6–12 h)",
-    status: "PENDING",
+    kaggleRef: "vietnguyen130593/biohub-ver7 v1 · submission 56217216",
+    lbScore: 0.947,
+    submittedAt: "2026-09-14 · đã chấm",
+    status: "COMPLETE",
     runSeconds: 7020,
     submissionRows: 241356,
     proxy: 0.949,
@@ -255,8 +255,9 @@ export const KAGGLE_RESULTS: KaggleVersionResult[] = [
     divJ: 0.0,
     notes: [
       "Port nguyên văn notebook public LB 0.947 của Reyhan Ksatria — chỉ vá 5 dòng env path sang dataset pilkwang public, SHA256 khớp 100%",
+      "★ PUBLIC LB = 0.947 — ĐẠT KỲ VỌNG CHÍNH XÁC (+0.002 so với ver-6) · hạng 342/3523, cụm 401 đội cùng điểm",
+      "Mục tiêu kế tiếp ≥ 0.948 (cụm 40 đội hạng 66–105) — nghiên cứu ver-8: kaggle/ver-8-planning/VER8-RESEARCH.md",
       "Run T4×2 ~117 phút COMPLETE · submission 241.356 dòng · sha256 d34533806b3153dd…",
-      "Kỳ vọng ≈ 0.947 public LB (bức tường 360 đội copy notebook Reyhan)",
       "Phase B official eval (scorer 075fc5f, 8 video held-out): adjEJ micro 0.9345 · div 0/0/12",
       "Paired A/B vs ver-6 trên 4 video chung: ΔadjEJ +0.0000 (CI95 ±0.0001) — KHÔNG regression · guards 5/5",
       "PPSWEEP tự chọn config tight55 (MOTION_RELINK_TIGHT_UM 5.5) nâng proxy held-out 0.9490 → 0.9511",
@@ -283,14 +284,17 @@ export const KAGGLE_RESULTS: KaggleVersionResult[] = [
   },
 ];
 
-/** Bối cảnh leaderboard tính đến lần cập nhật gần nhất */
+/** Bối cảnh leaderboard cập nhật 14/9 (sau ver-7 chấm xong) */
 export const LB_CONTEXT = {
-  ourTeam: "Mr. Architect",
-  ourScore: 0.945,
-  ourRank: 643,
-  /** Bức tường 360 đội copy notebook Reyhan Ksatria cùng 0.947 */
+  ourTeam: "daoviet",
+  ourScore: 0.947,
+  ourRank: 342,
+  /** Cụm 401 đội fork notebook Reyhan Ksatria cùng 0.947 (hạng 106–506) */
   wallScore: 0.947,
-  wallTeams: 360,
+  wallTeams: 401,
+  /** Cụm kế tiếp cần vượt: 40 đội 0.948 (hạng 66–105) */
+  nextClusterScore: 0.948,
+  nextClusterTeams: 40,
   topScore: 0.97,
 } as const;
 

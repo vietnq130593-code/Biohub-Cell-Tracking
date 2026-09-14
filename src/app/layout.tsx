@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Biohub — Cell Tracking During Development",
     description:
-      "Môi trường mô phỏng nội bộ các phiên bản pipeline: detect, track tế bào 3D+time và tái dựng phả hệ — số liệu Kaggle thật ver-6 0.945 · ver-7 đang chấm.",
+      "Môi trường mô phỏng nội bộ các phiên bản pipeline: detect, track tế bào 3D+time và tái dựng phả hệ — số liệu Kaggle thật ver-6 0.945 · ver-7 0.947 (hạng 342/3523).",
     type: "website",
   },
 };

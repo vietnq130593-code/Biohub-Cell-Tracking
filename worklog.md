@@ -478,3 +478,28 @@ Stage Summary:
 - ver-7 (56217216) đang chấm; ver-6 = 0.945 ×2 deterministic; ver-7b KHÔNG nộp (regression proxy).
 - Bài học: push thường xuyên — remote GitHub đã cứu ver-5.1 khi rollback xoá local; 2 lần rollback sandbox liên tiếp trong 24h.
 - PHỤC HỒI THÊM ver-6 (sau khi push đợt 1): phát hiện kaggle/ver-6/ + download/ver6-cell-tracking.ipynb mất trong rollback và chưa được cứu → `kaggle kernels pull vietnguyen130593/biohub-ver6` (COMPLETE, 220KB, 11 cell) → notebook canonical về đúng chỗ ktool.py trỏ + tách 10 cell code (py_compile PASS từng file) + README provenance đầy đủ (sha256 22bbd49af25c87af…). Cập nhật README chính mục File của ver 6.
+
+---
+Task ID: 38
+Agent: main (Z.ai Code)
+Task: Nghiên cứu toàn diện sau ver-7 = 0.947 (hạng 342/3523) — xác định hướng đi mới để đạt ≥0.948, đề xuất phương án thực nghiệm, viết báo cáo.
+
+Work Log:
+- XÁC MINH KẾT QUẢ: ver-7 (56217216) COMPLETE = 0.947 public LB — khớp kỳ vọng chính xác (+0.002 vs ver-6). Team "daoviet" hạng 342/3523. Tải full leaderboard CSV: cụm 0.947 = 401 đội (hạng 106–506); cụm 0.948 = 40 đội (hạng 66–105) ← mục tiêu; 0.949=12; 0.950=9; đỉnh 0.970.
+- NGUỒN LỰC: GPU 8.96/30h đã dùng (còn 21.04h, refresh 19/9) · submit hôm nay 1/5 đã dùng (còn 4) · deadline entry 22/9, final 29/9.
+- ĐỌC LẠI TOÀN BỘ TÀI LIỆU: CELL5-TRIEN-KHAI.md (§6 8 cải tiến) · original-analysis-notes.md (lịch sử v10→v30 + bảng proxy↔LB + "Куда двигаться дальше" + ma trận SEC_DET×BIDIR) · VER7-PLAN.md (Phase C priorities, per-prefix radii, node-count trap) · ver7b-phase-c-verdict.md · ver7-vs-ver6-official.md · eval_report_official_self.json (core view adjEJ 0.9345, div 0/0/12, edge 5543/191/208) · ppsweep_selected.json (9 configs, chọn combo tight55+dcgap035) · run_stats.csv · retention guard (44b6_0b24845f 64% fallback, min 0.453) · README mục #740573.
+- NGHIÊN CỨU MỚI NGOÀI (Kaggle API + kernels list 499 notebook + kernels pull): kéo 3 notebook quan trọng —
+  (1) megayak/the-0-966-notebooks-used-a-patched-metric-bug: CHỨNG MINH đỉnh 0.963–0.966 = khai thác "weakly connected component + fork giả" (hub node t=−1000 nối gốc mọi track) đã bị VÁ commit aa65e90 ngày 17/7/2026 — hoá thạch không tái hiện; GATE AUDIT 151 phân bào GT toàn train: stack gate hiện chỉ để 35/151 reachable (divergence 2.25 = median phân bố thật, symmetry 0.6 = p60); thí nghiệm mở gate end-to-end: 0.9508→0.9341 (tệ hơn) vì budget ~5 fork/khung bị rank hình học tiêu vào duplicate detections → "RÀNG BUỘC LÀ RANKING KHÔNG PHẢI GATES; gates phải mở ĐI KÈM ranker bằng chứng"; offline div metric public stack đọc GẤP ĐÔI official (0.25 vs 0.125);
+  (2) zhuzhenghaomax/biohub-0-948-reproduction-20260901: đọc config guard — thực chất banked cấu hình 0.936 (SEW 0.15, SAFE_DIV 7/12 hẹp) = thí nghiệm tái hiện 0.948 THẤT BẠI;
+  (3) cloudssdut cùng tên — VER7-PLAN đã kết luận claim giả (best 0.939). → KẾT LUẬN: cụm 0.948 (40 đội) KHÔNG đến từ notebook public nào — là private tweaks trên nền 0.947.
+- PHÂN RÃ LỖI ver-7: công thức điểm = adjEJ + 0.1×divJ (đối chiếu 3 nguồn khớp tuyệt đối) → divJ 0→1.0 = +0.100 điểm = quỹ đạo duy nhất còn dư địa lớn; hiện div 0 TP/12 FN trên held-out. adjEJ levers nhỏ hơn: PPSWEEP-2, per-prefix radii. Wrong association = 0 (linking hoàn hảo) — lỗi còn lại ở detection + fragmentation.
+- VIẾT BÁO CÁO: kaggle/ver-8-planning/VER8-RESEARCH.md (~450 dòng): 5 phát hiện then chốt + giải phẫu LB + phân rã lỗi + tổng hợp tri thức 10 nguồn (3.1–3.7, gồm dòng 6 notebook div-tuning của Seung Jae Lee chưa khai thác) + bảng 9 hướng đi H1–H9 xếp hạng + kế hoạch 3 waves (Wave 1 CPU free: E0 gate-audit 199 train .geff qua mini-kernel, E1 system-view official eval, E2 PPSWEEP-2 ~30 configs, E3 chẩn đoán 2 video xấu 0.82/0.85, E4 kéo notebook div-tuning; Wave 2 = ver-8 DivNet rank v2 + gate VỪA PHẢI tau 0.8/diverge 1.5 + P_div floor 0.5 + W 15→25, cổng submit siết: div_fp ≤ +3, ΔadjEJ ≥ 0, guards 5/5; Wave 3 tuỳ chọn) + 8 nguyên tắc thực nghiệm + trục thời gian tới 29/9.
+- LƯU NGHIÊN CỨU: kaggle/api/research/0948-research/ (3 ipynb nguyên vẹn + megayak-analysis-notes.md trích markdown).
+- KHẢO SÁT FILE TRAIN GT: đi token qua toàn bộ danh sách file competition — 2667 file .geff nhỏ (199 video × ~13 file) tồn tại nhưng tải từng file qua CLI quá chậm → đề xuất audit qua mini-kernel CPU (E0) thay vì tải local.
+- APP CẬP NHẬT SỐ LIỆU THẬT: competition-data.ts (ver-7 → 0.947 COMPLETE, submission 56217216, ghi chú đạt kỳ vọng + hạng 342 + cụm 401 đội + mục tiêu ver-8; LB_CONTEXT: ourTeam daoviet, ourScore 0.947, ourRank 342, wallTeams 401, thêm nextClusterScore 0.948/40 đội) · hero.tsx (badge vàng "đang chấm" → badge xanh emerald "PUBLIC LB 0.947 — CHẠM MỐC +0.002 · hạng 342/3523", stat ver-7, bỏ import Hourglass) · tracking-demo.tsx (MODE_LABEL, mô tả, toggle, console log submit → 0.947 ✓ + mục tiêu ver-8) · layout.tsx + page.tsx metadata.
+- README registry: bảng điểm + section ver-7 cập nhật 0.947 ✓ + ghi mục tiêu ver-8 trỏ tới VER8-RESEARCH.md.
+
+Stage Summary:
+- Báo cáo nghiên cứu đầy đủ: kaggle/ver-8-planning/VER8-RESEARCH.md — chiến lược 3 đòn song song (A: division evidence-ranking với DivNet v2 đã có sẵn, B: PPSWEEP-2 mini-kernel CPU 0 GPU, C: sửa hệ đo system-view official).
+- Phát hiện giá trị nhất: (1) đỉnh 0.966+ là hoá thạch lỗi metric đã vá (megayak) — mục tiêu 0.948 là đúng tầm trung thực; (2) division là quỹ đạo +0.100 duy nhất còn trống với bản đồ rõ (gates 23% reachable + ranking-by-evidence + budget); (3) mọi nỗ lực "0.948 public" đều thất bại → phải tự cải tiến.
+- Bước tiếp theo chờ user duyệt: Wave 1 (CPU free — E0/E1/E2/E3/E4) rồi Wave 2 (ver-8 GPU ~2h + 1 submit theo cổng siết).

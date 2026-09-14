@@ -8,7 +8,6 @@ import {
   ExternalLink,
   FileText,
   Globe2,
-  Hourglass,
   Timer,
   Trophy,
   Users,
@@ -87,17 +86,10 @@ export function Hero() {
           </Badge>
           <Badge
             variant="outline"
-            className="border-amber-400/40 bg-amber-400/10 text-amber-200 backdrop-blur-sm"
+            className="border-emerald-400/40 bg-emerald-400/10 text-emerald-200 backdrop-blur-sm"
           >
-            <Hourglass className="mr-1 h-3 w-3" aria-hidden />
-            Ver 7 · port 0.947 — đang chấm public LB
-            <span
-              className="relative ml-1.5 flex size-2"
-              aria-hidden
-            >
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-300 opacity-75" />
-              <span className="relative inline-flex size-2 rounded-full bg-amber-300" />
-            </span>
+            <Trophy className="mr-1 h-3 w-3" aria-hidden />
+            Ver 7 · PUBLIC LB 0.947 — CHẠM MỐC +0.002 · hạng 342/3523
           </Badge>
         </motion.div>
 
@@ -166,7 +158,7 @@ export function Hero() {
             <StatItem
               icon={Trophy}
               value={LB_CONTEXT.ourScore.toFixed(3)}
-              label="Public LB · ver-6 deterministic"
+              label="Public LB · ver-7 (ver-6: 0.945 ×2)"
               delay={0.4}
             />
             <StatItem
