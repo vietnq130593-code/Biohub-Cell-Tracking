@@ -47,14 +47,15 @@ export default function Home() {
               <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em]">
                 adj_edge + 0.1 × division
               </code>
-              . Hãy đổi giữa Ver 0 (baseline) ↔ Ver 1 (Stage 0+2) — hoặc chỉnh
-              tham số ở chế độ Tùy chỉnh — để xem điểm thay đổi tức thì!
+              . Hãy đổi giữa Ver 7 (đang chấm — port 0.947) ↔ Ver 6 (Kaggle
+              0.945) — hoặc chỉnh tham số ở chế độ Tùy chỉnh — để xem điểm thay
+              đổi tức thì!
             </p>
           </div>
           <TrackingDemo />
         </section>
 
-        {/* Phòng đo lường & quy chuẩn — sau khi submit ver 1 */}
+        {/* Phòng đo lường & quy chuẩn — registry phiên bản + paired A/B */}
         <section
           id="lab"
           className="mx-auto w-full max-w-7xl scroll-mt-24 px-4 py-14 sm:px-6 sm:py-20"
@@ -72,9 +73,10 @@ export default function Home() {
               Phòng đo lường &amp; quy chuẩn
             </h2>
             <p className="mt-2 max-w-3xl text-balance text-sm leading-relaxed text-muted-foreground sm:text-base">
-              Sau khi ver 1 đạt <strong className="text-foreground">0.198</strong> trên
-              leaderboard, mọi cải tiến từ giờ phải được đo trước khi tốn quota
-              submit: registry phiên bản, máy tính điểm what-if và trình kiểm tra
+              Sau khi ver-6 chốt <strong className="text-foreground">0.945</strong>{" "}
+              public LB (deterministic × 2 bản) và ver-7 đang được chấm, mọi
+              cải tiến phải được đo trước khi tốn quota submit: registry phiên
+              bản + paired A/B, máy tính điểm what-if và trình kiểm tra
               submission.csv — cả ba chạy hoàn toàn trong trình duyệt.
             </p>
           </div>
@@ -139,8 +141,8 @@ export default function Home() {
             </Button>
           </div>
           <p className="text-[11px] text-white/40">
-            © 2026 · Tổng hợp ngày 11/09/2026 · Deadline cuối: 23:59 UTC
-            29/09/2026
+            © 2026 · Biohub Cell Tracking · Môi trường mô phỏng nội bộ các phiên
+            bản pipeline
           </p>
         </div>
       </footer>

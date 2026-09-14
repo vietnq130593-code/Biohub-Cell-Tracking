@@ -5,84 +5,22 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import {
   ArrowDown,
-  CalendarClock,
-  DollarSign,
   ExternalLink,
+  FileText,
   Globe2,
-  Group,
+  Hourglass,
+  Timer,
   Trophy,
-  Upload,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   competition,
-  PRIZE_DEADLINE,
-  ENTRY_DEADLINE,
   COMPETITION_URL,
+  KAGGLE_RESULTS,
+  LB_CONTEXT,
 } from "@/lib/competition-data";
-
-function useCountdown(target: string) {
-  const [remaining, setRemaining] = React.useState<{
-    days: number;
-    hours: number;
-    minutes: number;
-    seconds: number;
-    total: number;
-  } | null>(null);
-
-  React.useEffect(() => {
-    const compute = () => {
-      const diff = new Date(target).getTime() - Date.now();
-      if (diff <= 0) {
-        setRemaining({ days: 0, hours: 0, minutes: 0, seconds: 0, total: 0 });
-        return;
-      }
-      setRemaining({
-        days: Math.floor(diff / 86_400_000),
-        hours: Math.floor((diff % 86_400_000) / 3_600_000),
-        minutes: Math.floor((diff % 3_600_000) / 60_000),
-        seconds: Math.floor((diff % 60_000) / 1000),
-        total: diff,
-      });
-    };
-    compute();
-    const id = setInterval(compute, 1000);
-    return () => clearInterval(id);
-  }, [target]);
-
-  return remaining;
-}
-
-function CountdownCell({
-  value,
-  label,
-  delay,
-}: {
-  value: number;
-  label: string;
-  delay: number;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.45 }}
-      className="flex min-w-[72px] flex-col items-center rounded-xl border border-white/15 bg-white/10 px-3 py-2.5 backdrop-blur-sm sm:min-w-[88px]"
-    >
-      <span
-        className="font-mono text-2xl font-bold tabular-nums text-white sm:text-3xl"
-        suppressHydrationWarning
-      >
-        {String(value).padStart(2, "0")}
-      </span>
-      <span className="text-[10px] font-medium uppercase tracking-wider text-white/60 sm:text-xs">
-        {label}
-      </span>
-    </motion.div>
-  );
-}
 
 function StatItem({
   icon: Icon,
@@ -112,9 +50,9 @@ function StatItem({
 }
 
 export function Hero() {
-  const finalLeft = useCountdown(PRIZE_DEADLINE);
-  const entryLeft = useCountdown(ENTRY_DEADLINE);
   const fmt = new Intl.NumberFormat("vi-VN");
+  const ver7 = KAGGLE_RESULTS.find((v) => v.id === "ver7");
+  const runMinutes = Math.round((ver7?.runSeconds ?? 7020) / 60);
 
   return (
     <section className="relative isolate overflow-hidden bg-[#04120c] text-white">
@@ -151,10 +89,15 @@ export function Hero() {
             variant="outline"
             className="border-amber-400/40 bg-amber-400/10 text-amber-200 backdrop-blur-sm"
           >
-            <CalendarClock className="mr-1 h-3 w-3" aria-hidden />
-            {finalLeft
-              ? `Còn ${finalLeft.days} ngày để nộp bài`
-              : "Đang tính thời gian..."}
+            <Hourglass className="mr-1 h-3 w-3" aria-hidden />
+            Ver 7 · port 0.947 — đang chấm public LB
+            <span
+              className="relative ml-1.5 flex size-2"
+              aria-hidden
+            >
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-300 opacity-75" />
+              <span className="relative inline-flex size-2 rounded-full bg-amber-300" />
+            </span>
           </Badge>
         </motion.div>
 
@@ -214,61 +157,44 @@ export function Hero() {
           </Button>
         </motion.div>
 
-        {/* Countdown */}
+        {/* Thành tích pipeline trên Kaggle */}
         <div className="mt-10 w-full max-w-3xl">
           <p className="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-white/50">
-            Đếm ngược hạn nộp bài cuối cùng · 23:59 UTC, 29/09/2026
+            Thành tích pipeline của team trên Kaggle
           </p>
-          <div className="flex items-start justify-center gap-2 sm:gap-3">
-            <CountdownCell value={finalLeft?.days ?? 0} label="Ngày" delay={0.35} />
-            <CountdownCell value={finalLeft?.hours ?? 0} label="Giờ" delay={0.42} />
-            <CountdownCell value={finalLeft?.minutes ?? 0} label="Phút" delay={0.49} />
-            <CountdownCell value={finalLeft?.seconds ?? 0} label="Giây" delay={0.56} />
+          <div className="grid w-full grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
+            <StatItem
+              icon={Trophy}
+              value={LB_CONTEXT.ourScore.toFixed(3)}
+              label="Public LB · ver-6 deterministic"
+              delay={0.4}
+            />
+            <StatItem
+              icon={FileText}
+              value={fmt.format(ver7?.submissionRows ?? 241356)}
+              label="dòng submission ver-7"
+              delay={0.46}
+            />
+            <StatItem
+              icon={Timer}
+              value={`${runMinutes} phút`}
+              label="run T4×2 · COMPLETE"
+              delay={0.52}
+            />
+            <StatItem
+              icon={Users}
+              value={`${fmt.format(LB_CONTEXT.wallTeams)} đội`}
+              label={`bức tường ${LB_CONTEXT.wallScore.toFixed(3)} trên LB`}
+              delay={0.58}
+            />
           </div>
-          {entryLeft && entryLeft.total > 0 && (
-            <p className="mt-3 text-xs text-white/50" suppressHydrationWarning>
-              ⚠️ Hạn chấp nhận quy tắc &amp; sáp nhập đội:{" "}
-              <strong className="text-amber-200">
-                còn {entryLeft.days} ngày {entryLeft.hours} giờ
-              </strong>{" "}
-              (22/09/2026) — hãy đăng ký sớm!
-            </p>
-          )}
-        </div>
-
-        {/* Stats */}
-        <div className="mt-10 grid w-full max-w-4xl grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
-          <StatItem
-            icon={DollarSign}
-            value={`$${fmt.format(competition.totalPrize)}`}
-            label="Tổng giải thưởng"
-            delay={0.6}
-          />
-          <StatItem
-            icon={Users}
-            value={fmt.format(competition.stats.entrants)}
-            label="Người đăng ký"
-            delay={0.66}
-          />
-          <StatItem
-            icon={Group}
-            value={fmt.format(competition.stats.teams)}
-            label="Đội tham gia"
-            delay={0.72}
-          />
-          <StatItem
-            icon={Upload}
-            value={fmt.format(competition.stats.submissions)}
-            label="Lượt nộp bài"
-            delay={0.78}
-          />
         </div>
 
         {/* Tags */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.85, duration: 0.5 }}
+          transition={{ delay: 0.7, duration: 0.5 }}
           className="mt-8 flex flex-wrap items-center justify-center gap-1.5"
         >
           {competition.tags.map((tag) => (

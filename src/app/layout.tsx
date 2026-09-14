@@ -15,9 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Biohub — Cell Tracking During Development | Cẩm nang thi đấu Kaggle",
+  title: "Biohub — Cell Tracking During Development | Môi trường mô phỏng pipeline",
   description:
-    "Tổng hợp và giải thích cuộc thi Kaggle Biohub Cell Tracking During Development: phát hiện & theo dõi tế bào phôi cá ngựa vằn trong 3D+time, $60.000 giải thưởng, metric, dữ liệu Zarr/GEFF và lộ trình khởi đầu.",
+    "Môi trường mô phỏng nội bộ các phiên bản pipeline cho cuộc thi Kaggle Biohub Cell Tracking: phát hiện & theo dõi tế bào phôi cá ngựa vằn 3D+time, metric adjEJ + 0.1×divJ, dữ liệu Zarr/GEFF và kết quả Kaggle thật của ver-6 / ver-7.",
   keywords: [
     "Kaggle",
     "Biohub",
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Biohub — Cell Tracking During Development",
     description:
-      "Cẩm nang thi đấu Kaggle: detect, track tế bào 3D+time và tái dựng phả hệ — $60.000 giải thưởng.",
+      "Môi trường mô phỏng nội bộ các phiên bản pipeline: detect, track tế bào 3D+time và tái dựng phả hệ — số liệu Kaggle thật ver-6 0.945 · ver-7 đang chấm.",
     type: "website",
   },
 };

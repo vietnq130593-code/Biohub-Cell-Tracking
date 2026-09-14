@@ -2233,3 +2233,543 @@ export function runAllPipelines(
     ver4: { ...mk('ver4', 4, trk4.divCount(), trk4.rejStats()), stitch },
   }
 }
+
+// ---------------------------------------------------------------------------
+// VER 6 / VER 7 · ENSEMBLE — dual-seed detection + bidirectional fusion +
+// safe-div (phân bào an toàn) + retention guard.
+//
+// Mô phỏng trung thành cơ chế kernel vietnguyen130593/biohub-ver6 (Kaggle
+// public LB 0.945 × 2 bản deterministic) và biohub-ver7 (port notebook
+// public LB 0.947 của Reyhan Ksatria — DeepCenter veto + TTA 8-view × 3
+// chip + PPSWEEP tight55). Hai bản cho số liệu GẦN NHAU trên cùng dữ liệu
+// — đúng bằng chứng thật: paired ΔadjEJ +0.0000 (CI95 ±0.0001) trên 4
+// video chung giữa ver-6 và ver-7.
+//
+// Cơ chế ver-6:
+//  · 2 lượt phát hiện độc lập (primary seed + seed 314159), mỗi node GT
+//    được phát hiện với jitter Gaussian khác nhau + miss-rate phụ thuộc độ
+//    sáng (cửa sổ mờ);
+//  · fusion theo src: node cả hai lượt thấy → trung bình vị trí; node chỉ
+//    1 lượt thấy → chấp nhận xác suất nhân dimFactor (cửa sổ mờ);
+//  · liên kết Hungarian gate 7.2 µm (motion EMA, không frame-skip online);
+//  · safe-div: chỉ fork khi (a) mẹ cách node mới ≤ 6.0 µm, (b) chị em cách
+//    ≤ 11.5 µm, (c) khối lượng hợp lý, (d) xác nhận động học sau 1 khung —
+//    con phải sống và tách dần;
+//  · retention guard: track đứt ≤ 2 khung được nối lại nếu bước
+//    ≤ 3.6 + 0.4×gap µm (chèn node nội suy — chỉ cạnh liền khung).
+//
+// ver-7 = nền ver-6 + DeepCenter veto (bỏ node sửa chữa có center-prior
+// thấp — node giả & node nội suy mờ) + TTA/PPSWEEP (hiển thị trong log).
+// ---------------------------------------------------------------------------
+
+export interface EnsembleStats {
+  nodes: number
+  edges: number
+  divisions: number
+  /** 2 lượt phát hiện độc lập */
+  rawA: number
+  rawB: number
+  fusedBoth: number
+  fusedSingle: number
+  /** ver-7: số node bị DeepCenter veto */
+  vetoed: number
+  /** safe-div: ứng viên bị từ chối */
+  divRejDyn: number
+  divRejLost: number
+  /** retention guard */
+  retPairs: number
+  retInterp: number
+  ms: number
+  /** ver-7 — chỉ hiển thị trong log/chips */
+  ttaViews?: number
+  ttaChips?: number
+  ppsweep?: string
+}
+
+export interface EnsembleRun {
+  det: Det[][]
+  edges: EdgeRef[]
+  stats: EnsembleStats
+}
+
+interface V6Params {
+  /** miss mỗi lượt với tế bào sáng */
+  missBase: number
+  /** cộng thêm theo độ mờ (cửa sổ mỏ i≈25–45) */
+  missDim: number
+  /** σ jitter mỗi lượt (µm; trục z ×0.5) */
+  jitterUm: number
+  /** chấp nhận node 1-lượt (tế bào sáng) */
+  accSingleBright: number
+  /** cộng thêm cho tế bào mờ (dimFactor) */
+  accSingleDimBonus: number
+  /** node giả sau fusion (tỉ lệ trên node sống) */
+  fpRate: number
+  linkGateUm: number
+  velSmooth: number
+  divParentGateUm: number
+  divSiblingGateUm: number
+  /** khoảng cách tối thiểu giữa 2 chị em lúc fork — cặp merge-split "tách
+   *  từ cùng một điểm" (d0 ~1 µm) bị chặn; phân bào thật sinh ra cách
+   *  4–9 µm (sister separation trung vị thật 8,85 · IQR 7,2–10,2) */
+  divSiblingMinUm: number
+  divMassLo: number
+  divMassHi: number
+  divSepGrowth: number
+  retGapMax: number
+  retGateBase: number
+  retGatePerGap: number
+  /** ver-7: DeepCenter veto node giả (center-prior thấp) */
+  vetoSpurBase: number
+  /** ver-7: DeepCenter veto node nội suy của retention guard */
+  vetoInterp: number
+}
+
+/** Hiệu chỉnh bằng harness 3 seed để mô phỏng đúng vùng điểm proxy thật:
+ *  ver-6 (validator rule cũ) adjEJ 0.9230 · divJ 0.20 · proxy 0.9430 →
+ *  LB 0.945; ver-7 (held-out) adjEJ micro 0.9345 · proxy 0.949–0.951. */
+const V6E: V6Params = {
+  missBase: 0.076,
+  missDim: 0.52,
+  jitterUm: 0.55,
+  accSingleBright: 0.6,
+  accSingleDimBonus: 0.38,
+  fpRate: 0.005,
+  linkGateUm: 7.2,
+  velSmooth: 0.5,
+  divParentGateUm: 6.0,
+  divSiblingGateUm: 11.5,
+  divSiblingMinUm: 2.5,
+  divMassLo: 0.4,
+  divMassHi: 2.25,
+  divSepGrowth: 1.04,
+  retGapMax: 2,
+  retGateBase: 3.6,
+  retGatePerGap: 0.4,
+  vetoSpurBase: 0.45,
+  vetoInterp: 0.0,
+}
+
+interface V6Ent {
+  pos: [number, number, number]
+  vel: [number, number, number]
+  mass: number
+  ref: { t: number; i: number }
+  /** fork đang chờ xác nhận động học (1 khung) */
+  fork: {
+    born: number
+    motherRef: { t: number; i: number }
+    childRef: { t: number; i: number }
+    sibId: number
+    d0: number
+  } | null
+}
+
+export function genVer6Ensemble(
+  sim: SimData,
+  seed: number,
+  opts: { deepCenter?: boolean; overrides?: Partial<V6Params> } = {},
+): EnsembleRun {
+  const P = { ...V6E, ...opts.overrides }
+  const deep = opts.deepCenter === true
+  const t0 = performance.now()
+  const rngA = mulberry32((seed ^ 0xa17e65) >>> 0)
+  const rngB = mulberry32((314159 ^ seed) >>> 0)
+  const rngF = mulberry32((seed ^ 0xf00d5eed) >>> 0)
+  const rngV = mulberry32((seed ^ 0xdec0de) >>> 0)
+  const rngR = mulberry32((seed ^ 0x5e7a11) >>> 0)
+
+  const det: Det[][] = Array.from({ length: T }, () => [])
+  const cnt = { rawA: 0, rawB: 0, fusedBoth: 0, fusedSingle: 0, vetoed: 0 }
+  const DBG = (msg: string): void => {
+    const f = (globalThis as Record<string, unknown>).__DIVDBG as
+      | ((m: string) => void)
+      | undefined
+    if (typeof f === 'function') f(msg)
+  }
+
+  // ---- (1) 2 lượt phát hiện độc lập + fusion theo src ----
+  for (let t = 0; t < T; t++) {
+    const alive = sim.tracks.filter((tr) => tr.start <= t && tr.end >= t)
+    for (const tr of alive) {
+      const f = tr.frames[t - tr.start]!
+      // độ sáng chuẩn hoá — cửa sổ mờ (i 25–45) → ~0, tế bào thường → 1
+      const b = clamp((f.i - 25) / 500, 0.04, 1)
+      const m = P.missBase + (1 - b) * P.missDim
+      const seenA = rngA() >= m
+      const seenB = rngB() >= m
+      if (seenA) cnt.rawA++
+      if (seenB) cnt.rawB++
+
+      let x: number, y: number, z: number, ii: number
+      if (seenA && seenB) {
+        // cả hai lượt → trung bình vị trí (jitter độc lập giảm √2)
+        x = (f.x + gauss(rngA) * P.jitterUm + f.x + gauss(rngB) * P.jitterUm) / 2
+        y = (f.y + gauss(rngA) * P.jitterUm + f.y + gauss(rngB) * P.jitterUm) / 2
+        z = (f.z + gauss(rngA) * P.jitterUm * 0.5 + f.z + gauss(rngB) * P.jitterUm * 0.5) / 2
+        ii = (f.i * (1 + 0.06 * gauss(rngA)) + f.i * (1 + 0.06 * gauss(rngB))) / 2
+        cnt.fusedBoth++
+      } else if (seenA || seenB) {
+        // chỉ 1 lượt → chấp nhận nếu trong cửa sổ mờ (nhân dimFactor)
+        const acc = P.accSingleBright + P.accSingleDimBonus * (1 - b)
+        if (rngF() >= acc) continue
+        if (seenA) {
+          x = f.x + gauss(rngA) * P.jitterUm
+          y = f.y + gauss(rngA) * P.jitterUm
+          z = f.z + gauss(rngA) * P.jitterUm * 0.5
+          ii = f.i * (1 + 0.06 * gauss(rngA))
+        } else {
+          x = f.x + gauss(rngB) * P.jitterUm
+          y = f.y + gauss(rngB) * P.jitterUm
+          z = f.z + gauss(rngB) * P.jitterUm * 0.5
+          ii = f.i * (1 + 0.06 * gauss(rngB))
+        }
+        cnt.fusedSingle++
+      } else {
+        continue // cả hai lượt đều bỏ sót
+      }
+      det[t]!.push({
+        x: clamp(x, 0.5, WORLD_W - 0.5),
+        y: clamp(y, 0.5, WORLD_H - 0.5),
+        z: clamp(z, 0.5, 63.5),
+        r: f.r,
+        i: Math.max(1, Math.round(ii)),
+        mass: Math.max(1, Math.round(ii * 27)),
+        src: tr.id,
+      })
+    }
+
+    // node giả (false positive) — ver-7: DeepCenter veto theo center-prior
+    const nSpur = Math.round(alive.length * P.fpRate * (0.5 + rngF()))
+    for (let k = 0; k < nSpur; k++) {
+      const sx = 6 + rngF() * (WORLD_W - 12)
+      const sy = 5 + rngF() * (WORLD_H - 10)
+      const sz = 2 + rngF() * 58
+      const si = 500 + Math.round(rngF() * 1500)
+      void rngV // (veto DeepCenter chuyển sang hậu kiểm ở genVer7Ensemble)
+      det[t]!.push({ x: sx, y: sy, z: sz, r: 1.6 + rngF() * 1.4, i: si, mass: si * 27, src: null })
+    }
+  }
+
+  // ---- (2) liên kết Hungarian gate 7.2 µm + safe-div + xác nhận 1 khung ----
+  const active = new Map<number, V6Ent>()
+  const edges: EdgeRef[] = []
+  let nid = 0
+  let divCount = 0
+  let nRejDyn = 0
+  let nRejLost = 0
+
+  for (let t = 0; t < T; t++) {
+    const dets = det[t]!
+    const pos = dets.map((d): [number, number, number] => [d.z * Z_UM_PER_VOXEL, d.y, d.x])
+    const mass = dets.map((d) => d.mass)
+    const n = dets.length
+    const frameEdges: EdgeRef[] = []
+    const matchedCurr = new Map<number, number>() // det idx → track id
+
+    const prevIds = [...active.keys()]
+    if (prevIds.length > 0 && n > 0) {
+      const D = prevIds.map((p) => {
+        const a = active.get(p)!
+        return pos.map((c) =>
+          physDist(
+            [a.pos[0] + a.vel[0], a.pos[1] + a.vel[1], a.pos[2] + a.vel[2]] as const,
+            c,
+          ),
+        )
+      })
+      const cost = D.map((row) => row.map((d) => (d <= P.linkGateUm ? d : 1e9)))
+      const assign = hungarian(cost)
+      for (let ri = 0; ri < prevIds.length; ri++) {
+        const ci = assign[ri]
+        if (ci === null || D[ri]![ci]! > P.linkGateUm) continue
+        const p = prevIds[ri]!
+        matchedCurr.set(ci, p)
+        frameEdges.push({ at: t - 1, ai: active.get(p)!.ref.i, bt: t, bi: ci })
+      }
+    }
+
+    // safe-div — fork node chưa ghép vào track mẹ đã ghép khung này
+    // (entry `active` vẫn mang ref@t−1: vị trí & khối lượng của mẹ)
+    const unmatched: number[] = []
+    for (let j = 0; j < n; j++) if (!matchedCurr.has(j)) unmatched.push(j)
+    const usedMother = new Set<number>()
+    const newTracks: { id: number; ent: V6Ent }[] = []
+    if (unmatched.length > 0 && matchedCurr.size > 0) {
+      for (const j of unmatched) {
+        const B2 = pos[j]!
+        const mB2 = mass[j]!
+        let best: { p: number; dP: number; dS: number } | null = null
+        for (const [ci, p] of matchedCurr) {
+          if (usedMother.has(p)) continue
+          const A = active.get(p)!
+          const C1 = pos[ci]!
+          const dP = physDist(A.pos, B2)
+          if (dP > P.divParentGateUm) continue
+          const dS = physDist(C1, B2)
+          if (dS > P.divSiblingGateUm) continue
+          if (dS < P.divSiblingMinUm) continue
+          const ratio = (mass[ci]! + mB2) / Math.max(1e-9, A.mass)
+          if (ratio < P.divMassLo || ratio > P.divMassHi) continue
+          if (best === null || dP < best.dP) best = { p, dP, dS }
+        }
+        if (best !== null) {
+          usedMother.add(best.p)
+          const A = active.get(best.p)!
+          DBG(`fork-created step=${t} mother(src=${det[A.ref.t]![A.ref.i]!.src}) -> child(src=${dets[j]!.src}) dP=${physDist(A.pos, B2).toFixed(2)} d0=${best.dS.toFixed(2)}`)
+          const childId = ++nid
+          newTracks.push({
+            id: childId,
+            ent: {
+              pos: B2,
+              // con kế thừa vận tốc mẹ (bài học ver-3: vectơ mẹ→con làm
+              // con "bắn" sai hướng → track con chết ngay → fork không bao
+              // giờ được xác nhận) + thành phần tách chị em
+              vel: [
+                A.vel[0] * 0.7 + (B2[0] - A.pos[0]) * 0.25,
+                A.vel[1] * 0.7 + (B2[1] - A.pos[1]) * 0.25,
+                A.vel[2] * 0.7 + (B2[2] - A.pos[2]) * 0.25,
+              ],
+              mass: mB2,
+              ref: { t, i: j },
+              fork: {
+                born: t,
+                motherRef: A.ref,
+                childRef: { t, i: j },
+                sibId: best.p,
+                d0: best.dS,
+              },
+            },
+          })
+        }
+      }
+    }
+
+    // cập nhật track đã ghép (EMA vận tốc) + track mới không phải fork
+    const newActive = new Map<number, V6Ent>()
+    for (const [ci, p] of matchedCurr) {
+      const a = active.get(p)!
+      const c = pos[ci]!
+      newActive.set(p, {
+        pos: c,
+        vel: [
+          P.velSmooth * (c[0] - a.pos[0]) + (1 - P.velSmooth) * a.vel[0],
+          P.velSmooth * (c[1] - a.pos[1]) + (1 - P.velSmooth) * a.vel[1],
+          P.velSmooth * (c[2] - a.pos[2]) + (1 - P.velSmooth) * a.vel[2],
+        ],
+        mass: mass[ci]!,
+        ref: { t, i: ci },
+        fork: a.fork,
+      })
+    }
+    const forkedJ = new Set(newTracks.map((nt) => nt.ent.ref.i))
+    for (const j of unmatched) {
+      if (forkedJ.has(j)) continue
+      const plainId = ++nid
+      newTracks.push({
+        id: plainId,
+        ent: { pos: pos[j]!, vel: [0, 0, 0], mass: mass[j]!, ref: { t, i: j }, fork: null },
+      })
+    }
+    for (const nt of newTracks) newActive.set(nt.id, nt.ent)
+
+    // xác nhận động học sau 1 khung: con phải sống và tách dần
+    for (const ent of newActive.values()) {
+      const fk = ent.fork
+      if (fk === null || fk.born >= t) continue
+      const sib = newActive.get(fk.sibId)
+      let ok = false
+      if (sib !== undefined && physDist(ent.pos, sib.pos) >= fk.d0 * P.divSepGrowth) ok = true
+      if (ok) {
+        edges.push({ at: fk.motherRef.t, ai: fk.motherRef.i, bt: fk.childRef.t, bi: fk.childRef.i })
+        divCount++
+        DBG(`fork-CONFIRMED edge@${fk.motherRef.t} (src=${det[fk.motherRef.t]![fk.motherRef.i]!.src})`)
+      } else {
+        nRejDyn++
+        DBG(`fork-REJECTED step=${t} born=${fk.born} sibAlive=${sib !== undefined} d1=${sib !== undefined ? physDist(ent.pos, sib.pos).toFixed(2) : 'NA'} d0=${fk.d0.toFixed(2)}`)
+      }
+      ent.fork = null
+    }
+
+    // track đứt (không ghép được khung này) — con chờ xác nhận mà chết → lost
+    const matchedIds = new Set(matchedCurr.values())
+    for (const p of prevIds) {
+      if (matchedIds.has(p)) continue
+      const a = active.get(p)!
+      if (a.fork !== null && a.fork.born < t) nRejLost++
+    }
+
+    active.clear()
+    for (const [k, v] of newActive) active.set(k, v)
+    edges.push(...frameEdges)
+  }
+
+  // ---- (3) retention guard: nối lại track đứt ≤ 2 khung ----
+  const ret = { pairs: 0, interp: 0 }
+  {
+    const key = (t: number, i: number) => `${t}:${i}`
+    const hasOut = new Set<string>()
+    const hasIn = new Set<string>()
+    for (const e of edges) {
+      hasOut.add(key(e.at, e.ai))
+      hasIn.add(key(e.bt, e.bi))
+    }
+    const endsByT: number[][] = Array.from({ length: T }, () => [])
+    const startsByT: number[][] = Array.from({ length: T }, () => [])
+    for (let t = 0; t < T; t++) {
+      for (let i = 0; i < det[t]!.length; i++) {
+        if (!hasOut.has(key(t, i))) endsByT[t]!.push(i)
+        if (!hasIn.has(key(t, i))) startsByT[t]!.push(i)
+      }
+    }
+    const posOf = (t: number, i: number): [number, number, number] => {
+      const d = det[t]![i]!
+      return [d.z * Z_UM_PER_VOXEL, d.y, d.x]
+    }
+    const usedE = new Set<string>()
+    const usedS = new Set<string>()
+
+    for (let g = 1; g <= P.retGapMax; g++) {
+      const gate = P.retGateBase + P.retGatePerGap * g
+      for (let te = 0; te + g + 1 < T; te++) {
+        const ts = te + g + 1
+        const E = endsByT[te]!.filter((i) => !usedE.has(key(te, i)))
+        const S = startsByT[ts]!.filter((i) => !usedS.has(key(ts, i)))
+        if (E.length === 0 || S.length === 0) continue
+        const pe = E.map((i) => posOf(te, i))
+        const me = E.map((i) => det[te]![i]!.mass)
+        const ps = S.map((i) => posOf(ts, i))
+        const ms = S.map((i) => det[ts]![i]!.mass)
+        const cost: number[][] = []
+        for (let r = 0; r < E.length; r++) {
+          const row: number[] = []
+          for (let c = 0; c < S.length; c++) {
+            const d = physDist(pe[r]!, ps[c]!)
+            row.push(d <= gate ? d : 1e9)
+          }
+          cost.push(row)
+        }
+        const assign = hungarian(cost)
+        for (let r = 0; r < E.length; r++) {
+          const c = assign[r]
+          if (c === null || cost[r]![c]! > gate) continue
+          void deep
+          void rngR
+          const ie = E[r]!
+          const isx = S[c]!
+          usedE.add(key(te, ie))
+          usedS.add(key(ts, isx))
+          let chainT = te
+          let chainI = ie
+          for (let k = 1; k <= g; k++) {
+            const tk = te + k
+            const fr = k / (g + 1)
+            const zm = pe[r]![0] + (ps[c]![0] - pe[r]![0]) * fr
+            const yy = pe[r]![1] + (ps[c]![1] - pe[r]![1]) * fr
+            const xx = pe[r]![2] + (ps[c]![2] - pe[r]![2]) * fr
+            det[tk]!.push({
+              x: xx,
+              y: yy,
+              z: zm / Z_UM_PER_VOXEL,
+              r: 2.6,
+              i: Math.round((me[r]! + ms[c]!) / 54),
+              mass: (me[r]! + ms[c]!) / 2,
+              src: nearestSrc(sim, tk, xx, yy, zm / Z_UM_PER_VOXEL, 4.0),
+            })
+            const midIdx = det[tk]!.length - 1
+            edges.push({ at: chainT, ai: chainI, bt: tk, bi: midIdx })
+            chainT = tk
+            chainI = midIdx
+            ret.interp++
+          }
+          edges.push({ at: chainT, ai: chainI, bt: ts, bi: isx })
+          ret.pairs++
+        }
+      }
+    }
+  }
+
+  const stats: EnsembleStats = {
+    nodes: det.reduce((s, f) => s + f.length, 0),
+    edges: edges.length,
+    divisions: divCount,
+    rawA: cnt.rawA,
+    rawB: cnt.rawB,
+    fusedBoth: cnt.fusedBoth,
+    fusedSingle: cnt.fusedSingle,
+    vetoed: cnt.vetoed,
+    divRejDyn: nRejDyn,
+    divRejLost: nRejLost,
+    retPairs: ret.pairs,
+    retInterp: ret.interp,
+    ms: performance.now() - t0,
+  }
+  return { det, edges, stats }
+}
+
+/** Ver-7 — port notebook Reyhan 0.947: nền ver-6 + DeepCenter veto + TTA
+ * 8-view × 3 chip + PPSWEEP chọn tight55 (TTA/PPSWEEP chỉ hiển thị log).
+ *
+ * DeepCenter veto mô phỏng ở ĐÂY theo đúng nghĩa "bỏ node sửa chữa có
+ * center-prior thấp": sau khi linking, mọi node ứng viên không được đồ thị
+ * xác nhận (src rỗng — không phải tế bào theo dõi — và không có cạnh
+ * vào/ra) là node sửa chữa thất bại; node có center-prior thấp (độ sáng
+ * thấp) bị bỏ với xác suất cao trước khi xuất đồ thị nộp bài. Veto không
+ * bao giờ đụng cạnh đã liên kết → ver-7 không thể tệ hơn ver-6 (đúng bằng
+ * chứng thật: paired ΔadjEJ +0.0000, CI95 ±0.0001). */
+export function genVer7Ensemble(sim: SimData, seed: number): EnsembleRun {
+  const run = genVer6Ensemble(sim, seed)
+  const rngV = mulberry32((seed ^ 0xdec0de) >>> 0)
+
+  const linked = new Set<string>()
+  for (const e of run.edges) {
+    linked.add(`${e.at}:${e.ai}`)
+    linked.add(`${e.bt}:${e.bi}`)
+  }
+
+  const det: Det[][] = []
+  const remap: (Map<string, number> | undefined)[] = []
+  let vetoed = 0
+  for (let t = 0; t < T; t++) {
+    const m = new Map<string, number>()
+    const arr: Det[] = []
+    for (let i = 0; i < run.det[t]!.length; i++) {
+      const d = run.det[t]![i]!
+      const isolated = d.src === null && !linked.has(`${t}:${i}`)
+      if (isolated) {
+        // center-prior ∝ độ sáng — node mờ bị veto xác suất cao
+        const pv = 0.35 + 0.25 * (1 - clamp(d.i / 2000, 0, 1))
+        if (rngV() < pv) {
+          vetoed++
+          continue
+        }
+      }
+      m.set(`${t}:${i}`, arr.length)
+      arr.push(d)
+    }
+    det.push(arr)
+    remap.push(m)
+  }
+
+  const edges: EdgeRef[] = []
+  for (const e of run.edges) {
+    const ai = remap[e.at]!.get(`${e.at}:${e.ai}`)
+    const bi = remap[e.bt]!.get(`${e.bt}:${e.bi}`)
+    if (ai === undefined || bi === undefined) continue
+    edges.push({ at: e.at, ai, bt: e.bt, bi })
+  }
+
+  return {
+    det,
+    edges,
+    stats: {
+      ...run.stats,
+      nodes: det.reduce((s, f) => s + f.length, 0),
+      edges: edges.length,
+      vetoed,
+      ttaViews: 8,
+      ttaChips: 3,
+      ppsweep: 'tight55 · MOTION_RELINK_TIGHT_UM 5.5',
+    },
+  }
+}

@@ -1,7 +1,7 @@
 /**
  * Dữ liệu cuộc thi Kaggle: Biohub - Cell Tracking During Development
  * Nguồn: https://www.kaggle.com/competitions/biohub-cell-tracking-during-development/overview
- * Tổng hợp ngày 11/09/2026
+ * Tổng hợp ngày 11/09/2026 · cập nhật kết quả Kaggle thật của các phiên bản pipeline
  */
 
 export const COMPETITION_URL = "https://www.kaggle.com/competitions/biohub-cell-tracking-during-development";
@@ -15,7 +15,6 @@ export const competition = {
     "Mục tiêu của bạn là xây dựng thuật toán phát hiện (detect), theo dõi (track) và liên kết (link) các tế bào qua thời gian trong dữ liệu kính hiển vi 3D, bao gồm cả việc nhận diện chính xác các lần phân bào (cell division) và tái dựng phả hệ tế bào (lineage reconstruction). Bạn sẽ làm việc với các bộ dữ liệu kính hiển vi thật để xây dựng các phương pháp mạnh mẽ, có thể xử lý quần thể tế bào dày đặc, nhiễu ảnh và các cấu trúc sinh học phức tạp.",
   impact:
     "Công trình của bạn sẽ loại bỏ nút thắt cổ chai khổng lồ trong nghiên cứu sinh học và giúp các nhà khoa học định lượng các viên gạch nền tảng của sự sống.",
-  totalPrize: 60000,
   stats: {
     entrants: 12477,
     participants: 3716,
@@ -24,41 +23,6 @@ export const competition = {
   },
   tags: ["Image", "Video", "Computer Vision", "Object Detection", "Biology", "Custom Metric"],
 } as const;
-
-/** Mốc thời gian — tất cả deadline lúc 23:59 UTC */
-export const timeline = [
-  {
-    date: "2026-06-29T23:59:00Z",
-    label: "Ngày khai mạc",
-    detail: "Cuộc thi chính thức bắt đầu nhận submission.",
-    passed: true,
-  },
-  {
-    date: "2026-09-22T23:59:00Z",
-    label: "Hạn chót đăng ký tham gia (Entry Deadline)",
-    detail: "Bạn phải chấp nhận quy tắc cuộc thi trước ngày này để được thi. Đây cũng là hạn chót cuối cùng để tham gia hoặc sáp nhập đội (Team Merger Deadline).",
-    passed: false,
-  },
-  {
-    date: "2026-09-29T23:59:00Z",
-    label: "Hạn chót nộp bài cuối cùng (Final Submission)",
-    detail: "Deadline cuối cùng để chọn submission cuối cùng cho vòng private leaderboard.",
-    passed: false,
-  },
-] as const;
-
-export const PRIZE_DEADLINE = "2026-09-29T23:59:00Z";
-export const ENTRY_DEADLINE = "2026-09-22T23:59:00Z";
-
-export const prizes = [
-  { rank: 1, amount: 18000, emoji: "🥇" },
-  { rank: 2, amount: 12000, emoji: "🥈" },
-  { rank: 3, amount: 8000, emoji: "🥉" },
-  { rank: 4, amount: 6000, emoji: "🏅" },
-  { rank: 5, amount: 6000, emoji: "🏅" },
-  { rank: 6, amount: 5000, emoji: "🏅" },
-  { rank: 7, amount: 5000, emoji: "🏅" },
-] as const;
 
 export const codeRequirements = [
   { label: "CPU Notebook", value: "≤ 12 giờ runtime", icon: "cpu" },
@@ -208,6 +172,149 @@ export const roadmap = [
     time: "Liên tục",
     detail:
       "Chạy cross-validation theo phôi (embryo-disjoint), tinh chỉnh ngưỡng phát hiện, kiểm tra submission cục bộ trước khi nộp. Chú ý giới hạn 12 giờ runtime và không có internet khi rerun.",
-    deliver: "submission.csv cuối cùng trước 29/09/2026",
+    deliver: "submission.csv cuối cùng vượt qua local scorer trước khi nộp",
   },
 ] as const;
+
+/* =========================================================================
+ * KẾT QUẢ KAGGLE THẬT của các phiên bản pipeline đã nộp / đang chạy
+ * (số liệu đo được — không suy đoán)
+ * ========================================================================= */
+
+export type KaggleRunStatus = "COMPLETE" | "PENDING" | "RUNNING";
+
+export interface KaggleVersionResult {
+  id: string;
+  label: string;
+  /** Kernel / submission reference trên Kaggle */
+  kaggleRef: string;
+  /** Điểm public leaderboard; null = chưa chấm xong */
+  lbScore: number | null;
+  submittedAt: string;
+  status: KaggleRunStatus;
+  /** Thời lượng chạy trên Kaggle (giây); null = chưa xong */
+  runSeconds: number | null;
+  /** Số dòng submission.csv */
+  submissionRows: number | null;
+  /** Điểm proxy trên validator nội bộ (rule cũ) */
+  proxy: number | null;
+  adjEJ: number | null;
+  divJ: number | null;
+  notes: string[];
+}
+
+export const KAGGLE_RESULTS: KaggleVersionResult[] = [
+  {
+    id: "ver6-v2",
+    label: "Ver 6 · bản v2",
+    kaggleRef: "vietnguyen130593/biohub-ver6 · submission 56207468",
+    lbScore: 0.945,
+    submittedAt: "2026-09 · đã chấm",
+    status: "COMPLETE",
+    runSeconds: 2147,
+    submissionRows: 241761,
+    proxy: 0.943,
+    adjEJ: 0.923,
+    divJ: 0.2,
+    notes: [
+      "Kernel vietnguyen130593/biohub-ver6 — dual-seed ensemble + bidirectional fusion + safe-div + retention guard",
+      "Cùng 0.945 với bản v3 — deterministic khớp tuyệt đối",
+      "Validator nội bộ 4 video (rule cũ): adjEJ 0.9230 · divJ 0.2000 · PROXY 0.9430",
+      "122.975 node + 118.786 cạnh · 200 phân bào trên 4 phim test (62/51/9/78)",
+    ],
+  },
+  {
+    id: "ver6-v3",
+    label: "Ver 6 · bản v3",
+    kaggleRef: "vietnguyen130593/biohub-ver6 · submission 56210873",
+    lbScore: 0.945,
+    submittedAt: "2026-09 · đã chấm",
+    status: "COMPLETE",
+    runSeconds: 2290,
+    submissionRows: 241761,
+    proxy: 0.943,
+    adjEJ: 0.923,
+    divJ: 0.2,
+    notes: [
+      "Nộp lại cùng pipeline — điểm khớp tuyệt đối với v2 (0.945)",
+      "T4×2: 2290 s (v2: 2147 s)",
+      "Điểm yếu định lượng: phân bào 100% FN (div tp=0/fp=0) · retention worst 0.453 tại 44b6_0b24845f (65/400 frame fallback) · over-prediction +17%/+35% ở 2 phim",
+    ],
+  },
+  {
+    id: "ver7",
+    label: "Ver 7 · port Reyhan 0.947",
+    kaggleRef: "vietnguyen130593/biohub-ver7 v1",
+    lbScore: null,
+    submittedAt: "Nộp hôm nay · đang chấm (6–12 h)",
+    status: "PENDING",
+    runSeconds: 7020,
+    submissionRows: 241356,
+    proxy: 0.949,
+    adjEJ: 0.9345,
+    divJ: 0.0,
+    notes: [
+      "Port nguyên văn notebook public LB 0.947 của Reyhan Ksatria — chỉ vá 5 dòng env path sang dataset pilkwang public, SHA256 khớp 100%",
+      "Run T4×2 ~117 phút COMPLETE · submission 241.356 dòng · sha256 d34533806b3153dd…",
+      "Kỳ vọng ≈ 0.947 public LB (bức tường 360 đội copy notebook Reyhan)",
+      "Phase B official eval (scorer 075fc5f, 8 video held-out): adjEJ micro 0.9345 · div 0/0/12",
+      "Paired A/B vs ver-6 trên 4 video chung: ΔadjEJ +0.0000 (CI95 ±0.0001) — KHÔNG regression · guards 5/5",
+      "PPSWEEP tự chọn config tight55 (MOTION_RELINK_TIGHT_UM 5.5) nâng proxy held-out 0.9490 → 0.9511",
+    ],
+  },
+  {
+    id: "ver7b",
+    label: "Ver 7b · Phase C divnet",
+    kaggleRef: "vietnguyen130593/biohub-ver7b v1",
+    lbScore: null,
+    submittedAt: "Chạy xong 14/9 — KHÔNG nộp (thất bại cổng held-out)",
+    status: "COMPLETE",
+    runSeconds: 6300,
+    submissionRows: 241643,
+    proxy: 0.938,
+    adjEJ: 0.9259,
+    divJ: 0.1212,
+    notes: [
+      "Phase C: divnet division ranker RANK-ONLY W=15 µm + nới gate tau 0.6→1.2 / diverge 2.25→1.0",
+      "KẾT QUẢ held-out (rule cũ, 8 video): div_tp 3→4 nhưng div_fp 1→21 → proxy 0.9511→0.9380 (−0.013)",
+      "Phán quyết: REGRESSION — không submit (đúng kịch bản cảnh báo megayak); Phase C v2 = giữ gate gốc",
+      "Run T4×2 ~105 phút COMPLETE · submission 241.643 dòng (không nộp) · core view = ver-7 (adjEJ 0.9345)",
+    ],
+  },
+];
+
+/** Bối cảnh leaderboard tính đến lần cập nhật gần nhất */
+export const LB_CONTEXT = {
+  ourTeam: "Mr. Architect",
+  ourScore: 0.945,
+  ourRank: 643,
+  /** Bức tường 360 đội copy notebook Reyhan Ksatria cùng 0.947 */
+  wallScore: 0.947,
+  wallTeams: 360,
+  topScore: 0.97,
+} as const;
+
+export interface HeldoutVideo {
+  stem: string;
+  embryo: "44b6" | "6bba";
+  /** adjEJ official của ver-7 trên video này; null = chưa công bố số từng video */
+  adjEJ: number | null;
+  /** Giá trị hiển thị — video chưa có số dùng trung bình micro 0.9345 */
+  adjEJDisplay: number;
+  estimated: boolean;
+}
+
+/** 8 video held-out của validator ver-7 (4/phôi) */
+export const HELDOUT_STEMS: HeldoutVideo[] = [
+  { stem: "44b6_12dfb391", embryo: "44b6", adjEJ: 0.9045, adjEJDisplay: 0.9045, estimated: false },
+  { stem: "44b6_267148e4", embryo: "44b6", adjEJ: 0.8506, adjEJDisplay: 0.8506, estimated: false },
+  { stem: "44b6_2a2eff9f", embryo: "44b6", adjEJ: null, adjEJDisplay: 0.9345, estimated: true },
+  { stem: "44b6_341df25f", embryo: "44b6", adjEJ: null, adjEJDisplay: 0.9345, estimated: true },
+  { stem: "6bba_062c8d37", embryo: "6bba", adjEJ: 0.9972, adjEJDisplay: 0.9972, estimated: false },
+  { stem: "6bba_07e24132", embryo: "6bba", adjEJ: 0.82, adjEJDisplay: 0.82, estimated: false },
+  { stem: "6bba_085bf656", embryo: "6bba", adjEJ: null, adjEJDisplay: 0.9345, estimated: true },
+  { stem: "6bba_09961292", embryo: "6bba", adjEJ: null, adjEJDisplay: 0.9345, estimated: true },
+];
+
+/** adjEJ micro official của ver-7 trên 8 video held-out */
+export const HELDOUT_MICRO_ADJEJ = 0.9345;

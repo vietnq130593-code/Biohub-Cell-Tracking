@@ -1,0 +1,112 @@
+{
+  "base_postprocess_signature": "af6d362367bcb94af334452125f5af90bb5958e48bc23a6e1d6f413d933490de",
+  "preview_records": [
+    {
+      "dataset": "44b6_0113de3b",
+      "id": 0,
+      "node_id": 0,
+      "row_type": "node",
+      "source_id": -1,
+      "t": 0,
+      "target_id": -1,
+      "x": 52,
+      "y": 10,
+      "z": 0
+    },
+    {
+      "dataset": "44b6_0113de3b",
+      "id": 1,
+      "node_id": 1,
+      "row_type": "node",
+      "source_id": -1,
+      "t": 0,
+      "target_id": -1,
+      "x": 72,
+      "y": 8,
+      "z": 0
+    },
+    {
+      "dataset": "44b6_0113de3b",
+      "id": 2,
+      "node_id": 2,
+      "row_type": "node",
+      "source_id": -1,
+      "t": 0,
+      "target_id": -1,
+      "x": 77,
+      "y": 107,
+      "z": 0
+    },
+    {
+      "dataset": "44b6_0113de3b",
+      "id": 3,
+      "node_id": 3,
+      "row_type": "node",
+      "source_id": -1,
+      "t": 0,
+      "target_id": -1,
+      "x": 63,
+      "y": 213,
+      "z": 0
+    },
+    {
+      "dataset": "44b6_0113de3b",
+      "id": 4,
+      "node_id": 4,
+      "row_type": "node",
+      "source_id": -1,
+      "t": 0,
+      "target_id": -1,
+      "x": 68,
+      "y": 244,
+      "z": 0
+    },
+    {
+      "dataset": "44b6_0113de3b",
+      "id": 5,
+      "node_id": 5,
+      "row_type": "node",
+      "source_id": -1,
+      "t": 0,
+      "target_id": -1,
+      "x": 64,
+      "y": 24,
+      "z": 1
+    },
+    {
+      "dataset": "44b6_0113de3b",
+      "id": 6,
+      "node_id": 6,
+      "row_type": "node",
+      "source_id": -1,
+      "t": 0,
+      "target_id": -1,
+      "x": 84,
+      "y": 51,
+      "z": 1
+    },
+    {
+      "dataset": "44b6_0113de3b",
+      "id": 7,
+      "node_id": 7,
+      "row_type": "node",
+      "source_id": -1,
+      "t": 0,
+      "target_id": -1,
+      "x": 59,
+      "y": 65,
+      "z": 1
+    }
+  ],
+  "resume_schema": "biohub_0947_live_resume_v1",
+  "rows": 241642,
+  "selected_config": {
+    "DEEPCENTER_GAP_THRESHOLD": 0.35,
+    "MOTION_RELINK_TIGHT_UM": 5.5
+  },
+  "selected_label": "combo(tight55+dcgap035)",
+  "sha256": "d3630c2eb56d0d55c0c658d49ce3709cc1a3dcbfa5e609238a6cba73fccec1ad",
+  "signature": "3c46e6beeb3ef6f5f7f1d73b8a1670d2bf7284c3f2035e240dd633458970badf",
+  "status": "complete",
+  "test_prediction_signature": "bf8054a3551e914c0a57b8007640b9717b2428baa7a4d4b8562e3618d59bb0c0"
+}

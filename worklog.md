@@ -334,3 +334,61 @@ Stage Summary:
 - Sản phẩm: kaggle/ver-4/ (cell1..4 + test-ver4-synth 28/28 + test-ver4-train-eval E2E 1.100), download/ver4-cell-tracking.ipynb + ver4-train-eval.ipynb, README ver-4, website 6 mode + registry 6 phiên bản
 - Bài học: (a) bố cục synthetic phải kiểm khoảng cách đỉnh ds (A/G cách 4,03 ds < MIN_PEAK_DIST 4 → gộp); (b) quỹ đạo nhiều pha phải khai báo từng trục rõ ràng; (c) điều kiện biên d≤0 là bug kinh điển của stitching
 - Bước tiếp theo cho user: Import ver4-train-eval.ipynb vào Kaggle → Run All → đọc score offline (so ver 1 = 0.198) → tune cell 2 (PERCENTILE, STITCH_*) → khi tốt hơn thì Import ver4-cell-tracking.ipynb → Save & Run All → Submit
+
+---
+Task ID: 35
+Agent: main (Z.ai Code)
+Task: Triển khai ver-7 (port 0.947) đến Phase B → rà soát toàn bộ → khắc phục → submit → triển khai Phase C (ver-7b). Kèm: sự cố sandbox rollback 22:30 13/9 + phục hồi toàn bộ.
+
+Work Log:
+- PHASE A: viết ver-7/make-ver7-ipynb.py + đóng gói download/ver7-cell-tracking.ipynb (3 cell: markdown + monolith port Reyhan 0.947 đã vá 5 nhóm path pilkwang + cell Phase B official eval). Static checks: py_compile PASS, grep reyhanksatria = 0, source cell khớp nguyên văn.
+- Mở rộng ktool.py: --ver {6,7,7b} (version_config: notebook + datasets + slug cho từng version; submit nhận ref từ state). Verify 6 dataset + competition trước push.
+- PUSH ver-7: vietnguyen130593/biohub-ver7 v1 (T4×2, Internet OFF, 6 dataset + competition). Watch foreground theo vòng.
+- CHUẨN BỊ PHASE C trong lúc chờ: nghiên cứu tích hợp divnet chuẩn của tác giả (RANK-ONLY, W=15µm, crop 16×128×128 raw → pool 4×4 → 16×32×32, sigmoid(logits×2.5)); dựng ver-7b/cell-monolith.py (fork ver-7 + khối divnet + nới gate tau 1.2/diverge 1.0 + injection trước proposals.sort + divnet_p vào edge + stats + call sites + guard report phase_c); unit test 7/7 PASS với checkpoint thật (epoch 20, best_score 0.893).
+- ⚠️ SỰ CỐ 22:30 13/9: SANDBOX ROLLBACK về tối 12/9 — mất kaggle/{api,eval,tools,ver-5..7b,ver-7-planning}, download/ver6+7, ~/.kaggle (token), worklog Task 19-34, src Task-34 của app, pip packages. ver-7 vẫn RUNNING an toàn trên hạ tầng Kaggle.
+- PHỤC HỒI: (1) token cài lại từ context; (2) kaggle CLI 2.2.4 + torch CPU reinstall; (3) ktool.py viết lại đầy đủ (--ver 6/7/7b); (4) ver-7/cell-monolith.py + eval/cell-eval-official.py khôi phục BYTE-EXACT qua kernels pull từ kernel đã push; (5) divnet checkpoint tải lại từ giorgosi/biohub-divnet-v2; (6) ver-7b rebuild + test lại 7/7 PASS (số liệu giống hệt bản trước rollback); (7) compare.py viết lại (paired A/B + bootstrap 10k seed 314159 + 5 guard + gate + verdict) + selftest 3/3; (8) ver-7-planning/{VER7-PLAN,PORT-CHECKLIST,REVIEW-PHASE-B} viết lại.
+- ver-7 COMPLETE sau 117 phút (21:40→23:36). Output: submission.csv 241.356 dòng (sha256 d34533806b3153dd…), eval_report_official_self.json (8 video held-out: adjEJ micro 0.9345, div 0/0/12), ppsweep tight55, retention guard sạch (metric_hack=False), 3 tag TTA views=8 đủ, 0 lỗi.
+- PHASE B + RÀ SOÁT TOÀN BỘ (theo checklist REVIEW-PHASE-B.md A–H): phát hiện và khắc phục 3 vấn đề:
+  (1) eval cell baseline path bug — kernel mount user-dataset dưới /kaggle/input/datasets/<owner>/<slug> (thấy qua path pilkwang trong monolith) → _find_base_root chỉ check path phẳng → thiếu eval_report_official_v6.json. ĐÃ VÁ (thêm glob datasets/*/ + */ + rglob).
+  (2) compare.py G3 false-positive khi 2 report khác tập stem (8 vs 4 video) → so node budget trên stem CHUNG.
+  (3) mini-kernel CPU chấm baseline thiếu tracksdata/ilpy → gắn support-pack + pip offline --no-index --no-deps (tái hiện cơ chế monolith).
+- Mini-kernel biohub-eval-v6 v3 (CPU, không tốn GPU quota): baseline ver-6 official rule 4 video: adjEJ micro 0.9201, div 0/0/5 (rule cũ từng đọc divJ 0.2 — xác nhận double-reading).
+- PHÁT HIỆN QUAN TRỌNG: eval cell đo CORE VIEW (raw validator predictions) — paired ver-7 vs ver-6 trên 4 video chung: ΔadjEJ +0.0000 (CI95 ±0.0001) KHÔNG regression; guards 5/5 ĐẠT. Gate tuyệt đối (adj 0.942/proxy 0.945) không đạt do MISMATCH CONSTRUCT (gate hiệu chỉnh cho system view sau postprocess — LB đo system; core 0.9345 là raw). Quyết định SUBMIT dựa trên: port verified byte-level + run khỏe + không regression core + config LB-verified 0.947 của tác giả + thang diễn giải PORT-CHECKLIST bước 10 (LB là phép thử thật).
+- SUBMIT ver-7: ref 56217216 lúc 00:10 14/9 — đang chấm (6-12h), kỳ vọng ≈0.947.
+- ver-6 v3 điểm đã về: 0.945 COMPLETE — deterministic khớp v2 tuyệt đối (thông tin đến trong lúc rollback).
+- PHASE C PUSH: vietnguyen130593/biohub-ver7b v1 (ver-7 + divnet RANK-ONLY W=15µm + nới gate tau 0.6→1.2/diverge 2.25→1.0; 7 dataset + competition; EXPERIMENT_TAG secondary_deepcenter_tta_0947_divnet_rank_v7b) — đang chạy.
+- APP: cập nhật bởi subagent (xem Task 36) — đã verify E2E.
+
+Stage Summary:
+- ver-7 đã nộp (56217216, đang chấm, kỳ vọng ≈0.947); ver-6 = 0.945 ×2 deterministic.
+- Phase B hoàn tất: official eval self (8 video) + baseline v6 (4 video) + compare (không regression core, guards 5/5) + 3 bug đã khắc phục.
+- Phase C ver-7b đang chạy trên Kaggle (divnet ranker nhắm đúng div_fn=12 — điểm yếu được official eval xác nhận).
+- Bài học rollback: mọi artifact quan trọng phải sống trên Kaggle (notebook pushed + datasets + submissions); local chỉ là bản sao. Đã phục hồi 100% năng lực làm việc.
+- Công cụ mới: mini-kernel CPU biohub-eval-v6 (chấm baseline không tốn GPU); eval cell đã vá path để ver-7b tự chấm baseline trong run.
+
+---
+Task ID: 36
+Agent: full-stack-developer (subagent) + main (verify)
+Task: Cập nhật app Biohub — bỏ hạn nộp/giải thưởng, bộ chọn phiên bản Ver 7/Ver 6/Tùy chỉnh, số liệu thật Kaggle (yêu cầu từ tin trước bị mất do rollback — làm lại + mở rộng cho ver-7).
+
+Work Log:
+- src/lib/competition-data.ts (16,5KB): XOÁ totalPrize/prizes/timeline/PRIZE_DEADLINE/ENTRY_DEADLINE; THÊM KAGGLE_RESULTS (ver-6 0.945 ×2 + ver-7 PENDING + ver-7b RUNNING), LB_CONTEXT (0.945/rank 643/bức tường 0.947/360 đội/top 0.970), HELDOUT_STEMS (8 video + adjEJ official), HELDOUT_MICRO_ADJEJ 0.9345.
+- src/lib/tracking-pipeline.ts (98KB): THÊM genVer6Ensemble (2 lượt phát hiện độc lập + fusion theo src + Hungarian 7.2µm + safe-div động học + retention guard 3.6+0.4×gap) + genVer7Ensemble (nền ver-6 + DeepCenter veto + TTA log + PPSWEEP tight55); giữ nguyên hàm dùng chung.
+- src/components/competition/tracking-demo.tsx (68KB): selector 3 mục [Ver 7 · đang chấm (mặc định) | Ver 6 · Kaggle 0.945 | Tùy chỉnh]; console log mô phỏng 10 dòng (ver-7: ensemble→fusion→link→safe-div→deepcenter→tta→ppsweep tight55→validator 0.9490→kaggle 241.356 dòng→submit đang chấm) / 9 dòng (ver-6: PROXY 0.9430→LB 0.945 deterministic ×2); pipeline chips; bảng so sánh 2 phiên bản trên cùng dữ liệu; panel dữ liệu thật.
+- src/components/competition/hero.tsx (7,6KB): bỏ countdown/hạn/giải thưởng; badge "Ver 7 · port 0.947 — đang chấm"; 4 stat thành tích (0.945 LB deterministic · 241.356 dòng · 117 phút T4×2 · 360 đội bức tường).
+- src/app/layout.tsx + page.tsx: metadata + text "Môi trường mô phỏng pipeline"; footer sạch deadline.
+- src/components/competition/submission-lab.tsx (91KB): tab Phiên bản 2 card (ver-7 đầy đủ: kiến trúc + PROXY/LB + official eval 8 video + paired A/B Δ+0.0000 CI ±0.0001 guards 5/5 + run info; ver-6: 0.945 ×2 + bảng validator) + card điểm yếu định lượng (phân bào 100% FN · retention worst 0.453 · over-prediction) + calculator preset.
+- MAIN VERIFY: bun run lint EXIT 0 sạch; tsc chỉ lỗi có sẵn ở examples/skills (không phải app); agent-browser E2E: trang mở 200, 0 lỗi console, không còn text giải thưởng/deadline/countdown, selector 3 mục bấm hoạt động, bảng số liệu thật hiển thị (8 video + micro 0.9345), mobile 390px scrollWidth=390 không tràn, footer đáy (footerAtBottom=true), screenshot lưu kaggle/tools/e2e-ver7-{hero,footer}.png.
+
+Stage Summary:
+- App giờ đúng định vị "môi trường mô phỏng các phiên bản pipeline": không hạn nộp/ngày nộp/giải thưởng; chọn phiên bản Ver 7/Ver 6/Tùy chỉnh (mặc định Ver 7); toàn bộ số liệu Kaggle thật hiển thị song song mô phỏng.
+- Lưu ý: subagent chạy nền sau khi Task tool client timeout — công việc vẫn hoàn tất trên đĩa; main đã tự verify toàn bộ (an toàn hơn là tin report).
+
+---
+CẬP NHẬT CUỐI TASK 35 (02:50 14/9): KẾT QUẬ ver-7b + PHÁN QUYẾT PHASE C
+- ver-7b COMPLETE ~105 phút (00:47→02:32): DivNet hoạt động đúng thiết kế (divnet_scored 26–253/video, rank_flips, p_added_mean 0.21–0.70, div_tp 3→4) NHƯNG nới gate quá tay → geometric_candidates ×3–4 → safe-div thêm 581 (vs 139) → div_fp 1→21 → validator proxy 0.9511→0.9380 (−0.013) = REGRESSION → KHÔNG SUBMIT (cổng held-out phát huy tác dụng, đúng cảnh báo megayak).
+- Core view ver-7b = ver-7 (adjEJ 0.9345, div 0/0/12) — xác nhận thay đổi thuần postprocess.
+- Lưu ý ops: notebook ver-7b lỡ dùng eval cell BẢN CHƯA VÁ (build trước khi vá path) → không tự chấm baseline trong run; baseline lấy từ mini-kernel CPU biohub-eval-v6 v3 (đã có, kèm phát hiện cần gắn support-pack wheel).
+- Báo cáo phán quyết: kaggle/eval/reports/ver7b-phase-c-verdict.md (+ ppsweep csv 2 bản). Hướng Phase C v2: giữ gate gốc (tau 0.6/diverge 2.25) + RANK-ONLY, hoặc thêm ngưỡng P_div khi nới gate.
+- App cập nhật trạng thái ver-7b (COMPLETE/KHÔNG nộp + notes phán quyết) — render xác minh OK, lint sạch.
+- ver-7 (56217216) vẫn đang chấm — kỳ vọng ≈0.947; ver-6 = 0.945 ×2 deterministic.

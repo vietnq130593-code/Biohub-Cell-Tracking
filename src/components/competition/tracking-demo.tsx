@@ -4,21 +4,28 @@
  * Trình mô phỏng & chấm điểm bài nộp
  * Kaggle: "Biohub - Cell Tracking During Development"
  *
- * Chạy THẬT hai phiên bản thuật toán nộp bài (port JS trung thành notebook,
- * xem src/lib/tracking-pipeline.ts) trên thể tích 3D tổng hợp render từ GT:
- *  - ver 0 · Baseline (notebook getting-started Kaggle)
- *  - ver 1 · Stage 0+2 (CoM, 26-conn, motion model, gate thích ứng, phân bào,
- *    nội suy khung mất — đúng cell2code/cell3code đã nộp)
+ * Môi trường mô phỏng nội bộ các phiên bản pipeline ver-6 / ver-7:
+ *  - ver 7 · port notebook Reyhan 0.947 (đang chấm public LB): nền ver-6 +
+ *    DeepCenter veto (bỏ node sửa chữa có center-prior thấp) + TTA 8-view
+ *    × 3 chip + PPSWEEP chọn tight55 (MOTION_RELINK_TIGHT_UM 5.5)
+ *  - ver 6 · Kaggle 0.945 deterministic ×2 (kernel biohub-ver6): 2 lượt phát
+ *    hiện độc lập (primary + seed 314159) + fusion theo src + Hungarian gate
+ *    7.2 µm + safe-div (mẹ ≤ 6.0 µm, chị em ≤ 11.5 µm, khối lượng hợp lý,
+ *    xác nhận động học sau 1 khung) + retention guard (gap ≤ 2,
+ *    bước ≤ 3.6 + 0.4×gap µm)
  * rồi chấm điểm bằng đúng tinh thần metric cuộc thi:
  *   + Ghép node tối ưu (Hungarian) trong ngưỡng 7.0 µm theo khoảng cách vật lý
  *   + Cạnh TP/FP/FN, Edge Jaccard điều chỉnh (phạt node dự đoán thừa)
  *   + Division Jaccard theo dòng con (lineage)
  *   + score = adj_edge_jaccard + 0.1 × division_jaccard (có thể vượt 1.0)
+ * Kèm 2 bảng số liệu KAGGLE THẬT: kết quả các phiên bản đã nộp / đang chạy
+ * và 8 video held-out của validator ver-7 + thanh leaderboard.
  * Ngoài ra còn chế độ "Tùy chỉnh" — mô hình tham số giả lập tracker
  * nearest-neighbor để thí nghiệm các loại lỗi.
  */
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -31,6 +38,7 @@ import {
   Activity,
   CircleDot,
   Crosshair,
+  Database,
   Dices,
   Gauge,
   GitBranch,
@@ -40,6 +48,8 @@ import {
   RotateCcw,
   Spline,
   Target,
+  Trophy,
+  Video,
   Wand2,
 } from 'lucide-react'
 
@@ -57,6 +67,22 @@ import { Progress } from '@/components/ui/progress'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+
+import {
+  HELDOUT_MICRO_ADJEJ,
+  HELDOUT_STEMS,
+  KAGGLE_RESULTS,
+  LB_CONTEXT,
+  type KaggleRunStatus,
+} from '@/lib/competition-data'
 
 import {
   buildGtGraph,
@@ -64,9 +90,10 @@ import {
   clamp,
   dist3,
   gauss,
+  genVer6Ensemble,
+  genVer7Ensemble,
   lerp,
   mulberry32,
-  runAllPipelines,
   scoreDetections,
   T,
   LAST_FRAME,
@@ -75,9 +102,8 @@ import {
   type Analysis,
   type Det,
   type EdgeRef,
+  type EnsembleRun,
   type GtGraph,
-  type PipelineRunV3,
-  type PipelineVersion,
   type SimData,
 } from '@/lib/tracking-pipeline'
 
@@ -352,81 +378,90 @@ interface RuntimeState {
   sparse: boolean
 }
 
-type Mode = 'ver0' | 'ver1' | 'ver2' | 'ver3' | 'ver4' | 'custom'
+type Mode = 'ver6' | 'ver7' | 'custom'
 
 const MODE_LABEL: Record<Mode, string> = {
-  ver0: 'Ver 0 · Baseline',
-  ver1: 'Ver 1 · Stage 0+2',
-  ver2: 'Ver 2 · Tách blob + động học',
-  ver3: 'Ver 3 · Profile độ sáng',
-  ver4: 'Ver 4 · Stitching hậu kiểm',
+  ver7: 'Ver 7 · port Reyhan (đang chấm)',
+  ver6: 'Ver 6 · Kaggle 0.945',
   custom: 'Tùy chỉnh',
 }
 
-const PIPELINE_VERSIONS: PipelineVersion[] = ['ver0', 'ver1', 'ver2', 'ver3', 'ver4']
+/** Các phiên bản ensemble chạy trên cùng dữ liệu (mặc định Ver 7) */
+const ENSEMBLE_RUNS = ['ver6', 'ver7'] as const
+type EnsembleKey = (typeof ENSEMBLE_RUNS)[number]
 
-/** Pipeline steps hiển thị cho từng phiên bản (đúng notebook kaggle/ver-N) */
-const VERSION_INFO: Record<PipelineVersion, string[]> = {
-  ver0: [
-    'P90', 'liên kết 6 ô', 'tâm hình học', 'Hungarian gate 15 µm',
-    'không phân bào', 'không frame-skip',
+/** Pipeline chips hiển thị cho từng phiên bản (đúng kernel biohub-ver6/ver7) */
+const VERSION_INFO: Record<EnsembleKey, string[]> = {
+  ver6: [
+    '2 lượt phát hiện độc lập (primary + seed 314159)',
+    'fusion theo src: cả hai thấy → trung bình vị trí',
+    '1 lượt thấy → cửa sổ mờ, nhân dimFactor',
+    'Hungarian gate 7.2 µm + motion EMA',
+    'safe-div: mẹ ≤ 6.0 µm · chị em ≤ 11.5 µm',
+    'khối lượng hợp lý + xác nhận động học 1 khung',
+    'retention guard: gap ≤ 2 · bước ≤ 3.6 + 0.4×gap µm',
   ],
-  ver1: [
-    'P92', 'liên kết 26 ô', 'CoM theo cường độ', 'MIN/MAX 4–1000 voxels',
-    'motion model EMA', 'gate thích ứng 5–12 µm', 'phân bào 10/12 µm',
-    'nội suy khung mất',
-  ],
-  ver2: [
-    'P90', 'MAX 3000 voxels', 'tách blob theo đỉnh', 'gate 5–14 µm',
-    'skip 2 khung + nội suy', 'phân bào XÁC NHẬN ĐỘNG HỌC ≥3 khung',
-    'chỉ ghi khi 2 con tách ≥15%',
-  ],
-  ver3: [
-    'ver 2 +', 'sister gate 14,5 µm (p99 thật 13,9)', 'parent gate 12 µm',
-    'con kế thừa vận tốc mẹ', 'ỔN ĐỊNH KHỐI LƯỢNG MẸ ≤1,7× baseline',
-    'ưu tiên mẹ sáng dần (AUC 0,73)',
-  ],
-  ver4: [
-    'ver 3 +', 'gate min 7 µm (p99 bước GT 6,9)', 'skip 3 khung',
-    'STITCHING HẬU KIỂM: nối track kết thúc ↔ track mở đầu (gap ≤ 5)',
-    'gate 10+2·(gap−1) µm + khối lượng ~3×', 'node nội suy — chỉ cạnh liền khung',
+  ver7: [
+    'nền ver-6 (dual-seed + fusion + safe-div + retention)',
+    'DeepCenter veto: bỏ node center-prior thấp',
+    'TTA 8-view × 3 chip',
+    'PPSWEEP chọn tight55 (MOTION_RELINK_TIGHT_UM 5.5)',
+    'port nguyên văn notebook Reyhan public LB 0.947',
+    'chỉ vá 5 dòng env path → dataset pilkwang',
   ],
 }
 
-/** Cache pipeline theo (seed, sparse) — module scope, dữ liệu deterministic */
-const PIPELINE_CACHE = new Map<string, Record<PipelineVersion, PipelineRunV3>>()
+/** Trạng thái Kaggle → badge tương ứng */
+const STATUS_BADGE: Record<KaggleRunStatus, { label: string; cls: string }> = {
+  COMPLETE: {
+    label: 'COMPLETE',
+    cls: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  },
+  PENDING: {
+    label: 'ĐANG CHẤM',
+    cls: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  },
+  RUNNING: {
+    label: 'ĐANG CHẠY',
+    cls: 'border-teal-500/40 bg-teal-500/10 text-teal-700 dark:text-teal-300',
+  },
+}
+
+/** Cache ensemble theo seed — module scope, dữ liệu deterministic */
+const ENSEMBLE_CACHE = new Map<string, Record<EnsembleKey, EnsembleRun>>()
 
 export default function TrackingDemo() {
   const [seed, setSeed] = useState(20260911)
   const sim = useMemo(() => buildSimulation(seed), [seed])
 
-  const [mode, setMode] = useState<Mode>('ver4')
+  const [mode, setMode] = useState<Mode>('ver7')
   const [params, setParams] = useState<Params>({ ...DEFAULT_PARAMS })
   const [sparseMode, setSparseMode] = useState(true)
 
   const gtGraph = useMemo(() => buildGtGraph(sim, sparseMode), [sim, sparseMode])
 
-  // 4 pipeline chạy trên cùng một chuỗi thể tích — cache theo seed
-  const pipelines = useMemo(() => {
-    if (mode === 'custom') return null
-    const key = `${seed}|${sparseMode ? 1 : 0}`
-    let v = PIPELINE_CACHE.get(key)
+  // 2 phiên bản ensemble chạy trên cùng một chuỗi thể tích — cache theo seed
+  const ensembles = useMemo(() => {
+    const key = `${seed}`
+    let v = ENSEMBLE_CACHE.get(key)
     if (v === undefined) {
-      v = runAllPipelines(sim, seed)
-      if (PIPELINE_CACHE.size > 8) PIPELINE_CACHE.clear()
-      PIPELINE_CACHE.set(key, v)
+      v = {
+        ver6: genVer6Ensemble(sim, seed),
+        ver7: genVer7Ensemble(sim, seed),
+      }
+      if (ENSEMBLE_CACHE.size > 8) ENSEMBLE_CACHE.clear()
+      ENSEMBLE_CACHE.set(key, v)
     }
     return v
-  }, [mode, seed, sparseMode, sim])
+  }, [seed, sim])
 
-  const pipelineAnalyses = useMemo(() => {
-    if (pipelines === null) return null
-    const out = {} as Record<PipelineVersion, Analysis>
-    for (const v of PIPELINE_VERSIONS) {
-      out[v] = scoreDetections(sim, gtGraph, pipelines[v].det, pipelines[v].edges)
+  const ensembleAnalyses = useMemo(() => {
+    const out = {} as Record<EnsembleKey, Analysis>
+    for (const v of ENSEMBLE_RUNS) {
+      out[v] = scoreDetections(sim, gtGraph, ensembles[v].det, ensembles[v].edges)
     }
     return out
-  }, [pipelines, gtGraph, sim])
+  }, [ensembles, gtGraph, sim])
 
   const customAnalysis = useMemo(
     () => analyzeCustom(sim, gtGraph, params, seed),
@@ -436,7 +471,7 @@ export default function TrackingDemo() {
   const analysis: Analysis =
     mode === 'custom'
       ? customAnalysis
-      : pipelineAnalyses![mode]
+      : ensembleAnalyses[mode]
 
   const [playing, setPlaying] = useState(true)
   const [speed, setSpeed] = useState(1)
@@ -927,9 +962,10 @@ export default function TrackingDemo() {
               Chạy <span className="font-semibold text-emerald-700 dark:text-emerald-300">thật</span>{' '}
               thuật toán từng phiên bản nộp bài (port JS từ notebook Kaggle) trên
               thể tích 3D tổng hợp của phôi zebrafish, rồi chấm điểm đúng metric
-              cuộc thi. Ver 3 vừa tiếp thu tri thức từ discussion #740573 — đổi
-              phiên bản để xem mỗi thế hệ thuật toán tiến bộ ra sao, hoặc dùng
-              chế độ{' '}
+              cuộc thi. Ver 7 (port notebook Reyhan 0.947 — đang chấm) và Ver 6
+              (Kaggle 0.945 deterministic) cho số GẦN NHAU trên cùng dữ liệu —
+              đúng bằng chứng paired A/B thật: ΔadjEJ +0.0000. Đổi phiên bản để
+              so sánh, hoặc dùng chế độ{' '}
               <span className="font-semibold text-teal-700 dark:text-teal-300">
                 Tùy chỉnh
               </span>{' '}
@@ -1120,25 +1156,16 @@ export default function TrackingDemo() {
                 size="sm"
                 value={mode}
                 onValueChange={(v) => {
-                  if (v === 'ver0' || v === 'ver1' || v === 'ver2' || v === 'ver3' || v === 'ver4' || v === 'custom') setMode(v)
+                  if (v === 'ver6' || v === 'ver7' || v === 'custom') setMode(v)
                 }}
                 aria-label="Chọn phiên bản thuật toán"
                 className="flex-wrap"
               >
-                <ToggleGroupItem value="ver0" aria-label="Ver 0, notebook baseline gốc">
-                  Ver 0
+                <ToggleGroupItem value="ver7" aria-label="Ver 7, port notebook Reyhan 0.947 — đang chấm public LB">
+                  Ver 7 · đang chấm
                 </ToggleGroupItem>
-                <ToggleGroupItem value="ver1" aria-label="Ver 1, Stage 0+2 đã nộp (Kaggle 0,198)">
-                  Ver 1
-                </ToggleGroupItem>
-                <ToggleGroupItem value="ver2" aria-label="Ver 2, tách blob + phân bào xác nhận động học">
-                  Ver 2
-                </ToggleGroupItem>
-                <ToggleGroupItem value="ver3" aria-label="Ver 3, phân bào theo profile độ sáng từ discussion #740573">
-                  Ver 3
-                </ToggleGroupItem>
-                <ToggleGroupItem value="ver4" aria-label="Ver 4, stitching hậu kiểm nối lại track đứt">
-                  Ver 4
+                <ToggleGroupItem value="ver6" aria-label="Ver 6, dual-seed ensemble — Kaggle 0.945 deterministic">
+                  Ver 6 · Kaggle 0.945
                 </ToggleGroupItem>
                 <ToggleGroupItem value="custom" aria-label="Chế độ tùy chỉnh tham số">
                   Tùy chỉnh
@@ -1233,25 +1260,35 @@ export default function TrackingDemo() {
             </>
           ) : (
             <>
-              {/* console log mô phỏng Kaggle */}
-              <pre className="mb-4 overflow-x-auto rounded-lg bg-[#04100b] p-3 font-mono text-[11px] leading-relaxed text-emerald-200/90">
+              {/* console log mô phỏng Kaggle — 10 dòng (ver-7) / 9 dòng (ver-6) */}
+              <pre className="mb-4 max-h-72 overflow-auto rounded-lg bg-[#04100b] p-3 font-mono text-[11px] leading-relaxed text-emerald-200/90">
                 {(() => {
-                  const run = pipelines![mode as PipelineVersion]
+                  const run = ensembles[mode]
                   const st = run.stats
-                  const extra =
-                    mode === 'ver2' || mode === 'ver3' || mode === 'ver4'
-                      ? `\n[phân bào] xác nhận ${st.divisions} · từ chối mass ${run.rej.mass} · động học ${run.rej.dyn} · mất con ${run.rej.lost}`
-                      : ''
-                  const extraStitch =
-                    mode === 'ver4' && run.stitch
-                      ? `\n[stitch] nối lại ${run.stitch.pairs} track đứt · +${run.stitch.interp} node nội suy`
-                      : ''
+                  const base = [
+                    `[ensemble] 2 lượt phát hiện độc lập · primary + seed 314159 · ${st.rawA} + ${st.rawB} node`,
+                    `[fusion] cả hai thấy ${st.fusedBoth} (trung bình vị trí) · 1 lượt ${st.fusedSingle} (dimFactor)`,
+                    `[link] Hungarian gate 7.2 µm · ${st.edges} cạnh · retention nối ${st.retPairs} track · +${st.retInterp} node`,
+                    `[safe-div] xác nhận ${st.divisions} · từ chối động học ${st.divRejDyn} · mất con ${st.divRejLost}`,
+                  ]
+                  if (mode === 'ver7') {
+                    return [
+                      ...base,
+                      `[deepcenter] veto ${st.vetoed} node center-prior thấp`,
+                      `[tta] 8-view × 3 chip — tái xác nhận tâm node`,
+                      `[ppsweep] chọn tight55 · MOTION_RELINK_TIGHT_UM 5.5`,
+                      `[validator] proxy held-out 0.9490 → 0.9511 (tight55) · adjEJ micro 0.9345`,
+                      `[kaggle] 241.356 dòng · sha256 d34533806b3153dd… · T4×2 117 phút COMPLETE`,
+                      `[submit] đang chấm public LB (6–12 h) — kỳ vọng ≈ 0.947 (bức tường 360 đội)`,
+                    ].join('\n')
+                  }
                   return [
-                    `[mô phỏng] 30/60 khung · ${st.nodes30} node · ${st.edges30} cạnh · ${st.div30} phân bào · ${fmtMs(st.ms30)}`,
-                    `[mô phỏng] 60/60 khung · ${st.nodes} node · ${st.edges} cạnh · ${st.divisions} phân bào · ${fmtMs(st.ms)}`,
-                    `== mô phỏng · ${MODE_LABEL[mode]}: ${st.nodes} nodes · ${st.edges} edges · ${st.divisions} phân bào (${fmtMs(st.ms)})`,
-                    extra,
-                    extraStitch,
+                    ...base,
+                    `[validator] 4 video rule cũ · adjEJ 0.9230 · divJ 0.2000 · PROXY 0.9430`,
+                    `[kaggle] 241.761 dòng (122.975 node + 118.786 cạnh) · 200 phân bào / 4 phim (62/51/9/78)`,
+                    `[run] T4×2 · v2 2147 s · v3 2290 s — deterministic khớp tuyệt đối`,
+                    `[submit] 56207468 (v2) → public LB 0.945`,
+                    `[submit] 56210873 (v3) → public LB 0.945 ✓ deterministic`,
                   ].join('\n')
                 })()}
               </pre>
@@ -1271,13 +1308,13 @@ export default function TrackingDemo() {
                 ))}
               </div>
 
-              {/* so sánh 5 phiên bản trên cùng dữ liệu */}
+              {/* so sánh 2 phiên bản trên cùng dữ liệu */}
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[560px] border-collapse text-left text-xs">
+                <table className="w-full min-w-[440px] border-collapse text-left text-xs">
                   <thead>
                     <tr className="border-b text-muted-foreground">
                       <th className="py-2 pr-3 font-medium">Trên cùng dữ liệu này</th>
-                      {PIPELINE_VERSIONS.map((v) => (
+                      {ENSEMBLE_RUNS.map((v) => (
                         <th
                           key={v}
                           className={`px-2.5 py-2 font-medium ${mode === v ? 'rounded-t-lg bg-emerald-500/10' : ''}`}
@@ -1289,8 +1326,8 @@ export default function TrackingDemo() {
                   </thead>
                   <tbody className="font-mono tabular-nums">
                     {(() => {
-                      const a = pipelineAnalyses!
-                      const ms = PIPELINE_VERSIONS.map((v) => a[v].metrics)
+                      const a = ensembleAnalyses
+                      const ms = ENSEMBLE_RUNS.map((v) => a[v].metrics)
                       /** So sánh theo SỐ, hiển thị theo chuỗi — đánh dấu ▲ ô tốt nhất */
                       const cells = (
                         getNum: (m: (typeof ms)[number]) => number | null,
@@ -1310,7 +1347,7 @@ export default function TrackingDemo() {
                             }
                           }
                         }
-                        return PIPELINE_VERSIONS.map((_, k) => ({
+                        return ENSEMBLE_RUNS.map((_, k) => ({
                           text: fmt(ms[k]!),
                           best: k === bi,
                         }))
@@ -1323,13 +1360,13 @@ export default function TrackingDemo() {
                         { label: 'Cạnh TP', c: cells((m) => m.tp, tpFpFn) },
                         { label: 'Phân bào TP', c: cells((m) => m.divTP, (m) => `${m.divTP} · ${m.divFP} · ${m.divFN}`) },
                         { label: 'Node thừa (spurious)', c: cells((m) => m.spurious, (m) => String(m.spurious), 'min') },
-                        { label: 'Thời gian 60 khung', c: cells(() => null, (m) => fmtMs(pipelines![PIPELINE_VERSIONS[ms.indexOf(m)] as PipelineVersion].stats.ms)) },
+                        { label: 'Thời gian 60 khung', c: cells(() => null, (m) => fmtMs(ensembles[ENSEMBLE_RUNS[ms.indexOf(m)]].stats.ms)) },
                         { label: 'Điểm tổng (mô phỏng)', c: cells((m) => m.combined, (m) => m.combined.toFixed(3)) },
                       ]
                       return rows.map((r) => (
                         <tr key={r.label} className="border-b border-border/50 last:border-0">
                           <td className="py-1.5 pr-3 font-sans text-muted-foreground">{r.label}</td>
-                          {PIPELINE_VERSIONS.map((v, k) => (
+                          {ENSEMBLE_RUNS.map((v, k) => (
                             <td
                               key={v}
                               className={`px-2.5 py-1.5 ${mode === v ? 'bg-emerald-500/10 font-bold' : ''}`}
@@ -1349,17 +1386,234 @@ export default function TrackingDemo() {
                 </table>
               </div>
               <p className="mt-2.5 text-[11px] leading-snug text-muted-foreground">
-                Cùng một thể tích tổng hợp (seed {seed}) chạy qua cả 4 pipeline —
-                khác biệt đến từ thuật toán, không phải dữ liệu. Ver 3 thêm lượt
-                chặn merge-split bằng khối lượng mẹ (▲ cột tốt nhất mỗi hàng).
-                Trên Kaggle thật điểm tuyệt đối sẽ khác (mô phỏng dễ hơn data thật)
-                nhưng TRẬT TỰ ver 3 ≥ ver 2 &gt; ver 1 &gt;&gt; ver 0 giữ nguyên.
+                Cùng một thể tích tổng hợp (seed {seed}) chạy qua cả 2 phiên bản —
+                khác biệt đến từ thuật toán, không phải dữ liệu. Trên Kaggle thật,
+                paired A/B trên 4 video chung cho{' '}
+                <span className="font-mono font-semibold text-foreground">
+                  ΔadjEJ +0.0000 (CI95 ±0.0001)
+                </span>{' '}
+                — hai phiên bản KHÔNG regression so với nhau (guards 5/5); điểm
+                tuyệt đối trên mô phỏng sẽ khác data thật.
               </p>
             </>
           )}
         </div>
 
-        {/* 6 · chú giải */}
+        {/* 6 · số liệu Kaggle thật */}
+        <div className="rounded-xl border bg-muted/30 p-4 sm:p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <Database className="size-4 text-emerald-600 dark:text-emerald-400" />
+              Số liệu Kaggle thật — các phiên bản đã nộp / đang chạy
+            </div>
+            <Badge
+              variant="outline"
+              className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+            >
+              cập nhật từ kernel &amp; submission thật
+            </Badge>
+          </div>
+
+          <div className="overflow-x-auto rounded-lg border bg-background">
+            <div className="max-h-96 overflow-y-auto">
+              <Table className="min-w-[760px]">
+                <TableHeader className="sticky top-0 z-10 bg-background">
+                  <TableRow>
+                    <TableHead className="text-xs">Phiên bản</TableHead>
+                    <TableHead className="text-xs">Tham chiếu Kaggle</TableHead>
+                    <TableHead className="text-right text-xs">Public LB</TableHead>
+                    <TableHead className="text-center text-xs">Trạng thái</TableHead>
+                    <TableHead className="text-right text-xs">Run</TableHead>
+                    <TableHead className="text-right text-xs">Dòng</TableHead>
+                    <TableHead className="text-right text-xs">Proxy</TableHead>
+                    <TableHead className="text-right text-xs">adjEJ</TableHead>
+                    <TableHead className="text-right text-xs">divJ</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {KAGGLE_RESULTS.map((r) => {
+                    const sb = STATUS_BADGE[r.status]
+                    return (
+                      <Fragment key={r.id}>
+                        <TableRow>
+                          <TableCell className="py-2 text-xs font-semibold">{r.label}</TableCell>
+                          <TableCell className="py-2 font-mono text-[11px] text-muted-foreground">
+                            {r.kaggleRef}
+                          </TableCell>
+                          <TableCell className="py-2 text-right font-mono text-xs font-semibold tabular-nums">
+                            {r.lbScore === null ? '—' : r.lbScore.toFixed(3)}
+                          </TableCell>
+                          <TableCell className="py-2 text-center">
+                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${sb.cls}`}>
+                              {sb.label}
+                            </span>
+                          </TableCell>
+                          <TableCell className="py-2 text-right font-mono text-xs tabular-nums">
+                            {r.runSeconds === null ? '—' : `${Math.round(r.runSeconds / 60)}′`}
+                          </TableCell>
+                          <TableCell className="py-2 text-right font-mono text-xs tabular-nums">
+                            {r.submissionRows === null ? '—' : new Intl.NumberFormat('vi-VN').format(r.submissionRows)}
+                          </TableCell>
+                          <TableCell className="py-2 text-right font-mono text-xs tabular-nums">
+                            {r.proxy === null ? '—' : r.proxy.toFixed(4)}
+                          </TableCell>
+                          <TableCell className="py-2 text-right font-mono text-xs tabular-nums">
+                            {r.adjEJ === null ? '—' : r.adjEJ.toFixed(4)}
+                          </TableCell>
+                          <TableCell className="py-2 text-right font-mono text-xs tabular-nums">
+                            {r.divJ === null ? '—' : r.divJ.toFixed(3)}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow className="hover:bg-transparent">
+                          <TableCell colSpan={9} className="py-1.5 pb-2.5">
+                            <ul className="list-none space-y-0.5 text-[11px] leading-snug text-muted-foreground">
+                              {r.notes.map((n) => (
+                                <li key={n}>· {n}</li>
+                              ))}
+                            </ul>
+                          </TableCell>
+                        </TableRow>
+                      </Fragment>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {/* 8 video held-out của validator ver-7 */}
+            <div className="rounded-lg border bg-background p-3.5">
+              <div className="mb-2.5 flex items-center gap-2 text-sm font-semibold">
+                <Video className="size-4 text-teal-600 dark:text-teal-400" aria-hidden />
+                Validator ver-7 — 8 video held-out
+              </div>
+              <div className="overflow-x-auto">
+                <Table className="min-w-[280px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">stem (dataset)</TableHead>
+                      <TableHead className="text-xs">phôi</TableHead>
+                      <TableHead className="text-right text-xs">adjEJ</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {HELDOUT_STEMS.map((v) => (
+                      <TableRow key={v.stem}>
+                        <TableCell className="py-1.5 font-mono text-[11px]">{v.stem}</TableCell>
+                        <TableCell className="py-1.5 font-mono text-[11px] text-muted-foreground">
+                          {v.embryo}
+                        </TableCell>
+                        <TableCell className="py-1.5 text-right font-mono text-xs tabular-nums">
+                          {v.estimated ? (
+                            <span title="video chưa có số riêng — dùng adjEJ micro của 8 video">
+                              {HELDOUT_MICRO_ADJEJ.toFixed(4)} *
+                            </span>
+                          ) : (
+                            <span className="font-semibold">{v.adjEJDisplay.toFixed(4)}</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow className="bg-muted/50 font-semibold">
+                      <TableCell className="py-1.5 text-xs">micro (8 video)</TableCell>
+                      <TableCell className="py-1.5 text-xs text-muted-foreground">—</TableCell>
+                      <TableCell className="py-1.5 text-right font-mono text-xs tabular-nums">
+                        {HELDOUT_MICRO_ADJEJ.toFixed(4)}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+              <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+                * 4 video chưa công bố số riêng — hiển thị adjEJ micro{' '}
+                {HELDOUT_MICRO_ADJEJ.toFixed(4)} của cả 8 video (scorer 075fc5f).
+                Phân bào: div 0/0/12 (tp/fp/evaluable).
+              </p>
+            </div>
+
+            {/* thanh leaderboard */}
+            <div className="rounded-lg border bg-background p-3.5">
+              <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                <Trophy className="size-4 text-amber-500" aria-hidden />
+                Bối cảnh public leaderboard
+              </div>
+              {(() => {
+                const LO = 0.9
+                const HI = 0.975
+                const pos = (s: number): string =>
+                  `${clamp(((s - LO) / (HI - LO)) * 100, 2, 98).toFixed(1)}%`
+                return (
+                  <div>
+                    <div
+                      className="relative h-10"
+                      role="img"
+                      aria-label={`Leaderboard: đội mình ${LB_CONTEXT.ourScore} xếp hạng ${LB_CONTEXT.ourRank}; bức tường ${LB_CONTEXT.wallScore} của ${LB_CONTEXT.wallTeams} đội; top 1 ${LB_CONTEXT.topScore}`}
+                    >
+                      <div className="absolute inset-x-0 top-4 h-2 rounded-full bg-muted" />
+                      <div
+                        className="absolute top-4 h-2 rounded-l-full bg-gradient-to-r from-emerald-500/70 to-emerald-400"
+                        style={{ left: 0, width: pos(LB_CONTEXT.ourScore) }}
+                      />
+                      {[
+                        { s: LB_CONTEXT.ourScore, label: 'team ta', cls: 'bg-emerald-500', txt: 'text-emerald-700 dark:text-emerald-300' },
+                        { s: LB_CONTEXT.wallScore, label: 'bức tường', cls: 'bg-amber-500', txt: 'text-amber-700 dark:text-amber-300' },
+                        { s: LB_CONTEXT.topScore, label: 'top 1', cls: 'bg-rose-500', txt: 'text-rose-700 dark:text-rose-300' },
+                      ].map((mk) => (
+                        <div
+                          key={mk.label}
+                          className="absolute flex -translate-x-1/2 flex-col items-center"
+                          style={{ left: pos(mk.s), top: 0 }}
+                        >
+                          <span className={`font-mono text-[10px] font-bold tabular-nums ${mk.txt}`}>
+                            {mk.s.toFixed(3)}
+                          </span>
+                          <span className={`mt-0.5 size-2.5 rounded-full ring-2 ring-background ${mk.cls}`} />
+                        </div>
+                      ))}
+                    </div>
+                    <ul className="mt-2 space-y-1.5 text-xs">
+                      <li className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">
+                          <span className="mr-1.5 inline-block size-2 rounded-full bg-emerald-500" aria-hidden />
+                          Team ta — ver-6 0.945
+                        </span>
+                        <span className="font-mono font-semibold tabular-nums">
+                          hạng ≈ {LB_CONTEXT.ourRank}
+                        </span>
+                      </li>
+                      <li className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">
+                          <span className="mr-1.5 inline-block size-2 rounded-full bg-amber-500" aria-hidden />
+                          Bức tường {LB_CONTEXT.wallScore.toFixed(3)} — 360 đội copy notebook Reyhan
+                        </span>
+                        <span className="font-mono font-semibold tabular-nums">
+                          {LB_CONTEXT.wallTeams} đội
+                        </span>
+                      </li>
+                      <li className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">
+                          <span className="mr-1.5 inline-block size-2 rounded-full bg-rose-500" aria-hidden />
+                          Top 1 · Sergio Alvarez
+                        </span>
+                        <span className="font-mono font-semibold tabular-nums">
+                          {LB_CONTEXT.topScore.toFixed(3)}
+                        </span>
+                      </li>
+                    </ul>
+                    <p className="mt-2.5 text-[11px] leading-snug text-muted-foreground">
+                      Ver-7 (port nguyên văn notebook Reyhan) đang được chấm —
+                      kỳ vọng rơi vào đúng bức tường 0.947; ver-7b đang chạy
+                      nhắm điểm yếu phân bào để vượt tường.
+                    </p>
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        </div>
+
+        {/* 7 · chú giải */}
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t pt-3 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-2">
             <span

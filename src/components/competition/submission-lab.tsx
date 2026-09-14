@@ -25,7 +25,6 @@ import {
   Play,
   Ruler,
   ScanSearch,
-  Split,
   Target,
   TriangleAlert,
   TrendingUp,
@@ -35,6 +34,10 @@ import {
   X,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  HELDOUT_MICRO_ADJEJ,
+  HELDOUT_STEMS,
+} from "@/lib/competition-data";
 import {
   Card,
   CardAction,
@@ -67,27 +70,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
  * ========================================================================= */
 
 const BIG_FILE_BYTES = 60 * 1024 * 1024; // 60 MB
-
-interface Ver1Result {
-  nodes: number;
-  edges: number;
-  divisions: number;
-  seconds: number;
-}
-
-const VER1_RESULTS: Record<string, Ver1Result> = {
-  "44b6_0113de3b": { nodes: 3771, edges: 2944, divisions: 68, seconds: 8 },
-  "44b6_0b24845f": { nodes: 1419, edges: 833, divisions: 4, seconds: 8 },
-  "6bba_05b6850b": { nodes: 458, edges: 328, divisions: 0, seconds: 6 },
-  "6bba_05db0fb1": { nodes: 3909, edges: 2835, divisions: 94, seconds: 8 },
-};
-
-const VER1_TOTAL: Ver1Result = {
-  nodes: 9557,
-  edges: 6940,
-  divisions: 166,
-  seconds: 30,
-};
 
 const SAMPLE_CSV = [
   "id,dataset,row_type,node_id,t,z,y,x,source_id,target_id",
@@ -137,37 +119,37 @@ interface Preset {
 
 const PRESETS: Preset[] = [
   {
-    key: "ver1",
-    name: "ver 1 (hiệu chỉnh)",
-    r: 59,
-    p: 78,
-    lambda: 78,
-    divJ: 10,
-    claim: "≈ 0.197 · khớp Kaggle",
+    key: "ver6",
+    name: "ver-6 (hiệu chỉnh)",
+    r: 98,
+    p: 99,
+    lambda: 99.5,
+    divJ: 20,
+    claim: "≈ 0.945 · khớp LB ver-6",
   },
   {
-    key: "ver2",
-    name: "mục tiêu ver 2",
-    r: 70,
-    p: 82,
-    lambda: 85,
-    divJ: 25,
-    claim: "≈ 0.33",
+    key: "ver7",
+    name: "mục tiêu ver-7",
+    r: 98,
+    p: 99,
+    lambda: 99.6,
+    divJ: 21,
+    claim: "≈ 0.947 · kỳ vọng port Reyhan",
   },
   {
     key: "top",
     name: "top đầu (tham khảo)",
-    r: 95,
-    p: 97,
-    lambda: 99.5,
-    divJ: 90,
-    claim: "≈ 0.97",
+    r: 99,
+    p: 99.5,
+    lambda: 99.8,
+    divJ: 6,
+    claim: "≈ 0.970 · top 1",
   },
 ];
 
 const LB_ROWS = [
-  { label: "ver 1 — bài nộp hiện tại", score: 0.198, mine: true },
-  { label: "top 10", score: 0.957, mine: false },
+  { label: "ver-6 — team ta (deterministic ×2)", score: 0.945, mine: true },
+  { label: `bức tường — 360 đội copy notebook Reyhan`, score: 0.947, mine: false },
   { label: "top 1 · Sergio Alvarez", score: 0.97, mine: false },
 ] as const;
 
@@ -248,7 +230,6 @@ interface DatasetAnalysis {
   divisionRate: number;
   trackLengths: number[];
   badges: BadgeAssessment[];
-  ver1: Ver1Result | null;
 }
 
 interface AnalysisResult {
@@ -729,7 +710,6 @@ function analyzeCsv(text: string, fileName: string | null): AnalysisOutput {
   let globalDivisions = 0;
   let globalSpan = 0;
   let globalNoIn = 0;
-  let anyVer1Match = false;
 
   for (const name of datasetNames) {
     const dsNodes = nodesByDataset.get(name) ?? new Map<number, RawNode>();
@@ -842,9 +822,6 @@ function analyzeCsv(text: string, fileName: string | null): AnalysisOutput {
     const medianTrackLen = median(trackLengths);
     const divisionRate = span > 0 ? (divisions / span) * 100 : 0;
 
-    const ver1 = VER1_RESULTS[name] ?? null;
-    if (ver1) anyVer1Match = true;
-
     datasets.push({
       name,
       nodes: nodeCount,
@@ -869,7 +846,6 @@ function analyzeCsv(text: string, fileName: string | null): AnalysisOutput {
         divisionRate,
         nodesPerFrame,
       }),
-      ver1,
     });
 
     globalNodes += nodeCount;
@@ -899,7 +875,6 @@ function analyzeCsv(text: string, fileName: string | null): AnalysisOutput {
     divisionRate: globalSpan > 0 ? (globalDivisions / globalSpan) * 100 : 0,
     trackLengths: allTrackLengths,
     badges: [],
-    ver1: anyVer1Match ? VER1_TOTAL : null,
   };
   global.badges = assessBadges({
     edgesPerNode: global.edgesPerNode,
@@ -1013,30 +988,6 @@ function StatChip({
   );
 }
 
-function Delta({ current, base }: { current: number; base: number }) {
-  const d = current - base;
-  if (!Number.isFinite(d) || d === 0) {
-    return (
-      <span className="ml-1.5 text-[10px] font-medium text-muted-foreground">= ver 1</span>
-    );
-  }
-  const up = d > 0;
-  return (
-    <span
-      className={`ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-semibold tabular-nums ${
-        up ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
-      }`}
-    >
-      {up ? (
-        <ArrowUp className="h-3 w-3" aria-hidden />
-      ) : (
-        <ArrowDown className="h-3 w-3" aria-hidden />
-      )}
-      {Math.abs(d)}
-    </span>
-  );
-}
-
 function fmtMed(v: number): string {
   return Number.isInteger(v) ? String(v) : v.toFixed(1);
 }
@@ -1050,463 +1001,397 @@ function VersionsTab() {
     <div className="space-y-6">
       {/* Registry phiên bản */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {/* ver 1 — featured */}
+        {/* ver 7 — featured */}
         <Card className="border-emerald-500/40 bg-emerald-500/[0.03] md:col-span-2">
           <CardHeader>
             <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
               <span className="flex items-center gap-2">
                 <GitBranch className="h-4 w-4 text-emerald-600 dark:text-emerald-300" aria-hidden />
-                ver 1 · Stage 0+2
+                ver 7 · port notebook Reyhan 0.947
               </span>
               <Badge className="bg-emerald-600 text-[10px] leading-4 hover:bg-emerald-600 sm:text-xs">
-                ĐÃ SUBMIT 13/09/2026 · Kaggle 0.198
+                ĐÃ NỘP · ĐANG CHẤM PUBLIC LB (6–12 h)
               </Badge>
             </CardTitle>
             <CardDescription>
-              Bản nâng cấp đầu tiên so với baseline — đã chạy trên Kaggle và submit.
+              Port nguyên văn notebook public LB 0.947 của Reyhan Ksatria — chỉ
+              vá 5 dòng env path sang dataset pilkwang public, SHA256 khớp
+              100%.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div className="space-y-3">
-              <p className="text-sm font-medium">Nâng cấp so với ver 0:</p>
+              <p className="text-sm font-medium">Kiến trúc (trên nền ver-6):</p>
               <ul className="space-y-1.5 text-sm text-muted-foreground">
-                <li>• Tâm CoM theo cường độ (thay tâm hình học)</li>
-                <li>• Liên kết 26-ô + motion model EMA</li>
-                <li>• Gate thích ứng 5–12 µm (2.5× median step, kẹp)</li>
-                <li>• Phát hiện phân bào (sibling gate 12 µm + bảo toàn độ sáng)</li>
-                <li>• Nội suy khung mất (frame-skip 1 khung)</li>
+                <li>
+                  • <span className="font-semibold text-foreground">DeepCenter veto</span> —
+                  bỏ node sửa chữa có center-prior thấp (theo độ sáng/tâm),
+                  không đụng cạnh đã liên kết
+                </li>
+                <li>
+                  • <span className="font-semibold text-foreground">TTA 8-view × 3 chip</span> —
+                  tái xác nhận tâm node mờ
+                </li>
+                <li>
+                  • <span className="font-semibold text-foreground">PPSWEEP</span> tự
+                  chọn config{" "}
+                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                    tight55
+                  </code>{" "}
+                  (MOTION_RELINK_TIGHT_UM 5.5)
+                </li>
+                <li>• Toàn bộ dual-seed ensemble + fusion + safe-div + retention guard của ver-6</li>
               </ul>
               <p className="border-t pt-3 text-xs text-muted-foreground">
-                Điểm mô phỏng nội bộ:{" "}
-                <span className="font-mono font-semibold text-foreground">0.64–0.70</span>{" "}
-                (thể tích tổng hợp, 3 seed) · code:{" "}
+                Run T4×2 ~117 phút <span className="font-semibold text-foreground">COMPLETE</span> ·
+                submission{" "}
+                <span className="font-mono font-semibold text-foreground">241.356 dòng</span> ·
+                sha256{" "}
                 <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
-                  kaggle/ver-1/
+                  d34533806b3153dd…
+                </code>{" "}
+                · kernel{" "}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                  vietnguyen130593/biohub-ver7 v1
                 </code>
               </p>
+              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
+                <p className="font-mono font-semibold">
+                  PROXY held-out 0.9490 → 0.9511 (tight55)
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Official eval 8 video held-out (scorer 075fc5f): adjEJ micro{" "}
+                  <span className="font-mono font-semibold text-foreground">0.9345</span> ·
+                  div 0/0/12. Kỳ vọng public LB ≈{" "}
+                  <span className="font-mono font-semibold text-foreground">0.947</span> —
+                  rơi vào bức tường 360 đội.
+                </p>
+              </div>
+              <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+                <p className="flex items-start gap-2">
+                  <Target className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" aria-hidden />
+                  <span>
+                    Paired A/B vs ver-6 trên 4 video chung:{" "}
+                    <span className="font-mono font-semibold">
+                      ΔadjEJ +0.0000 (CI95 ±0.0001)
+                    </span>{" "}
+                    — <strong>KHÔNG regression</strong> · guards{" "}
+                    <span className="font-mono font-semibold">5/5</span>
+                  </span>
+                </p>
+              </div>
             </div>
             <div className="space-y-2">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Kết quả chạy test — 4 dataset
+                Official eval — 8 video held-out
               </p>
               <div className="overflow-x-auto">
                 <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs">dataset</TableHead>
-                    <TableHead className="text-right text-xs">nodes</TableHead>
-                    <TableHead className="text-right text-xs">edges</TableHead>
-                    <TableHead className="text-right text-xs">phân bào</TableHead>
-                    <TableHead className="text-right text-xs">thời gian</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {Object.entries(VER1_RESULTS).map(([name, r]) => (
-                    <TableRow key={name}>
-                      <TableCell className="py-1.5 font-mono text-xs">{name}</TableCell>
-                      <TableCell className="py-1.5 text-right font-mono tabular-nums text-xs">
-                        {r.nodes}
-                      </TableCell>
-                      <TableCell className="py-1.5 text-right font-mono tabular-nums text-xs">
-                        {r.edges}
-                      </TableCell>
-                      <TableCell className="py-1.5 text-right font-mono tabular-nums text-xs">
-                        {r.divisions}
-                      </TableCell>
-                      <TableCell className="py-1.5 text-right font-mono tabular-nums text-xs">
-                        {r.seconds} s
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">video</TableHead>
+                      <TableHead className="text-xs">phôi</TableHead>
+                      <TableHead className="text-right text-xs">adjEJ</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {HELDOUT_STEMS.map((v) => (
+                      <TableRow key={v.stem}>
+                        <TableCell className="py-1.5 font-mono text-[11px]">{v.stem}</TableCell>
+                        <TableCell className="py-1.5 font-mono text-[11px] text-muted-foreground">
+                          {v.embryo}
+                        </TableCell>
+                        <TableCell className="py-1.5 text-right font-mono text-xs tabular-nums">
+                          {v.estimated ? (
+                            <span title="video chưa có số riêng — dùng adjEJ micro của 8 video">
+                              {HELDOUT_MICRO_ADJEJ.toFixed(4)} *
+                            </span>
+                          ) : (
+                            <span className="font-semibold">{v.adjEJDisplay.toFixed(4)}</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow className="bg-muted/50 font-semibold">
+                      <TableCell className="py-1.5 text-xs">micro (8 video)</TableCell>
+                      <TableCell className="py-1.5 text-xs text-muted-foreground">—</TableCell>
+                      <TableCell className="py-1.5 text-right font-mono text-xs tabular-nums">
+                        {HELDOUT_MICRO_ADJEJ.toFixed(4)}
                       </TableCell>
                     </TableRow>
-                  ))}
-                  <TableRow className="bg-muted/50 font-semibold">
-                    <TableCell className="py-1.5 text-xs">tổng</TableCell>
-                    <TableCell className="py-1.5 text-right font-mono tabular-nums text-xs">
-                      {VER1_TOTAL.nodes}
-                    </TableCell>
-                    <TableCell className="py-1.5 text-right font-mono tabular-nums text-xs">
-                      {VER1_TOTAL.edges}
-                    </TableCell>
-                    <TableCell className="py-1.5 text-right font-mono tabular-nums text-xs">
-                      {VER1_TOTAL.divisions}
-                    </TableCell>
-                    <TableCell className="py-1.5 text-right font-mono tabular-nums text-xs">
-                      ≈30 s / 12 h
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
+                  </TableBody>
                 </Table>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Tổng ~30 giây cho cả 4 dataset — rất nhẹ so với hạn 12 h/notebook, còn
-                nhiều dư địa cho thuật toán nặng hơn.
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                * 4 video chưa công bố số riêng — hiển thị adjEJ micro của cả 8
+                video. Phân bào: div 0/0/12 (tp/fp/evaluable) — trọng số 0.1
+                nên không đổi kết luận.
               </p>
             </div>
           </CardContent>
         </Card>
 
-        {/* ver 0 */}
+        {/* ver 6 */}
         <Card>
           <CardHeader>
             <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
               <span className="flex items-center gap-2">
-                <Workflow className="h-4 w-4 text-muted-foreground" aria-hidden />
-                ver 0 · Baseline
-              </span>
-              <Badge variant="outline" className="text-[10px]">
-                quy chiếu · chưa submit
-              </Badge>
-            </CardTitle>
-            <CardDescription>Notebook getting-started của ban tổ chức.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <ul className="space-y-1.5 text-sm text-muted-foreground">
-              <li>• Ngưỡng P90 · liên kết 6-ô</li>
-              <li>• Tâm hình học · Hungarian gate 15 µm</li>
-              <li>• Không phát hiện phân bào · không frame-skip</li>
-            </ul>
-            <p className="border-t pt-3 text-xs text-muted-foreground">
-              Điểm mô phỏng nội bộ:{" "}
-              <span className="font-mono font-semibold text-foreground">0.34–0.38</span>{" "}
-              (thể tích tổng hợp, 3 seed).
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* ver 2 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
-              <span className="flex items-center gap-2">
-                <Split className="h-4 w-4 text-amber-600 dark:text-amber-300" aria-hidden />
-                ver 2 · Chống gộp blob + phân bào giả
-              </span>
-              <Badge
-                variant="outline"
-                className="border-amber-500/40 text-[10px] text-amber-700 dark:text-amber-300"
-              >
-                soạn thảo
-              </Badge>
-            </CardTitle>
-            <CardDescription>
-              Code tại{" "}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
-                kaggle/ver-2/
-              </code>{" "}
-              — 6 nâng cấp so với ver 1:
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ol className="list-decimal space-y-1.5 pl-4 text-sm text-muted-foreground">
-              <li>
-                Ngưỡng <span className="font-mono">P92→P90</span> — metric phạt node thừa
-                rất nhẹ (hệ số chỉ 0.1) nhưng phạt thiếu cạnh rất nặng
-              </li>
-              <li>Tách blob gộp theo đỉnh maximum_filter</li>
-              <li>Frame-skip 1→2 khung + nội suy</li>
-              <li>Gate 12→14 µm</li>
-              <li>
-                Phân bào phải được xác nhận sau 3 khung (2 con còn sống + khoảng cách
-                không co lại) — chặn merge-split
-              </li>
-              <li>Log chẩn đoán mới</li>
-            </ol>
-          </CardContent>
-        </Card>
-
-        {/* ver 3 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
-              <span className="flex items-center gap-2">
-                <Split className="h-4 w-4 text-rose-600 dark:text-rose-300" aria-hidden />
-                ver 3 · Phân bào theo profile độ sáng
-              </span>
-              <Badge
-                variant="outline"
-                className="border-rose-500/40 text-[10px] text-rose-700 dark:text-rose-300"
-              >
-                soạn thảo · 21/21 pass
-              </Badge>
-            </CardTitle>
-            <CardDescription>
-              Tri thức từ{" "}
-              <a
-                href="https://www.kaggle.com/competitions/biohub-cell-tracking-during-development/discussion/740573"
-                target="_blank"
-                rel="noreferrer"
-                className="underline decoration-dotted underline-offset-2"
-              >
-                discussion #740573
-              </a>{" "}
-              (đo trên 73 file nhãn train):
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-1.5 text-sm text-muted-foreground">
-              <li>
-                • <span className="font-mono">SIBLING_GATE 12→14,5 µm</span> — p99 thật 13,9,
-                max 14,65 (bắt thêm ~10% cặp chị em)
-              </li>
-              <li>
-                • <span className="font-mono">PARENT_GATE 10→12 µm</span> — khoảng cách chỉ là
-                cửa sổ (base rate 24:1), không phải tín hiệu
-              </li>
-              <li>
-                • Ổn định khối lượng mẹ: blob gộp 2 tế bào ≈ 2× bị chặn (
-                <span className="font-mono">rise &gt; 1,7</span>)
-              </li>
-              <li>
-                • Ưu tiên ứng viên có mẹ sáng dần (peak intensity AUC 0,73) · con kế thừa
-                vận tốc mẹ (bug fix)
-              </li>
-            </ul>
-            <p className="border-t pt-3 text-xs text-muted-foreground">
-              Chạy test ver 3: phân bào giả 166 → 6 (−96%) · cạnh +10% · code:{" "}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
-                kaggle/ver-3/
-              </code>
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* ver 4 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
-              <span className="flex items-center gap-2">
-                <GitBranch className="h-4 w-4 text-emerald-600 dark:text-emerald-300" aria-hidden />
-                ver 4 · Stitching hậu kiểm
+                <Workflow className="h-4 w-4 text-emerald-600 dark:text-emerald-300" aria-hidden />
+                ver 6 · dual-seed ensemble
               </span>
               <Badge
                 variant="outline"
                 className="border-emerald-500/40 text-[10px] text-emerald-700 dark:text-emerald-300"
               >
-                soạn thảo · 28/28 + E2E 1.100
+                0.945 ×2 — DETERMINISTIC
               </Badge>
             </CardTitle>
-            <CardDescription>Nhắm thẳng điểm nghẽn số 1 của 0.198 — track đứt:</CardDescription>
+            <CardDescription>
+              Kernel{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                vietnguyen130593/biohub-ver6
+              </code>{" "}
+              — 2 bản nộp đều 0.945 public LB, khớp tuyệt đối.
+            </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <ul className="space-y-1.5 text-sm text-muted-foreground">
               <li>
-                • <span className="font-mono">GATE_MIN 5→7 µm</span> (p99 bước GT 6,9) ·{" "}
-                <span className="font-mono">MAX_SKIP 2→3</span>
+                • 2 lượt phát hiện độc lập — primary + seed{" "}
+                <span className="font-mono">314159</span>, jitter &amp; miss-rate khác nhau
               </li>
               <li>
-                • <span className="font-semibold text-foreground">Stitching hậu kiểm</span>: hết
-                dataset mới nối track kết thúc ở khung <em>t</em> với track mở đầu ở khung{" "}
-                <em>t+gap</em> (gate 10+2·(gap−1) µm + khối lượng ~3×)
+                • Fusion theo src: cả hai thấy → trung bình vị trí · một thấy →
+                cửa sổ mờ, nhân dimFactor
               </li>
               <li>
-                • Gap ≥ 2 chèn <span className="font-semibold text-foreground">node nội suy</span>{" "}
-                — chỉ cạnh liền khung (cạnh nhảy bị metric bỏ hẳn)
+                • Hungarian gate <span className="font-mono">7.2 µm</span> + motion EMA
               </li>
               <li>
-                • Chữa 3 tình huống không với tới: blob gộp &gt; 3 khung · mờ &gt; 3 khung ·
-                quẹo khi mờ làm dự đoán trượt
+                • Safe-div: mẹ ≤ 6.0 µm · chị em ≤ 11.5 µm · khối lượng hợp lý ·
+                xác nhận động học sau 1 khung
+              </li>
+              <li>
+                • Retention guard: gap ≤ 2 · bước ≤ 3.6 + 0.4×gap µm (node nội
+                suy chỉ cạnh liền khung)
               </li>
             </ul>
             <p className="border-t pt-3 text-xs text-muted-foreground">
-              Kiểm chứng: 28/28 (đối chứng stitch TẮT = đứt) · E2E chạy-train + scorer =
-              1.100/1.100 · code:{" "}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
-                kaggle/ver-4/
-              </code>
+              T4×2: v2 2147 s · v3 2290 s · 241.761 dòng (122.975 node +
+              118.786 cạnh) · submissions{" "}
+              <span className="font-mono">56207468</span> /{" "}
+              <span className="font-mono">56210873</span>
             </p>
           </CardContent>
         </Card>
 
-        {/* Local scorer */}
+        {/* ver 6 — validator 4 video */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+              <span className="flex items-center gap-2">
+                <Gauge className="h-4 w-4 text-primary" aria-hidden />
+                ver 6 · validator nội bộ (rule cũ)
+              </span>
+              <Badge variant="outline" className="text-[10px]">
+                adjEJ 0.9230 · divJ 0.2000
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              4 video validator · PROXY{" "}
+              <span className="font-mono font-semibold">0.9430</span> → public LB{" "}
+              <span className="font-mono font-semibold">0.945</span>.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs">phim</TableHead>
+                    <TableHead className="text-right text-xs">phân bào GT</TableHead>
+                    <TableHead className="text-right text-xs">node</TableHead>
+                    <TableHead className="text-right text-xs">cạnh</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {[62, 51, 9, 78].map((div, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="py-1.5 text-xs">video #{i + 1}</TableCell>
+                      <TableCell className="py-1.5 text-right font-mono text-xs tabular-nums">
+                        {div}
+                      </TableCell>
+                      <TableCell className="py-1.5 text-right font-mono text-xs tabular-nums text-muted-foreground">
+                        —
+                      </TableCell>
+                      <TableCell className="py-1.5 text-right font-mono text-xs tabular-nums text-muted-foreground">
+                        —
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="bg-muted/50 font-semibold">
+                    <TableCell className="py-1.5 text-xs">tổng</TableCell>
+                    <TableCell className="py-1.5 text-right font-mono text-xs tabular-nums">
+                      200
+                    </TableCell>
+                    <TableCell className="py-1.5 text-right font-mono text-xs tabular-nums">
+                      122.975
+                    </TableCell>
+                    <TableCell className="py-1.5 text-right font-mono text-xs tabular-nums">
+                      118.786
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+            <p className="text-[11px] leading-snug text-muted-foreground">
+              PROXY = adjEJ + 0.1 × divJ = 0.9230 + 0.0200 = 0.9430 — chạy
+              trước submit để không đốt quota.
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Local scorer — giữ lại, cập nhật bối cảnh */}
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
               <span className="flex items-center gap-2">
                 <Gauge className="h-4 w-4 text-teal-600 dark:text-teal-300" aria-hidden />
-                Local scorer
+                Local scorer + validator held-out
               </span>
               <Badge className="bg-teal-600 text-[10px] leading-4 hover:bg-teal-600 sm:text-xs">
-                đã viết · chạy trên Kaggle
+                port metric chính thức
               </Badge>
             </CardTitle>
             <CardDescription>
-              Công cụ chấm offline — port metric chính thức. Bản tất-cả-trong-một:{" "}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
-                download/ver4-train-eval.ipynb
-              </code>{" "}
-              (pipeline ver 4 chạy trên train + chấm điểm ngay trong notebook).
+              Chấm offline bằng port metric chính thức (repo BTC royerlab) —
+              validator ver-7 dùng 8 video held-out (scorer 075fc5f), paired
+              A/B so ver-6 trước khi nộp.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-2 text-sm text-muted-foreground sm:grid-cols-3">
-            <p>• Chạy pipeline ver 4 trên dữ liệu train có GT</p>
-            <p>• Chấm đúng metric chính thức (port từ repo BTC royerlab)</p>
-            <p>
-              • Phân rã node recall / edge TP-FP-FN / division — không đốt quota 5
-              submit/ngày
-            </p>
+            <p>• adjEJ micro-averaged đúng summarise của BTC</p>
+            <p>• Phân rã node recall / cạnh TP-FP-FN / division per-window</p>
+            <p>• Paired A/B + CI95 — không submit khi có dấu hiệu regression</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Phân tích điểm 0.198 */}
-      <Card className="border-amber-500/30 bg-amber-500/[0.02]">
+      {/* Điểm yếu định lượng */}
+      <Card className="border-rose-500/30 bg-rose-500/[0.02]">
         <CardHeader>
           <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
             <span className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-amber-600 dark:text-amber-300" aria-hidden />
-              Phân tích điểm 0.198 của ver 1
+              <Activity className="h-4 w-4 text-rose-600 dark:text-rose-300" aria-hidden />
+              Điểm yếu định lượng của ver-6 / ver-7
             </span>
             <Badge
               variant="outline"
-              className="border-amber-500/40 text-[10px] text-amber-700 dark:text-amber-300"
+              className="border-rose-500/40 text-[10px] text-rose-700 dark:text-rose-300"
             >
-              ước tính — chưa có GT
+              đo được trên validator — không suy đoán
             </Badge>
           </CardTitle>
           <CardDescription>
-            Phân rã điểm theo cấu trúc metric và vị trí trên leaderboard.
+            Ba chỗ mất điểm lớn nhất — đúng thứ tự ưu tiên.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div className="space-y-3">
-            <p className="font-mono text-sm">
-              score = <span className="font-semibold">adjEJ</span> + 0.1 ×{" "}
-              <span className="font-semibold">divJ</span> = 0.198
-            </p>
-            <div
-              className="flex h-3.5 w-full overflow-hidden rounded-full bg-muted"
-              role="img"
-              aria-label="Đóng góp vào điểm: adjEJ khoảng 94 phần trăm, phần phân bào khoảng 6 phần trăm"
-            >
-              <div className="bg-emerald-500" style={{ width: "94%" }} />
-              <div className="bg-amber-500" style={{ width: "6%" }} />
-            </div>
-            <ul className="space-y-2 text-sm">
-              <li className="flex items-start gap-2">
-                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-emerald-500" aria-hidden />
-                <span>
-                  <span className="font-mono font-semibold">adjEJ ≈ 0.185–0.19</span> — góp
-                  ~93–95% điểm
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="rounded-lg border p-3">
+              <p className="flex items-center gap-2 text-sm font-semibold">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-rose-500/10">
+                  <GitFork className="h-4 w-4 text-rose-600 dark:text-rose-400" aria-hidden />
                 </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-amber-500" aria-hidden />
-                <span>
-                  <span className="font-mono font-semibold">divJ ≈ 0.05–0.15</span> — chỉ góp
-                  0.005–0.015 điểm (được nhân 0.1)
-                </span>
-              </li>
-            </ul>
-            <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs leading-relaxed text-amber-800 dark:text-amber-200">
-              Đây là ước tính suy ra từ cấu trúc metric — cần local scorer trên train có
-              GT để đo chính xác từng thành phần.
-            </p>
-          </div>
-          <div className="space-y-3.5">
-            {LB_ROWS.map((row) => (
-              <div key={row.label}>
-                <div className="mb-1 flex items-baseline justify-between gap-2">
-                  <span className="text-sm font-medium">{row.label}</span>
-                  <span className="font-mono text-sm font-bold tabular-nums">
-                    {row.score.toFixed(3)}
-                  </span>
-                </div>
-                <Progress
-                  value={row.score * 100}
-                  className="h-2"
-                  aria-label={`${row.label}: ${row.score.toFixed(3)}`}
-                />
-              </div>
-            ))}
-            <div className="flex items-start gap-2 rounded-lg border bg-muted/40 p-3 text-sm">
-              <TrendingUp className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" aria-hidden />
-              <p>
-                Khoảng cách tới top 1:{" "}
-                <span className="font-mono font-bold">0.77</span> điểm — rất lớn, nhưng
-                với recall thấp thì phần lớn điểm còn &quot;nằm trên bàn&quot;.
+                Phân bào 100% FN
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                div tp=0 / fp=0 trên validator — mất trắng mảnh 10% điểm
+                (0.1 × divJ). Trọng số nhỏ nhưng là khác biệt lớn ở top đầu.
               </p>
             </div>
+            <div className="rounded-lg border p-3">
+              <p className="flex items-center gap-2 text-sm font-semibold">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-rose-500/10">
+                  <Unlink className="h-4 w-4 text-rose-600 dark:text-rose-400" aria-hidden />
+                </span>
+                Retention worst 0.453
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                Tại{" "}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                  44b6_0b24845f
+                </code>{" "}
+                — 65/400 khung rơi vào fallback, track đứt nhiều nhất cả tập.
+              </p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="flex items-center gap-2 text-sm font-semibold">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-rose-500/10">
+                  <ScanSearch className="h-4 w-4 text-rose-600 dark:text-rose-400" aria-hidden />
+                </span>
+                Over-prediction +17/35%
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                2 phim dự đoán thừa node 17% và 35% — bị trừ nhẹ qua hệ số
+                penalty của adjEJ.
+              </p>
+            </div>
+          </div>
+          <div className="rounded-lg border border-teal-500/30 bg-teal-500/10 p-3.5 text-sm" role="note">
+            <p className="flex items-start gap-2">
+              <FlaskConical className="mt-0.5 h-4 w-4 shrink-0 text-teal-600 dark:text-teal-300" aria-hidden />
+              <span>
+                <strong>ver-7b đang chạy trên Kaggle</strong> (Phase C): divnet
+                division ranker <span className="font-mono">RANK-ONLY W=15 µm</span> +
+                nới gate tau 0.6→1.2 / diverge 2.25→1.0 — nhắm đúng điểm yếu
+                số 1 (phân bào 100% FN). divnet AUC{" "}
+                <span className="font-mono font-semibold">0.887</span> · upside
+                sim ≈ <span className="font-mono font-semibold">0.9556</span>.
+              </span>
+            </p>
           </div>
         </CardContent>
       </Card>
 
-      {/* 3 điểm nghẽn */}
-      <div>
-        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          3 điểm nghẽn nghi ngờ
-        </h3>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <Card className="gap-3 py-4">
-            <CardHeader className="px-4">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-rose-500/10">
-                  <ScanSearch
-                    className="h-4 w-4 text-rose-600 dark:text-rose-400"
-                    aria-hidden
-                  />
+      {/* Bối cảnh leaderboard */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <TrendingUp className="h-4 w-4 text-primary" aria-hidden />
+            Vị trí trên public leaderboard
+          </CardTitle>
+          <CardDescription>
+            Điểm thật của team, bức tường notebook công khai và đỉnh bảng.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3.5">
+          {LB_ROWS.map((row) => (
+            <div key={row.label}>
+              <div className="mb-1 flex items-baseline justify-between gap-2">
+                <span className="text-sm font-medium">{row.label}</span>
+                <span className="font-mono text-sm font-bold tabular-nums">
+                  {row.score.toFixed(3)}
                 </span>
-                Node recall thấp
-              </CardTitle>
-              <CardDescription className="text-xs leading-relaxed">
-                Nhân mờ bị bỏ sót + nhân gộp blob → mỗi cạnh GT không phủ là 1 FN.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="px-4">
-              <Badge
-                variant="outline"
-                className="border-amber-500/40 text-[10px] text-amber-700 dark:text-amber-300"
-              >
-                chưa đo được · chưa có GT
-              </Badge>
-            </CardContent>
-          </Card>
-          <Card className="gap-3 py-4">
-            <CardHeader className="px-4">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-rose-500/10">
-                  <Unlink className="h-4 w-4 text-rose-600 dark:text-rose-400" aria-hidden />
-                </span>
-                Track đứt
-              </CardTitle>
-              <CardDescription className="text-xs leading-relaxed">
-                21–41% node không có cạnh vào → FN + mất phân bào.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="px-4">
-              <Badge
-                variant="outline"
-                className="border-amber-500/40 text-[10px] text-amber-700 dark:text-amber-300"
-              >
-                chưa đo được · chưa có GT
-              </Badge>
-            </CardContent>
-          </Card>
-          <Card className="gap-3 py-4">
-            <CardHeader className="px-4">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-rose-500/10">
-                  <GitFork
-                    className="h-4 w-4 text-rose-600 dark:text-rose-400"
-                    aria-hidden
-                  />
-                </span>
-                Phân bào giả (merge-split)
-              </CardTitle>
-              <CardDescription className="text-xs leading-relaxed">
-                68+94/166 phân bào ở 2 dataset dày là nghi FP → vừa FP cạnh vừa FP phân
-                bào.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="px-4">
-              <Badge
-                variant="outline"
-                className="border-amber-500/40 text-[10px] text-amber-700 dark:text-amber-300"
-              >
-                chưa đo được · chưa có GT
-              </Badge>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+              </div>
+              <Progress
+                value={row.score * 100}
+                className="h-2"
+                aria-label={`${row.label}: ${row.score.toFixed(3)}`}
+              />
+            </div>
+          ))}
+          <div className="flex items-start gap-2 rounded-lg border bg-muted/40 p-3 text-sm">
+            <Target className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" aria-hidden />
+            <p>
+              Ver-7 (port nguyên văn) kỳ vọng chạm{" "}
+              <span className="font-mono font-bold">0.947</span> — ngang bức
+              tường 360 đội. Vượt tường phải đóng góp kiến trúc riêng: ver-7b
+              nhắm phân bào, đúng mảnh điểm còn bỏ trống.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Insight metric */}
       <Card className="border-teal-500/30 bg-teal-500/[0.04]">
@@ -1542,14 +1427,16 @@ function VersionsTab() {
             <p className="text-sm leading-relaxed text-muted-foreground">
               Hệ số chỉ <span className="font-mono">0.1</span>: dự đoán{" "}
               <strong className="text-foreground">thiếu</strong> node làm hệ số &gt; 1
-              (thưởng nhẹ), dự đoán thừa chỉ bị trừ nhẹ.
+              (thưởng nhẹ), dự đoán thừa chỉ bị trừ nhẹ — vì vậy over-prediction
+              +17/35% của ver-6 chưa phá điểm nhiều.
             </p>
           </div>
           <Separator className="bg-teal-500/20" />
           <p className="flex items-start gap-2 text-sm font-semibold text-teal-700 dark:text-teal-300">
             <Target className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            Kết luận: recall là đòn bẩy lớn nhất — tăng node khớp GT và giữ track liền
-            mạch trước khi tối ưu bất cứ thứ gì khác.
+            Kết luận: giữ cạnh liền mạch (adjEJ ~0.92+) đã xong ở ver-6/7 — mảnh
+            điểm lớn còn lại là phân bào (divJ) mà chưa ai trong bức tường
+            0.947 làm được.
           </p>
         </CardContent>
       </Card>
@@ -1562,21 +1449,22 @@ function VersionsTab() {
  * ========================================================================= */
 
 function CalculatorTab() {
-  const [r, setR] = React.useState(59);
-  const [p, setP] = React.useState(78);
-  const [lambda, setLambda] = React.useState(78);
-  const [divJ, setDivJ] = React.useState(10);
+  const [r, setR] = React.useState(98);
+  const [p, setP] = React.useState(99);
+  const [lambda, setLambda] = React.useState(99.5);
+  const [divJ, setDivJ] = React.useState(20);
 
   const m = computeModel(r, p, lambda, divJ);
   const activePreset = PRESETS.find(
     (pr) => pr.r === r && pr.p === p && pr.lambda === lambda && pr.divJ === divJ
   );
-  const deltaVsVer1 = m.score - 0.198;
+  const deltaVsVer6 = m.score - 0.945;
   const lambdaLabel = Number.isInteger(lambda) ? String(lambda) : lambda.toFixed(1);
+  const pLabel = Number.isInteger(p) ? String(p) : p.toFixed(1);
   const scoreColor =
-    m.score >= 0.95
+    m.score >= 0.945
       ? "text-emerald-600 dark:text-emerald-400"
-      : m.score >= 0.4
+      : m.score >= 0.9
         ? "text-amber-600 dark:text-amber-400"
         : "text-rose-600 dark:text-rose-400";
 
@@ -1622,14 +1510,14 @@ function CalculatorTab() {
                   dự đoán là thật
                 </Label>
                 <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-sm font-semibold tabular-nums">
-                  {p}%
+                  {pLabel}%
                 </span>
               </div>
               <Slider
                 value={[p]}
                 min={50}
                 max={100}
-                step={1}
+                step={0.5}
                 onValueChange={(v) => setP(v[0] ?? p)}
                 aria-label="Node precision"
               />
@@ -1649,7 +1537,7 @@ function CalculatorTab() {
                 value={[lambda]}
                 min={0}
                 max={100}
-                step={0.5}
+                step={0.1}
                 onValueChange={(v) => setLambda(v[0] ?? lambda)}
                 aria-label="Link correctness"
               />
@@ -1677,7 +1565,7 @@ function CalculatorTab() {
             <Separator />
             <div>
               <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Presset
+                Preset
               </p>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {PRESETS.map((pr) => (
@@ -1709,9 +1597,10 @@ function CalculatorTab() {
                 ))}
               </div>
               <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-                Preset “ver 1 (hiệu chỉnh)” cho{" "}
-                <span className="font-mono font-semibold">0.197</span> — khớp điểm Kaggle
-                0.198, xác nhận mô hình phản ánh đúng cơ chế.
+                Preset “ver-6 (hiệu chỉnh)” cho ≈{" "}
+                <span className="font-mono font-semibold">0.945</span> — khớp điểm
+                public LB 0.945 của ver-6 (deterministic × 2 bản), xác nhận mô
+                hình phản ánh đúng cơ chế ở vùng điểm cao.
               </p>
             </div>
           </CardContent>
@@ -1763,18 +1652,18 @@ score = adjEJ + 0.1 × divJ`}
                 </p>
                 <span
                   className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-xs font-semibold tabular-nums ${
-                    deltaVsVer1 >= 0
+                    deltaVsVer6 >= 0
                       ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                       : "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300"
                   }`}
                 >
-                  {deltaVsVer1 >= 0 ? (
+                  {deltaVsVer6 >= 0 ? (
                     <ArrowUp className="h-3 w-3" aria-hidden />
                   ) : (
                     <ArrowDown className="h-3 w-3" aria-hidden />
                   )}
-                  {deltaVsVer1 >= 0 ? "+" : "−"}
-                  {Math.abs(deltaVsVer1).toFixed(3)} so với ver 1
+                  {deltaVsVer6 >= 0 ? "+" : "−"}
+                  {Math.abs(deltaVsVer6).toFixed(3)} so với ver-6
                 </span>
               </div>
               <Progress
@@ -1784,8 +1673,8 @@ score = adjEJ + 0.1 × divJ`}
               />
               <div className="mt-1.5 flex justify-between font-mono text-[10px] text-muted-foreground">
                 <span>0</span>
-                <span>0.198 · ver 1</span>
-                <span>0.97 · top 1</span>
+                <span>0.945 · ver-6</span>
+                <span>0.970 · top 1</span>
                 <span>1.0</span>
               </div>
             </div>
@@ -2204,16 +2093,6 @@ function AnalyzerTab() {
                 track = thành phần liên thông yếu (xét cả 2 chiều cạnh) · độ dài trung vị
                 = trung vị số node mỗi thành phần.
               </CardDescription>
-              {res.datasets.some((d) => d.ver1 !== null) && (
-                <CardAction>
-                  <Badge
-                    variant="outline"
-                    className="border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
-                  >
-                    Δ so với ver 1
-                  </Badge>
-                </CardAction>
-              )}
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="overflow-x-auto">
@@ -2243,17 +2122,12 @@ function AnalyzerTab() {
                       <TableCell className="font-mono text-xs">{s.name}</TableCell>
                       <TableCell className="text-right font-mono text-xs tabular-nums">
                         {s.nodes}
-                        {s.ver1 && <Delta current={s.nodes} base={s.ver1.nodes} />}
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs tabular-nums">
                         {s.edges}
-                        {s.ver1 && <Delta current={s.edges} base={s.ver1.edges} />}
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs tabular-nums">
                         {s.divisions}
-                        {s.ver1 && (
-                          <Delta current={s.divisions} base={s.ver1.divisions} />
-                        )}
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs tabular-nums">
                         {s.frameLabel}
@@ -2282,24 +2156,12 @@ function AnalyzerTab() {
                     <TableCell className="text-xs">{res.global.name}</TableCell>
                     <TableCell className="text-right font-mono text-xs tabular-nums">
                       {res.global.nodes}
-                      {res.global.ver1 && (
-                        <Delta current={res.global.nodes} base={res.global.ver1.nodes} />
-                      )}
                     </TableCell>
                     <TableCell className="text-right font-mono text-xs tabular-nums">
                       {res.global.edges}
-                      {res.global.ver1 && (
-                        <Delta current={res.global.edges} base={res.global.ver1.edges} />
-                      )}
                     </TableCell>
                     <TableCell className="text-right font-mono text-xs tabular-nums">
                       {res.global.divisions}
-                      {res.global.ver1 && (
-                        <Delta
-                          current={res.global.divisions}
-                          base={res.global.ver1.divisions}
-                        />
-                      )}
                     </TableCell>
                     <TableCell className="text-right font-mono text-xs tabular-nums">
                       {res.global.frameLabel}
@@ -2326,13 +2188,6 @@ function AnalyzerTab() {
                 </TableBody>
                 </Table>
               </div>
-              {res.datasets.some((d) => d.ver1 !== null) && (
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  ▲▼ = chênh lệch so với kết quả ver 1 chạy trên Kaggle. Nhiều hơn chưa
-                  chắc tốt hơn — đối chiếu kèm badge sức khoẻ bên dưới (ví dụ bớt phân
-                  bào ở dataset dày có thể là giảm phân bào giả, là tốt).
-                </p>
-              )}
             </CardContent>
           </Card>
 
