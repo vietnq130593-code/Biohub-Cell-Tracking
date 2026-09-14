@@ -61,19 +61,33 @@ VER7_SLUG = "biohub-ver7"
 VER7B_NOTEBOOK = PROJECT / "download" / "ver7b-cell-tracking.ipynb"
 VER7B_DATASETS = VER7_DATASETS + ["giorgosi/biohub-divnet-v2"]
 VER7B_SLUG = "biohub-ver7b"
+# ver-8 wave1: mini-kernel CPU (E0 gate-audit + E1 system-view + E2 ppsweep-2 + E3) — 0 GPU
+VER8W1_NOTEBOOK = PROJECT / "download" / "ver8-wave1.ipynb"
+VER8W1_DATASETS = [
+    "pilkwang/biohub-tracking-support-pack-50ep-v1",
+    "dalloliogm/biohub-official-scorer-patched",
+    "vietnguyen130593/biohub-v7-heldout-preds",
+    "pilkwang/biohub-deepcenter-unet3d-center-prior-v1",
+    "giorgosi/biohub-divnet-v2",
+]
+VER8W1_SLUG = "biohub-ver8-wave1"
 ACCELERATOR = "NvidiaTeslaT4"   # GPU T4 × 2 (giống notebook gốc 0.945) — enum theo kagglesdk
 DEFAULT_SLUG = "biohub-ver6"
 POLL_SECONDS = 60
 WATCH_TIMEOUT_MIN = 240
+WATCH_TIMEOUT_MIN_CPU = 700   # wave1 CPU chạy 2,5-4h (deadline nội bộ 8,5h)
 
 
 def version_config(ver) -> tuple[Path, list[str], str]:
-    """(notebook, datasets, slug) — '6': ver-6; '7': ver-7 port 0.947 + Phase B; '7b': + Phase C divnet."""
+    """(notebook, datasets, slug) — '6': ver-6; '7': ver-7 port 0.947 + Phase B;
+    '7b': + Phase C divnet; '8w1': wave1 mini-kernel CPU (E0-E3)."""
     ver = str(ver)
     if ver == "7":
         return VER7_NOTEBOOK, VER7_DATASETS, VER7_SLUG
     if ver == "7b":
         return VER7B_NOTEBOOK, VER7B_DATASETS, VER7B_SLUG
+    if ver == "8w1":
+        return VER8W1_NOTEBOOK, VER8W1_DATASETS, VER8W1_SLUG
     return NOTEBOOK, DATASETS, DEFAULT_SLUG
 
 
@@ -230,17 +244,20 @@ def cmd_push(args: argparse.Namespace) -> dict:
         "language": "python",
         "kernel_type": "notebook",
         "is_private": not args.public,
-        "enable_gpu": True,
+        "enable_gpu": str(args.ver) != "8w1",   # wave1 là kernel CPU thuần
         "enable_tpu": False,
         "enable_internet": False,
-        "machine_shape": ACCELERATOR,
+        "machine_shape": ACCELERATOR if str(args.ver) != "8w1" else None,
         "dataset_sources": ver_datasets,
         "competition_sources": [COMPETITION],
         "kernel_sources": [],
         "model_sources": [],
     }
+    if metadata["machine_shape"] is None:
+        del metadata["machine_shape"]  # kernel CPU: không đặt machine_shape
+    gpu_note = "CPU (0 GPU quota)" if str(args.ver) == "8w1" else f"GPU {ACCELERATOR}"
     (STAGING / "kernel-metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
-    print(f"Push {ref} (ver-{args.ver}) — GPU {ACCELERATOR}, Internet OFF, "
+    print(f"Push {ref} (ver-{args.ver}) — {gpu_note}, Internet OFF, "
           f"{len(ver_datasets)} dataset + competition")
     proc = run_kaggle(["kernels", "push", "-p", str(STAGING)])
     print(proc.stdout or "", end="")
@@ -318,7 +335,8 @@ def report_submission(outdir: Path) -> None:
 
 def cmd_watch(args: argparse.Namespace) -> str:
     ref = resolve_ref(args.slug, args.username, _default_slug_for(args))
-    deadline = time.time() + WATCH_TIMEOUT_MIN * 60
+    timeout_min = WATCH_TIMEOUT_MIN_CPU if str(getattr(args, "ver", "6")) == "8w1" else WATCH_TIMEOUT_MIN
+    deadline = time.time() + timeout_min * 60
     status = "unknown"
     while time.time() < deadline:
         text = kernel_status_text(ref)
@@ -328,7 +346,7 @@ def cmd_watch(args: argparse.Namespace) -> str:
             break
         time.sleep(args.poll)
     else:
-        raise SystemExit(f"Vượt quá {WATCH_TIMEOUT_MIN} phút mà chưa xong — xem lại bằng `status`.")
+        raise SystemExit(f"Vượt quá {timeout_min} phút mà chưa xong — xem lại bằng `status`.")
 
     outdir = download_output(ref)
     if outdir:
@@ -418,36 +436,35 @@ def main() -> int:
     p.set_defaults(func=cmd_token)
 
     p = sub.add_parser("verify", help="kiểm tra token + input + quota")
-    p.add_argument("--ver", choices=["6", "7", "7b"], default="6",
-                   help="6: 3 dataset; 7: 6 dataset (port 0.947 + Phase B); 7b: 7 dataset (+divnet)")
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1"], default="6",
+                   help="6: 3 dataset; 7: 6 dataset; 7b: 7 dataset; 8w1: 5 dataset CPU mini-kernel")
     p.set_defaults(func=cmd_verify)
 
     p = sub.add_parser("push", help="đẩy notebook lên Kaggle và chạy Save & Run All")
     p.add_argument("--username", help="username Kaggle (tự phát hiện nếu có thể)")
     p.add_argument("--slug")
     p.add_argument("--public", action="store_true", help="để public (mặc định private)")
-    p.add_argument("--ver", choices=["6", "7", "7b"], default="6",
-                   help="6: ver-6 (5 input); 7: ver-7 port 0.947 + Phase B (7 input); "
-                        "7b: + Phase C divnet (8 input)")
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1"], default="6",
+                   help="6: ver-6; 7: ver-7 port 0.947; 7b: + divnet; 8w1: wave1 CPU (E0-E3)")
     p.set_defaults(func=cmd_push)
 
     p = sub.add_parser("status", help="xem trạng thái run hiện tại")
     p.add_argument("--username")
     p.add_argument("--slug")
-    p.add_argument("--ver", choices=["6", "7", "7b"], default="6")
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1"], default="6")
     p.set_defaults(func=cmd_status)
 
     p = sub.add_parser("watch", help="đợi chạy xong rồi tải output")
     p.add_argument("--username")
     p.add_argument("--slug")
-    p.add_argument("--ver", choices=["6", "7", "7b"], default="6")
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1"], default="6")
     p.add_argument("--poll", type=int, default=POLL_SECONDS)
     p.set_defaults(func=cmd_watch)
 
     p = sub.add_parser("output", help="tải output của run gần nhất")
     p.add_argument("--username")
     p.add_argument("--slug")
-    p.add_argument("--ver", choices=["6", "7", "7b"], default="6")
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1"], default="6")
     p.set_defaults(func=cmd_output)
 
     p = sub.add_parser("submit", help="nộp notebook version vào competition")
@@ -455,7 +472,7 @@ def main() -> int:
     p.add_argument("--slug")
     p.add_argument("--version", type=int)
     p.add_argument("--message")
-    p.add_argument("--ver", choices=["6", "7", "7b"], default="6",
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1"], default="6",
                    help="dùng khi không có --slug và chưa có state push")
     p.set_defaults(func=cmd_submit)
 
@@ -469,7 +486,7 @@ def main() -> int:
     p.add_argument("--username")
     p.add_argument("--slug")
     p.add_argument("--public", action="store_true")
-    p.add_argument("--ver", choices=["6", "7", "7b"], default="6")
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1"], default="6")
     p.add_argument("--poll", type=int, default=POLL_SECONDS)
     p.add_argument("--version", type=int)
     p.add_argument("--message")
