@@ -538,3 +538,14 @@ CẬP NHẬT TASK 39 (14:25 14/9): WAVE-1 v1 ERROR + 2 BUG ĐÃ SỬA + PHÁT HI
 - 2 BUG ĐÃ SỬA cho v2: (1) KeyError stats — khởi tạo đủ 10 key short_track/linefit; (2) NGUYÊN NHÂN SELF-CHECK LỆCH (25 vs 24...): read_test_frame cache THEO t ĐƠN THUẦN — chia sẻ frame_cache qua stem làm stem 2-8 đọc NHẦM frame → pre-state lệch. FIX: frame cache theo từng stem (WAVE1_FRAME_CACHES[stem]); heatmap DC keyed (stem,t) an toàn giữ chung.
 - Nâng cấp v2 khác: LƯU FEATURES ra wave1_features.json.gz (không tính lại 73 phút); self-check so SẬP cạnh (chạy verbatim add_safe_divisions_postlink trên pre-state, dump diff + features của cạnh lệch); div diagnostics thêm phân tích RE-PARENT (cha hiện tại của D2, cạnh đúng/sai theo GT, khoảng cách mẹ vs cha hiện tại) + nearest_pred cho con không match.
 - v2 pushed 14:33 — đang chạy.
+
+---
+CẬP NHẬT TASK 39 (21:20 14/9): WAVE-1 KẾT QUẢ E0 QUYẾT ĐỊNH + VER-8 GPU PUSHED
+- v2 ERROR (rank tuple bug 'divnet' label) NHƯNG thu được: FEATURES 29.096 cặp (dataset biohub-wave1-features), SELF-CHECK ĐẠT 2 lớp (replay==verbatim SẬP cạnh + end-to-end), E0 base 3/1/9 internal.
+- v3 ERROR (e1_stage_stats KeyError khi skip E1). v4 ERROR (unlink .geff là thư mục — IsADirectoryError) NHƯNG E0 GRID CHẠY XONG ĐỦ 15 COMBO.
+- **E0 GRID KẾT LUẬN (internal rule, 8 stems):** KHÔNG combo nào (tau 0.6→1.0 × diverge 2.25→1.0 × MAX 9/12 × W 15/25 × pdiv-floor 0.3/0.5) tăng div_tp quá 3. Base-v7 = tối ưu (0.9280 adjEJ, div 3/1/9, proxy 0.9511). Nới gate chỉ thêm FP (1→2..26) — xác nhận lần 4 chẩn đoán megayak + E4 (6 notebook sjlee101).
+- **→ 9/12 FN division còn lại KHÔNG thể cứu bằng safe-div gate → RE-PARENTING là con đường duy nhất** (6 ca D2 không mồ côi + 3 ca thiếu detection).
+- Phân tích 6 ca re-parent từ v2 diagnostics + raw .geff: 4/6 cạnh sai CẦN DivNet (3/6 có prob 0.65–0.91 — transformer tin cạnh sai!); 2/6 cạnh không có trong raw (prob→0); prob(M→D2) khi xuất hiện = 0.858 (ILP không chọn được vì assignment 1-1).
+- VER-8 CHUẨN HÓA: lazy P_div (chỉ tính sau geometric lọc — tránh 25k truy vấn/stem), base MIN_PDIV 0.5 + EDGE_PROB 0.25 (chặt), candidate 'rp-off' (escape), 'rp-pdiv30'/'rp-ep35' (nới), + vw060/gap2step48/minlen5 (adjEJ). 17 unit test PASS.
+- PUSH ver-8 GPU (biohub-ver8 v1, T4×2, 8 input) 21:20 — ước 2.5-3h. Song song wave1 v5 (E2+E3, skip E0/E1 đã có) đang chạy.
+- v5 fixes: unlink .geff dir → rmtree; skip E0 grid+official (đủ dữ liệu); guard e1_stage_stats.
