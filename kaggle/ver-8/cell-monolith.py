@@ -4220,7 +4220,7 @@ if VALIDATOR_ENABLE and val_stems:
             writer.writerow(row)
 
 # Retain the narrow post-process candidate set used by the 0.946 pipeline
-PP_CANDIDATES: dict[str, dict] = {'gap45': {'GAP_CLOSE_UM': 4.5}, 'tight55': {'MOTION_RELINK_TIGHT_UM': 5.5}, 'relaxed9': {'MOTION_RELINK_RELAXED_UM': 9.0}, 'bonus125': {'MOTION_RELINK_LEARNED_BONUS': 1.25}, 'gap2step40': {'GAP2_MAX_STEP_UM': 4.0}, 'reuse28': {'GAP_CLOSE_REUSE_UM': 2.8}, 'dcgap035': {'DEEPCENTER_GAP_THRESHOLD': 0.35}, 'rp-off': {'REPARENT_ENABLE': False}, 'rp-pdiv30': {'REPARENT_MIN_PDIV': 0.3}, 'rp-ep35': {'REPARENT_EDGE_PROB': 0.35}, 'rp-far8': {'REPARENT_CURRENT_FAR_UM': 8.0}, 'rp-max11': {'REPARENT_MAX_UM': 11.0}, 'rp-tau08': {'REPARENT_TAU': 0.8}}
+PP_CANDIDATES: dict[str, dict] = {'gap45': {'GAP_CLOSE_UM': 4.5}, 'tight55': {'MOTION_RELINK_TIGHT_UM': 5.5}, 'relaxed9': {'MOTION_RELINK_RELAXED_UM': 9.0}, 'bonus125': {'MOTION_RELINK_LEARNED_BONUS': 1.25}, 'gap2step40': {'GAP2_MAX_STEP_UM': 4.0}, 'reuse28': {'GAP_CLOSE_REUSE_UM': 2.8}, 'dcgap035': {'DEEPCENTER_GAP_THRESHOLD': 0.35}, 'rp-off': {'REPARENT_ENABLE': False}, 'rp-pdiv30': {'REPARENT_MIN_PDIV': 0.3}, 'rp-ep35': {'REPARENT_EDGE_PROB': 0.35}, 'rp-far8': {'REPARENT_CURRENT_FAR_UM': 8.0}, 'rp-max11': {'REPARENT_MAX_UM': 11.0}, 'rp-tau08': {'REPARENT_TAU': 0.8}, 'vw060': {'MOTION_RELINK_VELOCITY_WEIGHT': 0.60}, 'gap2step48': {'GAP2_MAX_STEP_UM': 4.8}, 'minlen5': {'OUTPUT_MIN_TRACK_LEN': 5}}
 PP_SELECT_MARGIN = float(os.environ.get('BIOHUB_PPSWEEP_SELECT_MARGIN', '0.002'))
 PP_MAX_ADJ_LOSS = float(os.environ.get('BIOHUB_PPSWEEP_MAX_ADJ_LOSS', '0.0005'))
 PP_SWEEP_RESULTS_PATH = WORKING_DIR / 'ppsweep_results.csv'

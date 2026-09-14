@@ -1,20 +1,22 @@
 {
-  "id": "vietnguyen130593/biohub-ver8-wave1",
-  "title": "biohub-ver8-wave1",
-  "code_file": "ver8-wave1.ipynb",
+  "id": "vietnguyen130593/biohub-ver8",
+  "title": "biohub-ver8",
+  "code_file": "ver8-cell-tracking.ipynb",
   "language": "python",
   "kernel_type": "notebook",
   "is_private": true,
-  "enable_gpu": false,
+  "enable_gpu": true,
   "enable_tpu": false,
   "enable_internet": false,
+  "machine_shape": "NvidiaTeslaT4",
   "dataset_sources": [
     "pilkwang/biohub-tracking-support-pack-50ep-v1",
-    "dalloliogm/biohub-official-scorer-patched",
-    "vietnguyen130593/biohub-v7-heldout-preds",
     "pilkwang/biohub-deepcenter-unet3d-center-prior-v1",
-    "giorgosi/biohub-divnet-v2",
-    "vietnguyen130593/biohub-wave1-features"
+    "pilkwang/biohub-temporal-unet3d-seed314159-v1",
+    "dalloliogm/biohub-official-scorer-patched",
+    "dariushafshar/biohub-local-cv-pack",
+    "vietnguyen130593/biohub-v6-heldout-preds",
+    "giorgosi/biohub-divnet-v2"
   ],
   "competition_sources": [
     "biohub-cell-tracking-during-development"
