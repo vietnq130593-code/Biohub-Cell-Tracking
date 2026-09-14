@@ -2614,10 +2614,19 @@ def wave1_replay_safe_div(feats: list, edges: list, gates: dict, rank_mode, node
 
 # ---------------------------------------------------------------------------
 # [wave1] các giai đoạn sau safe-div (prune → short-track → linefit) — gọi đúng
-# trình tự filter_output_graph (monolith 3373-3386).
+# trình tự filter_output_graph (monolith 3373-3386). Stats phải khởi tạo ĐỦ key
+# (linefit dùng `+=` — bug đã gặp ở run v1 14/9: KeyError 'linefit_skipped_nodes').
 # ---------------------------------------------------------------------------
+def wave1_post_stats() -> dict:
+    return {'short_track_components_removed': 0, 'short_track_nodes_removed': 0,
+            'short_track_edges_removed': 0, 'short_track_filter_skipped_all': 0,
+            'short_track_rescue_triggered': 0, 'short_track_rescue_components': 0,
+            'short_track_rescue_nodes': 0, 'short_track_rescue_budget': 0,
+            'linefit_smoothed_nodes': 0, 'linefit_skipped_nodes': 0}
+
+
 def wave1_post_safediv_stages(nodes_by_id, edges):
-    stats = {'short_track_components_removed': 0}
+    stats = wave1_post_stats()
     incident = {int(e['source_id']) for e in edges} | {int(e['target_id']) for e in edges}
     if incident:
         kept = {nid: n for nid, n in nodes_by_id.items() if nid in incident}
@@ -2674,9 +2683,16 @@ def wave1_main():
         RAW[stem] = (raw_nodes_by_id, raw_edges)
         wave1_log(f'nạp {stem}: {len(raw_nodes_by_id)} nodes / {len(raw_edges)} edges')
 
-    # ---- cache dùng chung (frame zarr + deepcenter heatmap) ----------------
-    WAVE1_FRAME_CACHE = {}
-    WAVE1_DC_CACHE = {}
+    # ---- cache dùng chung (deepcenter heatmap keyed (stem,t) — an toàn;
+    # [v2 FIX] frame_cache PHẢI theo từng stem — read_test_frame cache theo t đơn thuần,
+    # dùng chung qua stem sẽ đọc nhầm frame (đây chính là nguyên nhân SELF-CHECK LỆCH run v1)
+    WAVE1_FRAME_CACHES: dict[str, dict[int, 'np.ndarray']] = {}
+    WAVE1_DC_CACHE: dict[tuple[str, int], 'np.ndarray'] = {}
+
+    def _frames_for(stem: str):
+        if stem not in WAVE1_FRAME_CACHES:
+            WAVE1_FRAME_CACHES[stem] = {}
+        return WAVE1_FRAME_CACHES[stem]
 
     # =====================================================================
     # E1 — SYSTEM VIEW OFFICIAL (config production + selected tight55/dcgap035)
@@ -2780,7 +2796,7 @@ def wave1_main():
             nodes_by_id, edges = close_single_frame_gaps(
                 nodes_by_id, edges, st, dataset=stem,
                 deepcenter_bundle=deepcenter_bundle,
-                frame_cache=WAVE1_FRAME_CACHE, deepcenter_cache=WAVE1_DC_CACHE)
+                frame_cache=_frames_for(stem), deepcenter_cache=WAVE1_DC_CACHE)
             nodes_by_id, edges = recover_strict_gap2(nodes_by_id, edges, st, dataset=stem)
             PRE_STATE[stem] = (nodes_by_id, edges)
             PRE_STATS[stem] = st
@@ -2790,50 +2806,103 @@ def wave1_main():
         wave1_pp_restore(saved)
 
     # thu đặc trưng (gate rộng nhất) — 1 lần/stem, chia sẻ cache
+    # [v2] LƯU FEATURES ra disk sau khi thu — lần chạy sau không phải tính lại
+    # (run v1 mất 1000s/stem cho khâu này) + có dữ liệu phân tích local.
+    FEATURES_PATH = WAVE1_OUT / 'wave1_features.json.gz'
     FEATURES = {}
+    if FEATURES_PATH.exists():
+        import gzip as _gzip
+        try:
+            FEATURES = _json.loads(_gzip.decompress(FEATURES_PATH.read_bytes()))
+            wave1_log(f'nạp FEATURES từ đĩa: {sum(len(v["features"]) for v in FEATURES.values())} cặp')
+        except Exception as _exc:
+            wave1_log(f'không đọc được FEATURES ({_exc}) — thu lại từ đầu')
+            FEATURES = {}
     for stem in WAVE1_STEMS:
+        if stem in FEATURES and FEATURES[stem].get('features'):
+            continue
         t0 = time.time()
         nodes_by_id, edges = PRE_STATE[stem]
         FEATURES[stem] = wave1_collect_safe_div_features(
             stem, nodes_by_id, edges, deepcenter_bundle, divnet_bundle,
-            WAVE1_FRAME_CACHE, WAVE1_DC_CACHE, GT_PLAIN[stem])
+            _frames_for(stem), WAVE1_DC_CACHE, GT_PLAIN[stem])
         n_feats = len(FEATURES[stem]['features'])
         n_gt_div = len(FEATURES[stem]['gt_div_edges'])
         n_gt_hit = sum(1 for f in FEATURES[stem]['features'] if f['gt_div_edge'])
         wave1_log(f'audit {stem}: {n_feats} cặp / {n_gt_div} GT-div, trong tầm: {n_gt_hit} '
                   f'({time.time() - t0:.0f}s)')
+    if not FEATURES_PATH.exists():
+        import gzip as _gzip
+        FEATURES_PATH.write_bytes(_gzip.compress(
+            _json.dumps(FEATURES, default=str).encode('utf-8')))
+        wave1_log(f'GHI FEATURES → {FEATURES_PATH} ({FEATURES_PATH.stat().st_size / 1e6:.1f} MB)')
 
     # ---- E0 SELF-CHECK: replay(production, không divnet) == E1 verbatim ------
-    selfcheck = {'ok': True, 'diffs': [], 'row_diffs': []}
+    # [v2] so SẬP cạnh: chạy THẬT add_safe_divisions_postlink (nguyên văn) trên
+    # deepcopy pre-state → added_v; replay → added_r; dump mọi khác biệt.
+    selfcheck = {'ok': True, 'diffs': [], 'row_diffs': [], 'edge_diffs': []}
     prod_gates = {k: WAVE1_BASE_CONFIG[k] for k in
                   ['SAFE_DIV_MAX_UM', 'SAFE_DIV_SISTER_MAX_UM', 'SAFE_DIV_DIVERGE_UM',
                    'SAFE_DIV_SISTER_SYMMETRY_TAU', 'SAFE_DIV_EXISTING_CHILD_MAX_UM',
                    'SAFE_DIV_FRAME_FRAC_CAP', 'SAFE_DIV_GLOBAL_FRAC_CAP',
                    'DEEPCENTER_SAFE_DIV_THRESHOLD']}
     for stem in WAVE1_STEMS:
+        import copy as _copy
         nodes_by_id, edges = PRE_STATE[stem]
+        nodes_c = _copy.deepcopy(nodes_by_id)
+        edges_c = [dict(e) for e in edges]
+        vstats = {'safe_division_mutual_nn_rejected': 0, 'safe_division_divergence_rejected': 0,
+                  'safe_division_symmetry_rejected': 0, 'safe_division_geometric_candidates': 0,
+                  'safe_division_candidates': 0, 'safe_divisions_added': 0, 'safe_division_skipped_cap': 0,
+                  'divnet_proposals_scored': 0, 'divnet_rank_flips': 0, 'divnet_p_added_sum': 0.0,
+                  'divnet_p_added_n': 0, 'deepcenter_safe_div_checked': 0, 'deepcenter_safe_div_accepted': 0,
+                  'deepcenter_safe_div_rejected': 0, 'deepcenter_safe_div_missing': 0}
+        edges_after_v = add_safe_divisions_postlink(
+            nodes_c, edges_c, vstats, dataset=stem, deepcenter_bundle=deepcenter_bundle,
+            frame_cache=_frames_for(stem), deepcenter_cache=WAVE1_DC_CACHE, divnet_bundle=None)
+        added_v = [(int(e['source_id']), int(e['target_id'])) for e in edges_after_v[len(edges_c):]]
         replay_added, _rs = wave1_replay_safe_div(
             FEATURES[stem]['features'], edges, prod_gates, None, nodes_by_id)
-        # đối chiếu gián tiếp qua số safe_divisions_added đã ghi trong stats E1
+        added_r = [(int(a['source_id']), int(a['target_id'])) for a in replay_added]
+        # đối chiếu thêm với E1 (pipeline đầy đủ — có thể lệch do pre-state khác)
         verbatim_n = e1_stage_stats[stem].get('safe_divisions_added', 0)
-        if verbatim_n != len(replay_added):
+        if sorted(added_v) != sorted(added_r) or verbatim_n != len(added_r):
             selfcheck['ok'] = False
             selfcheck['diffs'].append({'stem': stem, 'verbatim_added': verbatim_n,
-                                       'replay_added': len(replay_added)})
+                                       'replay_added': len(added_r),
+                                       'prestate_verbatim_added': len(added_v)})
+            selfcheck['edge_diffs'].append({
+                'stem': stem,
+                'only_in_verbatim': sorted(set(added_v) - set(added_r))[:20],
+                'only_in_replay': sorted(set(added_r) - set(added_v))[:20],
+                'vstats': vstats, 'rstats': {k: _rs.get(k) for k in
+                                              ('mutual_nn_rejected', 'divergence_rejected',
+                                               'dc_rejected', 'symmetry_rejected', 'added')},
+                'replay_feats_sample': [f for f in FEATURES[stem]['features']
+                                        if (int(f['source_id']), int(f['candidate_id']))
+                                        in (set(added_v) ^ set(added_r))][:6]})
+    wave1_dump_json('wave1_selfcheck_detail.json', selfcheck)
     wave1_log(f"SELF-CHECK replay vs verbatim: {'ĐẠT' if selfcheck['ok'] else 'LỆCH'} "
               f"{selfcheck['diffs'][:4]}")
 
-    # ---- chẩn đoán 12 GT division: vì sao trượt (E3-div) --------------------
+    # ---- chẩn đoán 12 GT division: vì sao trượt (E3-div) ----------------------
+    # [v2] thêm phân tích RE-PARENT: con thứ 2 được detect nhưng KHÔNG mồ côi —
+    # ai là cha hiện tại, cạnh đó đúng hay sai, lệch bao xa so với giả thuyết phân bào.
     div_diag = []
     for stem in WAVE1_STEMS:
         gt_nodes, gt_edges = GT_PLAIN[stem]
         feats = FEATURES[stem]['features']
+        nodes_by_id, edges = PRE_STATE[stem]
         p2g, g2p = match_nodes_bipartite(
             {nid: (int(n['t']), float(n['z']), float(n['y']), float(n['x']))
-             for nid, n in PRE_STATE[stem][0].items()}, gt_nodes, max_dist=7.0)
+             for nid, n in nodes_by_id.items()}, gt_nodes, max_dist=7.0)
+        in_edge_of = {}
+        for e in edges:
+            in_edge_of[int(e['target_id'])] = int(e['source_id'])
         gt_out = {}
         for s, t in gt_edges:
             gt_out.setdefault(s, set()).add(t)
+        gt_edge_set = set(gt_edges)
         for g_src, children in gt_out.items():
             if len(children) < 2:
                 continue
@@ -2866,6 +2935,42 @@ def wave1_main():
                     ev['reject_reason'].append('sister_dist')
             else:
                 ev['reject_reason'] = ['no_pair_in_range']
+                # [v2] phân tích re-parent cho cả 2 con (dù mồ côi hay không)
+                m_node = g2p.get(g_src)
+                ev['reparent'] = []
+                for c in sorted(children)[:2]:
+                    d_node = g2p.get(c)
+                    info = {'gt_child': int(c), 'matched_node': d_node}
+                    if d_node is None:
+                        # không match — tìm node gần nhất trong 12µm (có thể bị lệch)
+                        gpos = gt_nodes[c]
+                        near = None
+                        best_d = 1e9
+                        for nid, n in nodes_by_id.items():
+                            if int(n['t']) != int(gpos[0]):
+                                continue
+                            dd = edge_distance_um(
+                                {'z': gpos[1], 'y': gpos[2], 'x': gpos[3]}, n)
+                            if dd < best_d:
+                                best_d = dd
+                                near = nid
+                        info['nearest_pred_node'] = near
+                        info['nearest_pred_dist_um'] = (round(best_d, 2)
+                                                        if best_d < 1e8 else None)
+                    else:
+                        cur_parent = in_edge_of.get(int(d_node))
+                        info['current_pred_parent'] = cur_parent
+                        if cur_parent is not None:
+                            cur_gt = p2g.get(int(cur_parent))
+                            info['current_parent_gt'] = cur_gt
+                            info['current_edge_is_gt'] = bool(
+                                cur_gt is not None and (cur_gt, c) in gt_edge_set)
+                            if m_node is not None:
+                                d_mother = edge_distance_um(nodes_by_id[m_node], nodes_by_id[int(d_node)])
+                                d_cur = edge_distance_um(nodes_by_id[int(cur_parent)], nodes_by_id[int(d_node)])
+                                info['dist_mother_to_daughter_um'] = round(float(d_mother), 2)
+                                info['dist_current_parent_um'] = round(float(d_cur), 2)
+                    ev['reparent'].append(info)
             div_diag.append(ev)
     wave1_dump_json('wave1_e0_div_diagnostics.json', {'schema': 'wave1-e0-diag/1',
                                                      'events': div_diag})

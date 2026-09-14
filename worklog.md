@@ -526,3 +526,15 @@ Stage Summary:
 - E4 đóng: mở gate thuần vô dụng (6/6 notebook sjlee101 cùng kết quả) → ver-8 phải đi bằng DivNet rank + calibration.
 - Đang chờ wave1 chạy (ước 2,5–4h) → sẽ có: la bàn system-view đúng luật, bảng E0 15 combo (internal + official top-5), bản đồ gate giết từng GT division, PPSWEEP-2 20 config, chẩn đoán 2 video xấu.
 - Dataset mới: vietnguyen130593/biohub-v7-heldout-preds (8 .geff raw core view ver-7).
+
+---
+CẬP NHẬT TASK 39 (14:25 14/9): WAVE-1 v1 ERROR + 2 BUG ĐÃ SỬA + PHÁT HIỆN LỚN TỪ DỮ LIỆU BẤT KỂT XUẤT
+- v1 chạy 110 phút rồi ERROR: KeyError 'linefit_skipped_nodes' trong wave1_post_safediv_stages (stats dict thiếu key — linefit dùng +=). NHƯNG trước khi chết đã hoàn tất E1 + div diagnostics → dữ liệu vàng:
+  (1) E1 SYSTEM VIEW OFFICIAL (production + tight55+dcgap035, 8 stems): adjEJ 0.9280 + divJ 0.1538 → proxy 0.9434 (vs CORE view 0.9345+0 → postprocess +0.009 net: mất 0.0065 adjEJ, được +0.0154 divJ).
+  (2) div official SYSTEM = 2/1/10 (2 TP thật! 44b6_341df25f + 6bba_062c8d37; FP chỉ 1!) — rule đôi của validator nội bộ (4/21/8) đã bị thay thế bằng la bàn đúng luật.
+  (3) PHÂN RÃ 12 GT DIVISION: 9/12 KHÔNG có cặp ứng viên mồ côi nào trong tầm gate rộng nhất (MAX 14/SIS 18) — trong đó 6 event CẢ HAI CON ĐÃ MATCH node pre-state (con thứ 2 có cạnh đến → KHÔNG mồ côi → safe-div không bao giờ xét) + 3 event con thứ 2 không detect. CHỈ 3 event có cặp (2 đã thu hồi).
+  (4) postprocess +46 FP edges tập trung 6bba_09961292 (+44!, safe-div hoạt động xấu ở đây: +44 FP, 0/4 div) và 44b6_267148e4 (+12) — ngược lại 44b6_12dfb391 được +19 tp/−16 fp từ motion-relink+gap.
+  (5) HƯỚNG MỚI "RE-PARENTING": cơ chế tháo cạnh sai Y→D2 + nối M→D2 cho các con không mồ côi — nhắm 6 event "cả 2 con match nhưng D2 không mồ côi" (tiềm năng divJ 0.154→0.69 = +0.05 tổng điểm nếu thu hồi hết; cần bằng chứng phân biệt cạnh Y→D2 sai).
+- 2 BUG ĐÃ SỬA cho v2: (1) KeyError stats — khởi tạo đủ 10 key short_track/linefit; (2) NGUYÊN NHÂN SELF-CHECK LỆCH (25 vs 24...): read_test_frame cache THEO t ĐƠN THUẦN — chia sẻ frame_cache qua stem làm stem 2-8 đọc NHẦM frame → pre-state lệch. FIX: frame cache theo từng stem (WAVE1_FRAME_CACHES[stem]); heatmap DC keyed (stem,t) an toàn giữ chung.
+- Nâng cấp v2 khác: LƯU FEATURES ra wave1_features.json.gz (không tính lại 73 phút); self-check so SẬP cạnh (chạy verbatim add_safe_divisions_postlink trên pre-state, dump diff + features của cạnh lệch); div diagnostics thêm phân tích RE-PARENT (cha hiện tại của D2, cạnh đúng/sai theo GT, khoảng cách mẹ vs cha hiện tại) + nearest_pred cho con không match.
+- v2 pushed 14:33 — đang chạy.
