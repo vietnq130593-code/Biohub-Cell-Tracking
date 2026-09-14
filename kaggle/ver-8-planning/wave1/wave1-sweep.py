@@ -87,6 +87,8 @@ _env['BIOHUB_DEEPCENTER_SCORE_CACHE_MAX_FRAMES'] = '512'
 _env['BIOHUB_DIVNET_ENABLE'] = '0'
 # [v3] E1 đã chốt từ run v2 (adjEJ 0.9280, div 2/1/10, selfcheck ĐẠT) — skip để nhanh
 _env['BIOHUB_WAVE1_SKIP_E1'] = '1'
+# [v5] E0 grid + official đã thu đủ ở v4 (div_tp=3 trần, không combo tăng) — skip
+_env['BIOHUB_WAVE1_SKIP_E0'] = '1'
 _env['BIOHUB_DIVNET_REQUIRE'] = '0'
 # E1 selected overrides của ver-7 (ppsweep đã chọn khi chạy 0.947):
 E1_SELECTED = {'MOTION_RELINK_TIGHT_UM': 5.5, 'DEEPCENTER_GAP_THRESHOLD': 0.35}
@@ -3023,64 +3025,67 @@ def wave1_main():
         ('tau10-div10-dn25-pf30', {'SAFE_DIV_SISTER_SYMMETRY_TAU': 1.0, 'SAFE_DIV_DIVERGE_UM': 1.0}, (25.0, 0.3)),
     ]
     e0_rows = []
-    for label, overrides, rank_mode in E0_GRID:
-        if wave1_time_left() < 1800:
-            wave1_log(f'E0 {label}: BỎ QUA (hết thời gian)')
-            continue
-        gates = dict(prod_gates)
-        gates.update(overrides)
-        t0 = time.time()
-        agg_rows = []
-        tot_stats = Counter()
-        for stem in WAVE1_STEMS:
-            nodes_by_id, edges = PRE_STATE[stem]
-            import copy as _copy
-            nodes_c = _copy.deepcopy(nodes_by_id)
-            added, rstats = wave1_replay_safe_div(
-                FEATURES[stem]['features'], edges, gates, rank_mode, nodes_c)
-            tot_stats.update(rstats)
-            new_edges = [dict(e) for e in edges] + added
-            pn, pe = wave1_post_safediv_stages(nodes_c, new_edges)
-            row = wave1_internal_score(pn, pe, GT_PLAIN[stem], GT_TTRUE[stem])
-            row['stem'] = stem
-            row['safe_divisions_added'] = rstats['added']
-            row['added_gt_edges'] = rstats['added_gt_edges']
-            agg_rows.append(row)
-        summary = aggregate_official(agg_rows)
-        e0_rows.append({'config': label, 'overrides': overrides, 'rank_mode': list(rank_mode) if rank_mode else None,
-                        'summary': summary, 'replay_stats': dict(tot_stats),
-                        'seconds': time.time() - t0, 'rows': agg_rows})
-        if label == 'base-v7' and e1_internal_rows:
-            for e0r, e1r in zip(agg_rows, e1_internal_rows):
-                keys = ['edge_tp', 'edge_fp', 'edge_fn', 'edge_jaccard',
-                        'adjusted_edge_jaccard', 'div_tp', 'div_fp', 'div_fn', 't_pred']
-                bad = [k for k in keys
-                       if abs(float(e0r[k] or 0) - float(e1r[k] or 0)) > 1e-9]
-                if bad:
-                    selfcheck['ok'] = False
-                    selfcheck['row_diffs'].append({'stem': e0r['stem'], 'keys': bad,
-                                                   'e0': {k: e0r[k] for k in bad},
-                                                   'e1': {k: e1r[k] for k in bad}})
-            wave1_log(f"SELF-CHECK end-to-end base-v7 vs E1: "
-                      f"{'ĐẠT' if not selfcheck['row_diffs'] else 'LỆCH'} {selfcheck['row_diffs'][:2]}")
-        wave1_log(f"E0 {label}: adjEJ={summary['adjusted_edge_jaccard']:.4f} "
-                  f"div={summary['div_tp']}/{summary['div_fp']}/{summary['div_fn']} "
-                  f"added={tot_stats['added']} added_gt={tot_stats['added_gt_edges']} "
-                  f"({time.time() - t0:.0f}s)")
-    # dump dạng CSV + JSON
-    with (WAVE1_OUT / 'wave1_e0_grid.csv').open('w', newline='') as f:
-        w = csv.writer(f)
-        w.writerow(['config', 'adjusted_edge_jaccard', 'division_jaccard', 'proxy_score',
-                    'div_tp', 'div_fp', 'div_fn', 'added', 'added_gt_edges', 'seconds'])
-        for r in e0_rows:
-            s = r['summary']
-            w.writerow([r['config'], s['adjusted_edge_jaccard'], s['division_jaccard'],
-                        s['proxy_score'], s['div_tp'], s['div_fp'], s['div_fn'],
-                        r['replay_stats'].get('added', 0),
-                        r['replay_stats'].get('added_gt_edges', 0), round(r['seconds'], 1)])
-    wave1_dump_json('wave1_e0_grid.json', {'schema': 'wave1-e0/1', 'selfcheck': selfcheck,
-                                           'grid': [{k: v for k, v in r.items() if k != 'rows'}
-                                                    for r in e0_rows]})
+    if _os.environ.get('BIOHUB_WAVE1_SKIP_E0', '0') == '1':
+        wave1_log('E0 grid + official BỎ QUA (đã thu đủ ở v4: div_tp=3 trần safe-div, không combo tăng)')
+    else:
+        for label, overrides, rank_mode in E0_GRID:
+            if wave1_time_left() < 1800:
+                wave1_log(f'E0 {label}: BỎ QUA (hết thời gian)')
+                continue
+            gates = dict(prod_gates)
+            gates.update(overrides)
+            t0 = time.time()
+            agg_rows = []
+            tot_stats = Counter()
+            for stem in WAVE1_STEMS:
+                nodes_by_id, edges = PRE_STATE[stem]
+                import copy as _copy
+                nodes_c = _copy.deepcopy(nodes_by_id)
+                added, rstats = wave1_replay_safe_div(
+                    FEATURES[stem]['features'], edges, gates, rank_mode, nodes_c)
+                tot_stats.update(rstats)
+                new_edges = [dict(e) for e in edges] + added
+                pn, pe = wave1_post_safediv_stages(nodes_c, new_edges)
+                row = wave1_internal_score(pn, pe, GT_PLAIN[stem], GT_TTRUE[stem])
+                row['stem'] = stem
+                row['safe_divisions_added'] = rstats['added']
+                row['added_gt_edges'] = rstats['added_gt_edges']
+                agg_rows.append(row)
+            summary = aggregate_official(agg_rows)
+            e0_rows.append({'config': label, 'overrides': overrides, 'rank_mode': list(rank_mode) if rank_mode else None,
+                            'summary': summary, 'replay_stats': dict(tot_stats),
+                            'seconds': time.time() - t0, 'rows': agg_rows})
+            if label == 'base-v7' and e1_internal_rows:
+                for e0r, e1r in zip(agg_rows, e1_internal_rows):
+                    keys = ['edge_tp', 'edge_fp', 'edge_fn', 'edge_jaccard',
+                            'adjusted_edge_jaccard', 'div_tp', 'div_fp', 'div_fn', 't_pred']
+                    bad = [k for k in keys
+                           if abs(float(e0r[k] or 0) - float(e1r[k] or 0)) > 1e-9]
+                    if bad:
+                        selfcheck['ok'] = False
+                        selfcheck['row_diffs'].append({'stem': e0r['stem'], 'keys': bad,
+                                                       'e0': {k: e0r[k] for k in bad},
+                                                       'e1': {k: e1r[k] for k in bad}})
+                wave1_log(f"SELF-CHECK end-to-end base-v7 vs E1: "
+                          f"{'ĐẠT' if not selfcheck['row_diffs'] else 'LỆCH'} {selfcheck['row_diffs'][:2]}")
+            wave1_log(f"E0 {label}: adjEJ={summary['adjusted_edge_jaccard']:.4f} "
+                      f"div={summary['div_tp']}/{summary['div_fp']}/{summary['div_fn']} "
+                      f"added={tot_stats['added']} added_gt={tot_stats['added_gt_edges']} "
+                      f"({time.time() - t0:.0f}s)")
+        # dump dạng CSV + JSON
+        with (WAVE1_OUT / 'wave1_e0_grid.csv').open('w', newline='') as f:
+            w = csv.writer(f)
+            w.writerow(['config', 'adjusted_edge_jaccard', 'division_jaccard', 'proxy_score',
+                        'div_tp', 'div_fp', 'div_fn', 'added', 'added_gt_edges', 'seconds'])
+            for r in e0_rows:
+                s = r['summary']
+                w.writerow([r['config'], s['adjusted_edge_jaccard'], s['division_jaccard'],
+                            s['proxy_score'], s['div_tp'], s['div_fp'], s['div_fn'],
+                            r['replay_stats'].get('added', 0),
+                            r['replay_stats'].get('added_gt_edges', 0), round(r['seconds'], 1)])
+        wave1_dump_json('wave1_e0_grid.json', {'schema': 'wave1-e0/1', 'selfcheck': selfcheck,
+                                               'grid': [{k: v for k, v in r.items() if k != 'rows'}
+                                                        for r in e0_rows]})
 
     # ---- E0: official cho top-5 theo (div_tp, -div_fp, proxy) ---------------
     ranked_e0 = sorted(e0_rows, key=lambda r: (r['summary']['div_tp'],
@@ -3109,7 +3114,15 @@ def wave1_main():
             row = wave1_official_score_geff(out_geff, TRAIN_DIR / f'{stem}.geff',
                                             td_metrics, td_div)
             rows_off.append(row)
-            out_geff.unlink()  # đỡ nặng output
+            import shutil as _shutil_ok
+            if out_geff.is_dir():
+                _shutil_ok.rmtree(out_geff)
+            elif out_geff.exists():
+                import shutil as _shutil_ok2
+                if out_geff.is_dir():
+                    _shutil_ok2.rmtree(out_geff)
+                elif out_geff.exists():
+                    out_geff.unlink()
         micro = wave1_official_micro(rows_off)
         r['official_micro'] = micro
         wave1_log(f"E0-OFFICIAL {r['config']}: adjEJ={micro['adjusted_edge_jaccard']:.4f} "
@@ -3247,7 +3260,11 @@ def wave1_main():
                 row = wave1_official_score_geff(out_geff, TRAIN_DIR / f'{stem}.geff',
                                                 td_metrics, td_div)
                 rows_off.append(row)
-                out_geff.unlink()
+                import shutil as _shutil_ok2
+                if out_geff.is_dir():
+                    _shutil_ok2.rmtree(out_geff)
+                elif out_geff.exists():
+                    out_geff.unlink()
             micro = wave1_official_micro(rows_off)
             r['official_micro'] = micro
             wave1_log(f"E2-OFFICIAL {r['config']}: adjEJ={micro['adjusted_edge_jaccard']:.4f} "
