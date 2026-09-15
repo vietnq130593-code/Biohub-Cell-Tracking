@@ -1010,7 +1010,7 @@ function VersionsTab() {
                 ver 8 · Phase D re-parenting
               </span>
               <Badge className="bg-amber-500 text-[10px] leading-4 text-amber-950 hover:bg-amber-500 sm:text-xs">
-                v1 ĐÃ NỘP · ĐANG CHẤM — v2 ĐANG CHẠY (GPU T4×2)
+                v1 FAIL RUNTIME — v3-fast ĐANG CHẠY (sửa lỗi hidden test)
               </Badge>
             </CardTitle>
             <CardDescription>
@@ -1018,8 +1018,9 @@ function VersionsTab() {
               <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
                 vietnguyen130593/biohub-ver8 v1+v2
               </code>{" "}
-              — v1 chạy 6,2 h COMPLETE → nộp 01:09 UTC 15/9 (56242181); v2 nâng cấp
-              push 01:16 (17 candidates).
+              — v1 nộp 01:09 UTC 15/9 (56242181) FAIL sau ~12h: rerun trên hidden
+              test (lớn hơn public ~2×) vượt runtime limit; v2 COMPLETE 09:13
+              nhưng cùng lỗi chậm; v3-fast push 13:57 (kernel version 3).
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -1055,15 +1056,28 @@ function VersionsTab() {
                   5/5.
                 </p>
               </div>
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+              <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm">
                 <p className="font-mono font-semibold">
-                  v2 nâng cấp đang chạy — nhắm 3/6 ca re-parent còn bị chặn
+                  v1 (56242181) FAIL — rerun hidden test vượt runtime limit
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  + ppTight5565 (per-prefix tight 44b6→5.5/6bba→6.5 — E2 official
-                  +0.0003) · + rp-ep50/ep75 (mở chứng cứ cạnh yếu prob ≤0.50/0.75 —
-                  3 ca cạnh sai prob 0.49–0.70) · bù precision bằng pdiv 0.75 /
-                  tau 0.6 · rp-off escape giữ an toàn.
+                  errorDescription Kaggle: "submission notebook exceeded the allowed
+                  runtime… hidden dataset can be larger/smaller/different than the
+                  public dataset" · totalBytes=0 · không có điểm. Nguyên nhân: sweep
+                  16-19 candidates = 86% runtime (6,87h) → kernel public 6,2h × hidden
+                  ~2× ≈ 12,4h vượt hạn 12h. ver-7 (117 phút) pass vì đủ nhanh → ngân sách
+                  runtime public ≤ 2h là ràng buộc CỨNG từ giờ.
+                </p>
+              </div>
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+                <p className="font-mono font-semibold">
+                  v3-fast PUSH 13:57 UTC — cứu re-parent bằng cách rút sweep còn 1 candidate
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  ppTight5565fb (per-prefix 44b6→5.5/6bba→6.5 + fallback global 5.5 cho
+                  prefix lạ trên hidden) · public ~1,3-1,8h → hidden ~2,5-3,6h an toàn ·
+                  REPARENT_EDGE_PROB giữ 0,25 (v2: mở chỉ thêm FP) · py_compile + 7/7 unit
+                  test PASS · 12 mấu tích hợp đủ mặt.
                 </p>
               </div>
             </div>

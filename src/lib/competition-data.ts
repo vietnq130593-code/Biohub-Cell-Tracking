@@ -285,38 +285,38 @@ export const KAGGLE_RESULTS: KaggleVersionResult[] = [
   {
     id: "ver8",
     label: "Ver 8 · Phase D re-parenting",
-    kaggleRef: "vietnguyen130593/biohub-ver8 v1+v2 · GPU T4×2",
+    kaggleRef: "vietnguyen130593/biohub-ver8 v1+v2+v3fast · GPU T4×2",
     lbScore: null,
-    submittedAt: "2026-09-15 01:09 · ĐÃ NỘP v1 — đang chấm (56242181)",
-    status: "SUBMITTED",
+    submittedAt: "2026-09-15 01:09 · v1 nộp nhưng FAIL runtime (56242181) — v3-fast đã push",
+    status: "RUNNING",
     runSeconds: 22380,
     submissionRows: 241330,
     proxy: 0.9591,
     adjEJ: 0.9284,
     divJ: 0.3077,
     notes: [
-      "★ v1 COMPLETE sau 6,2 h T4×2 → ĐÃ NỘP 01:09 UTC 15/9 — đang chấm public LB",
-      "PPSWEEP 16 candidates tự chọn tight55: adjEJ held-out 0,9261→0,9284 (+0,0023) · proxy 0,9547→0,9591",
-      "Re-parenting thu hồi +1 sự kiện phân bào thật (div 3/1/9 → 4/1/8), 0 FP thêm, adjEJ +0,0004 — khớp dự báo +0,0077/ca",
-      "So ver-7 apples-to-apples (cùng internal rule): Δproxy +0,0080 ≥ ngưỡng ELEVEN +0,005 → submit tự tin",
-      "Topology submission: 4 video · 122.792 nodes · 118.538 edges · 188 division parents (safe-div 124 + re-parent 77) · guards in-kernel 5/5",
-      "v2 ĐANG CHẠY (push 01:16): + ppTight5565 (per-prefix tight, E2 official +0,0003) + họ rp-ep50/75 mở chứng cứ cạnh yếu prob ≤0,50/0,75 nhắm 3/6 ca còn bị chặn — 17 candidates",
-      "Cơ sở: Wave-1 E0 grid 15 combo (CPU) chứng minh safe-div đã đạt trần div_tp=3 — mở gate chỉ thêm FP; re-parenting là con đường duy nhất còn lại",
+      "★ v1 (56242181) nộp 01:09 UTC 15/9 → FAIL sau ~12h: rerun notebook trên HIDDEN TEST (lớn hơn public ~2×) vượt runtime limit — errorDescription + totalBytes=0, không có điểm",
+      "Nguyên nhân gốc: PPSWEEP 16-19 candidates chiếm 86% runtime kernel (6,87/7,95h) — kernel public 6,2h × hidden ~2× ≈ 12,4h > hạn 12h. ver-7 (117 phút) pass vì đủ nhanh",
+      "Bài học hạ tầng: mọi submission đều rerun trên hidden test lớn hơn — ngân sách runtime là ràng buộc CỨNG (public ≤ 2h an toàn)",
+      "Giữ nguyên giá trị thuật toán (đo trên held-out, không đổi): re-parent +1 sự kiện thật (div 3/1/9 → 4/1/8) · Δproxy +0,0080 vs ver-7 — đạt ELEVEN",
+      "v2 COMPLETE 09:13 (7,9h): chọn ppTight5565 (proxy 0,9594) nhưng KHÔNG nộp — cả v1/v2 đều quá chậm cho hidden test",
+      "Bài học v2: rp-ep50 no-op · rp-ep75 làm div_fp 2→4 mà div_tp đứng ở 4 → REPARENT_EDGE_PROB giữ 0,25",
+      "★ v3-fast PUSH 13:57 UTC (kernel version 3): sweep rút còn 1 candidate ppTight5565fb (per-prefix + fallback global 5.5) → public ~1,3-1,8h → hidden ~2,5-3,6h — an toàn trong hạn · py_compile + 7/7 unit test PASS",
     ],
   },
 ];
 
-/** Bối cảnh leaderboard cập nhật 15/9 00:40 UTC (3551 đội) */
+/** Bối cảnh leaderboard cập nhật 15/9 13:15 UTC (3569 đội) */
 export const LB_CONTEXT = {
   ourTeam: "daoviet",
   ourScore: 0.947,
-  ourRank: 227,
-  /** Cụm 445 đội fork notebook Reyhan Ksatria cùng 0.947 */
+  ourRank: 183,
+  /** Cụm 479 đội fork notebook Reyhan Ksatria cùng 0.947 */
   wallScore: 0.947,
-  wallTeams: 445,
-  /** Cụm kế tiếp cần vượt: 44 đội 0.948 (hạng 66–109) */
+  wallTeams: 479,
+  /** Cụm kế tiếp cần vượt: 46 đội 0.948 (hạng 79–124) */
   nextClusterScore: 0.948,
-  nextClusterTeams: 44,
+  nextClusterTeams: 46,
   topScore: 0.97,
 } as const;
 

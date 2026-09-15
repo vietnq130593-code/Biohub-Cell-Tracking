@@ -90,7 +90,7 @@ export function Hero() {
             className="border-amber-400/40 bg-amber-400/10 text-amber-200 backdrop-blur-sm"
           >
             <Loader2 className="mr-1 h-3 w-3 animate-spin" aria-hidden />
-            Ver 8 · v1 ĐÃ NỘP — đang chấm public LB · v2 đang chạy (nâng cấp re-parent + per-prefix tight)
+            Ver 8 · v1 FAIL runtime hidden test — v3-fast đang chạy (sweep rút còn 1 candidate)
           </Badge>
         </motion.div>
 

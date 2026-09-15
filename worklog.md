@@ -687,3 +687,40 @@ Stage Summary:
 - Sản phẩm: VER9-RESEARCH.md (bậc nhân quả + cổng + timeline tới 29/9), v9-research/ 17 notebook + output sjlee101 + LB snapshot, README ver-8/9.
 - Chờ: điểm v8 (56242181, ~sắp có trong cửa sổ 6-12h) → Wave-A audit CPU → push ver-9.
 - App chưa đụng (ver-8 PENDING — UI giữ "đang chạy"); cập nhật app khi có điểm v8 + quyết định v9.
+
+---
+Task ID: BIO-REVIEW-9
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: Review kế hoạch triển khai ver-9, khắc phục lỗi/thiếu sót, xác định thuật toán bổ sung nâng cấp (lý thuyết), báo cáo kết quả.
+
+Work Log:
+- Trạng thái Kaggle 13:10 UTC 15/9: v8-v1 (56242181) PENDING ~12h; v8-v2 kernel COMPLETE 09:13 (7,9h); GPU quota còn 6,93h (refresh 19/9); LB 3569 đội, ta hạng 183 (cụm 0.947 = 479 đội), cụm 0.948 = 46 đội.
+- Phân tích output v2 (đã tải): PPSWEEP 19 candidates chọn ppTight5565 (proxy 0,9594, +0,0003 vs tight55); rp-ep50 no-op, rp-ep75 làm div_fp 2→4 không tăng div_tp → giữ REPARENT_EDGE_PROB 0,25; v2 KHÔNG nộp (dưới ELEVEN). Phát hiện runtime: PPSWEEP = 6,87/7,95h kernel → v9 lean ≈ 1,5–2h → push được ngay 15/9.
+- REVIEW VER9-RESEARCH.md phát hiện 6 lỗi + 7 thiếu sót, nặng nhất: (E1) attribution mode HOCT sai — log thật "HOCT_VETO_ARMED mode=2", +0.0040 CI-dương thuộc mode 2 (sjlee fielded "-div-b"); (E2) cổng mode 2 "div_tp ≥ +1" bất khả về toán học; (O1) thiếu đòn DIVERGE_UM 4.0/4.5 (kimi-v18 LB-peak, E0 từng sweep sai hướng); (O2) timeline tính sai 4 ngày do không biết sweep chiếm 86% runtime; (O6) gap-edge đã kiểm chứng an toàn (0 cạnh dt>1 trong submission → HOCT max_delta_t=1 phủ mọi cạnh).
+- Khắc phục: VER9-RESEARCH.md rev-2 (sửa 6 lỗi tại chỗ + bù 7 thiếu sót + §10 biên bản review + cấu hình v9 cốt lõi: HOCT mode 2 mặc định + RLF sau cùng + hardcode ppTight5565 + bỏ PPSWEEP + 9 input + cổng mode 2 mới + nhánh C1b); README registry 2 mục ver-9/ver-8 cập nhật.
+- App cập nhật (my-project): competition-data.ts (notes v2 COMPLETE + LB_CONTEXT 3569/183/479), hero.tsx badge, submission-lab.tsx hộp v2 + badge, tracking-demo.tsx MODE_LABEL/console/aria-label — LINT PASS · PM2 online 15h · HTTP 200 · agent-browser xác minh nội dung mới hiển thị đầy đủ · 0 lỗi console.
+- Subagent quét 8 notebook công cộng chưa phân tích: intel mới DIVERGE_UM 4.0–4.5 (đi vào audit A1), SEC_TTA_W/DET_THR trung tính (ghi nhận), structured re-assignment + SSL (không v9), metric exploit đã vá (tuyệt đối không), GT stats p–d 10.4µm/sister 13.7µm (sanity v9.1).
+
+Stage Summary:
+- Kế hoạch v9 sau review rev-2: đúng khung, cấu hình chuẩn hoá (mode 2 + RLF + ppTight5565 + bỏ sweep), EV thực +0.004…+0.007 so với v8 (chỉnh từ +0.021 lẫn baseline), timeline rút ngắn — audit + push ver-9 được ngay 15/9 với quota 6,93h còn lại.
+- Thuật toán bổ sung lý thuyết: DIVERGE (audit), Erlang division-age hazard + volume-drop (v9.1), structured softmax + SSL pretrain (private phase).
+- Sản phẩm: VER9-RESEARCH.md rev-2 (~510 dòng), README registry, app cập nhật v2, worklog Task 41 (repo 622 dòng).
+- Chờ: điểm v8-v1 → rẽ nhánh C1/C1b/C2 → Wave-A audit A1 (GPU ~1,5h) → push ver-9 lean (~2h) → submit theo cổng §6 rev-2.
+
+---
+Task ID: BIO-REVIEW-9 (REV-3 bổ sung)
+Agent: main (Bio)
+Task: Trong review phát hiện v8-v1 fail runtime hidden test → dựng + push kernel v3-fast khắc phục.
+
+Work Log:
+- Query API thọ lộ errorDescription của 56242181: "submission notebook exceeded the allowed runtime… hidden dataset can be larger/smaller/different than the public dataset" + totalBytes=0 → v8-v1 FAIL không có điểm (sau ~12h "PENDING").
+- Lật 2 giả định nền: submission CÓ rerun notebook trên hidden test (kể cả dev-phase); hidden test ~2× public. ver-7 pass (117 phút), v8 fail (6,2h public × ~2 ≈ 12,4h > hạn 12h) — sweep 86% runtime là thủ phạm.
+- Phát hiện submission lạ 56255523 (13:33, không phải tool của ta) PENDING — cảnh báo sẽ fail nếu là kernel v1/v2.
+- Khắc phục: pull source v2 từ Kaggle (khôi phục sau rollback), rút PP_CANDIDATES còn 1 candidate ppTight5565fb (per-prefix + fallback global 5.5), EXPERIMENT_TAG v8_3fast; py_compile + 7/7 unit test + 12 mấu kiểm PASS; push kernel version 3 lúc 13:57 UTC → RUNNING (~1,3-1,8h public).
+- VER9-RESEARCH.md REV-3 (C3 + §10.3-4 + §10.5): bỏ sweep là BẮT BUỘC; v9 = v3-fast + HOCT mode 2 + RLF; chết nhánh chờ điểm v8 → C1b.
+- App cập nhật: competition-data (status RUNNING + 7 notes mới), hero badge, submission-lab (hộp đỏ FAIL + hộp amber v3-fast), tracking-demo (MODE_LABEL/console/aria). Lint PASS (sửa lỗi escape `>`), agent-browser xác minh UI + console sạch.
+
+Stage Summary:
+- Review ver-9 hoàn tất với 3 vòng (rev-2 sửa 6 lỗi + 7 thiếu sót; rev-3 phát hiện runtime failure của v8-v1 và dựng v3-fast khắc phục).
+- v3-fast RUNNING — dự kiến COMPLETE ~15:30-16:00 UTC → kiểm cổng (ΔadjEJ ≥ −0.0005, div_tp ≥ 0, runtime public ≤ 2h) → submit (còn 2 lượt hôm nay).
+- Kế hoạch v9 cuối cùng: nền v3-fast + HOCT mode 2 + RLF sau cùng + audit A1 GPU trước khi tin; EV +0.004…+0.007 so v8.
