@@ -181,7 +181,7 @@ export const roadmap = [
  * (số liệu đo được — không suy đoán)
  * ========================================================================= */
 
-export type KaggleRunStatus = "COMPLETE" | "PENDING" | "RUNNING";
+export type KaggleRunStatus = "COMPLETE" | "PENDING" | "RUNNING" | "SUBMITTED";
 
 export interface KaggleVersionResult {
   id: string;
@@ -285,35 +285,38 @@ export const KAGGLE_RESULTS: KaggleVersionResult[] = [
   {
     id: "ver8",
     label: "Ver 8 · Phase D re-parenting",
-    kaggleRef: "vietnguyen130593/biohub-ver8 v1 · GPU T4×2",
+    kaggleRef: "vietnguyen130593/biohub-ver8 v1+v2 · GPU T4×2",
     lbScore: null,
-    submittedAt: "2026-09-14 21:20 · ĐANG CHẠY (~2,5–3 h)",
-    status: "RUNNING",
-    runSeconds: null,
-    submissionRows: null,
-    proxy: null,
-    adjEJ: null,
-    divJ: null,
+    submittedAt: "2026-09-15 01:09 · ĐÃ NỘP v1 — đang chấm (56242181)",
+    status: "SUBMITTED",
+    runSeconds: 22380,
+    submissionRows: 241330,
+    proxy: 0.9591,
+    adjEJ: 0.9284,
+    divJ: 0.3077,
     notes: [
-      "Cơ chế MỚI re-parenting division recovery: 6/12 sự kiện phân bào GT held-out có cả 2 con đã detect nhưng con thứ 2 bị nối nhầm cha — tháo cạnh sai Y→D2, nối mẹ thật M→D2 khi DivNet + geometry + DeepCenter đồng thuận (mỗi ca ≈ +0,0077 điểm)",
-      "DivNet RANK-ONLY W=15 µm giữ NGUYÊN gate production tau 0,6/diverge 2,25 (khác ver-7b đã thất bại vì nới gate)",
-      "PPSWEEP 16 candidates: 6 rp-* (re-parent tuning + rp-off escape) + 7 gốc + 3 adjEJ mới — validator held-out tự chọn theo gate ±0,0005 adjEJ",
+      "★ v1 COMPLETE sau 6,2 h T4×2 → ĐÃ NỘP 01:09 UTC 15/9 — đang chấm public LB",
+      "PPSWEEP 16 candidates tự chọn tight55: adjEJ held-out 0,9261→0,9284 (+0,0023) · proxy 0,9547→0,9591",
+      "Re-parenting thu hồi +1 sự kiện phân bào thật (div 3/1/9 → 4/1/8), 0 FP thêm, adjEJ +0,0004 — khớp dự báo +0,0077/ca",
+      "So ver-7 apples-to-apples (cùng internal rule): Δproxy +0,0080 ≥ ngưỡng ELEVEN +0,005 → submit tự tin",
+      "Topology submission: 4 video · 122.792 nodes · 118.538 edges · 188 division parents (safe-div 124 + re-parent 77) · guards in-kernel 5/5",
+      "v2 ĐANG CHẠY (push 01:16): + ppTight5565 (per-prefix tight, E2 official +0,0003) + họ rp-ep50/75 mở chứng cứ cạnh yếu prob ≤0,50/0,75 nhắm 3/6 ca còn bị chặn — 17 candidates",
       "Cơ sở: Wave-1 E0 grid 15 combo (CPU) chứng minh safe-div đã đạt trần div_tp=3 — mở gate chỉ thêm FP; re-parenting là con đường duy nhất còn lại",
     ],
   },
 ];
 
-/** Bối cảnh leaderboard cập nhật 14/9 (sau ver-7 chấm xong) */
+/** Bối cảnh leaderboard cập nhật 15/9 00:40 UTC (3551 đội) */
 export const LB_CONTEXT = {
   ourTeam: "daoviet",
   ourScore: 0.947,
-  ourRank: 342,
-  /** Cụm 401 đội fork notebook Reyhan Ksatria cùng 0.947 (hạng 106–506) */
+  ourRank: 227,
+  /** Cụm 445 đội fork notebook Reyhan Ksatria cùng 0.947 */
   wallScore: 0.947,
-  wallTeams: 401,
-  /** Cụm kế tiếp cần vượt: 40 đội 0.948 (hạng 66–105) */
+  wallTeams: 445,
+  /** Cụm kế tiếp cần vượt: 44 đội 0.948 (hạng 66–109) */
   nextClusterScore: 0.948,
-  nextClusterTeams: 40,
+  nextClusterTeams: 44,
   topScore: 0.97,
 } as const;
 

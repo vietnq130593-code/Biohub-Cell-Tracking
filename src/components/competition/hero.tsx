@@ -90,7 +90,7 @@ export function Hero() {
             className="border-amber-400/40 bg-amber-400/10 text-amber-200 backdrop-blur-sm"
           >
             <Loader2 className="mr-1 h-3 w-3 animate-spin" aria-hidden />
-            Ver 8 · re-parenting division recovery — ĐANG CHẠY (GPU T4×2)
+            Ver 8 · v1 ĐÃ NỘP — đang chấm public LB · v2 đang chạy (nâng cấp re-parent + per-prefix tight)
           </Badge>
         </motion.div>
 

@@ -1,5 +1,9 @@
 """make-ver8-ipynb.py — Đóng gói notebook ver-8 (Phase D: re-parenting + DivNet RANK-ONLY gate gốc).
 
+v2 (15/9): + per-prefix tight gate (ppTight5565 từ E2 wave1 official +0.0003),
+   + rp-ep50/rp-ep75/rp-ep75-pdiv75/rp-ep75-tau06 (mở khoá ca 1/4/6 — cạnh hiện tại
+   prob 0.49–0.70), bỏ 4 candidate no-op (rp-pdiv30/ep35/far8/max11).
+
 Cấu trúc notebook (3 cell):
   [markdown] header — settings T4×2, Internet OFF, 8 nguồn input (như ver-7b)
   [code] S1 monolith — ver-8 (port 0.947 + divnet RANK-ONLY gate production + [ver8] re-parent)
@@ -30,6 +34,10 @@ HEADER_MARKDOWN = """# ver 8 — Biohub Cell Tracking (Phase D: Re-parenting div
    safe-div không bao giờ xét). Cơ chế: tháo cạnh yếu `Y→D2` + nối `M→D2` khi DivNet + geometry +
    cạnh hiện tại yếu + DeepCenter đồng thuận. Mỗi sự kiện thu hồi ≈ +0.0077 điểm.
 
+**v2 nâng cấp** (từ kết quả v1 + wave1 E2): ppTight5565 (per-prefix tight 44b6→5.5/6bba→6.5,
+official +0.0003) + họ rp-ep50/75 (mở chứng cứ cạnh yếu lên prob ≤ 0.50/0.75 — nhắm 3/6 ca re-parent
+bị chặn bởi edge_prob 0.49–0.70, bù precision bằng pdiv 0.75 / tau 0.6); bỏ 4 candidate no-op.
+
 **Settings trước khi Run All**
 
 | Thiết lập | Giá trị |
@@ -41,7 +49,7 @@ HEADER_MARKDOWN = """# ver 8 — Biohub Cell Tracking (Phase D: Re-parenting div
 + official-scorer + local-cv-pack + v6-heldout-preds + **giorgosi/biohub-divnet-v2**.
 
 **2 code cell:**
-- **S1 — monolith** (~2h T4×2): ver-8 với PPSWEEP mở rộng (candidates re-parent + 7 gốc; chọn theo
+- **S1 — monolith** (~2h T4×2): ver-8 với PPSWEEP mở rộng (17 candidates; chọn theo
   gate ±0.0005 adjEJ đã có sẵn) + eval cell tự chấm official system-view trong run.
 - **S2 — Phase B official eval** (exception-safe): self + baseline ver-6 → JSON schema chung.
 
@@ -96,6 +104,11 @@ def static_checks() -> None:
         "EXPERIMENT_TAG = 'secondary_deepcenter_tta_0947_reparent_v8'",
         "'REPARENT_MAX_UM', 'REPARENT_SISTER_UM'",
         "phase_d_reparent_division_recovery",
+        # [ver8.2] per-prefix tight + họ rp-ep mở chứng cứ cạnh yếu
+        "MOTION_RELINK_TIGHT_PER_PREFIX",
+        "tight_gate_um=_pp_tight_gate",
+        "'rp-ep75': {'REPARENT_EDGE_PROB': 0.75}",
+        "'ppTight5565': {'MOTION_RELINK_TIGHT_PER_PREFIX': {'44b6': 5.5, '6bba': 6.5}}",
     ]
     for token in required:
         if token not in text:

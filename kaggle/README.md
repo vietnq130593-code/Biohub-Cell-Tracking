@@ -20,6 +20,8 @@ notebook Kaggle gốc rồi **Save & Run All → Submit**.
 | 5 | Fork giải pháp ML 0.945 — cell 5 ver 5.1 nâng cấp | nghiên cứu ✓ + nâng cấp ✓ | — |
 | 6 | Ensemble 2 lượt + retention guard | **0.945** ×2 deterministic | 13/09/2026 |
 | 7 | Port monolith Reyhan 0.947 + Phase B official eval | **0.947** ✓ (hạng 342/3523) | 14/09/2026 |
+| 8 | Phase D re-parenting + DivNet rank-only + PPSWEEP tight55 | v1 đã nộp **PENDING** (ref 56242181) · Δproxy +0.0080 vs ver-7 · v2 RUNNING | 15/09/2026 |
+| 9 | (nghiên cứu) rlf filter + DivNet-v2 synthetic + peak/volume features | nghiên cứu ✓ `ver-9-planning/VER9-RESEARCH.md` | — |
 
 ## Hotfix — NameError STRUCT26 (rơi trên Kaggle 13/09/2026)
 
@@ -167,6 +169,18 @@ continuation, 72 cạnh phân bào, 572 track) — không phải dự đoán:
 - File: `ver-7/cell-monolith.py` · `ver-7/make-ver7-ipynb.py` · `download/ver7-cell-tracking.ipynb` · `ver-7-planning/{VER7-PLAN, PORT-CHECKLIST, REVIEW-PHASE-B}.md` · `eval/{cell-eval-official.py, compare.py}` · `eval/reports/ver7-vs-ver6-official.md`
 - **ver-7b (Phase C)** — DivNet RANK-ONLY W=15µm + nới gate tau 0.6→1.2 / diverge 2.25→1.0: div_tp 3→4 nhưng div_fp 1→21 → proxy 0.9511→0.9380 = regression → **KHÔNG nộp** (phán quyết `eval/reports/ver7b-phase-c-verdict.md`; hướng v2: giữ gate gốc + RANK-ONLY)
 - **Mục tiêu ver-8: ≥ 0.948** (cụm 40 đội hạng 66–105) — nghiên cứu đầy đủ `ver-8-planning/VER8-RESEARCH.md` (phát hiện chính: đỉnh 0.966+ là hoá thạch lỗi metric đã vá 17/7 — megayak; điều khoản division đáng +0.100, hiện 0 TP/12 FN; ràng buộc là RANKING không phải gates; cụm 0.948 là private tweaks)
+
+## ver 9 — Nghiên cứu tri thức mới 15/9 (đang soạn)
+
+- Nguồn mới khai thác: 5 notebook public (pawanmali **divfix** 15/9 · zhincez
+  **smaller-not-dimmer** · binasalama gap-recovery = đã có trong stack ta ·
+  zhincez 0.947-runnable = Reyhan v5 · caassicca thr099b) + 4 discussion thread
+  (synthetic dataset 18.5GB CC0 **165k divisions** · 75-phút saving · magic-or-overfitting).
+- 6 phát hiện N1–N6 + phân tích 5 bậc nhân quả + kế hoạch 3 waves: đọc
+  `ver-9-planning/VER9-RESEARCH.md` (mục tiêu: v9 = v8 + rlf + DivNet-v2 +
+  peak/volume features, kỳ vọng +0.002..0.010 so v8).
+- Đo trực tiếp submission ver8-v1: 188 forks / **19 repeat-lineage (10%)** —
+  trần của bộ lọc divfix (GT: 0/132 divisions lặp lineage).
 
 ## ver 6 — Ensemble 2 lượt phát hiện + retention guard (LB 0.945 ×2 deterministic)
 

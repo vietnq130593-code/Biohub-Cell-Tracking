@@ -1010,15 +1010,16 @@ function VersionsTab() {
                 ver 8 · Phase D re-parenting
               </span>
               <Badge className="bg-amber-500 text-[10px] leading-4 text-amber-950 hover:bg-amber-500 sm:text-xs">
-                ĐANG CHẠY · GPU T4×2 (~2,5–3 H)
+                v1 ĐÃ NỘP · ĐANG CHẤM — v2 ĐANG CHẠY (GPU T4×2)
               </Badge>
             </CardTitle>
             <CardDescription>
               Kernel{" "}
               <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
-                vietnguyen130593/biohub-ver8 v1
+                vietnguyen130593/biohub-ver8 v1+v2
               </code>{" "}
-              — push 21:20 ngày 14/9, 8 input, ước lượng 2,5–3 h trên T4×2.
+              — v1 chạy 6,2 h COMPLETE → nộp 01:09 UTC 15/9 (56242181); v2 nâng cấp
+              push 01:16 (17 candidates).
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -1042,14 +1043,27 @@ function VersionsTab() {
                   mới — validator held-out tự chọn theo gate ±0.0005 adjEJ
                 </li>
               </ul>
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
                 <p className="font-mono font-semibold">
-                  6/12 sự kiện phân bào GT held-out → re-parent (≈ +0.0077
-                  điểm/ca)
+                  KẾT QUẢ v1 (held-out internal, cùng rule ver-7): Δproxy +0.0080
+                  — đạt ngưỡng ELEVEN +0.005 → submit tự tin
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  Cả 2 con đã detect nhưng con thứ 2 bị nối nhầm cha — đúng
-                  phân rã Wave-1: 9/12 FN không thể cứu bằng safe-div gate.
+                  Re-parent thu hồi +1 sự kiện thật (div 3/1/9 → 4/1/8, 0 FP thêm,
+                  adjEJ +0.0004) · PPSWEEP chọn tight55 (adjEJ 0.9261 → 0.9284) ·
+                  topology 4 video · 122.792 nodes · 188 division parents · guards
+                  5/5.
+                </p>
+              </div>
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+                <p className="font-mono font-semibold">
+                  v2 nâng cấp đang chạy — nhắm 3/6 ca re-parent còn bị chặn
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  + ppTight5565 (per-prefix tight 44b6→5.5/6bba→6.5 — E2 official
+                  +0.0003) · + rp-ep50/ep75 (mở chứng cứ cạnh yếu prob ≤0.50/0.75 —
+                  3 ca cạnh sai prob 0.49–0.70) · bù precision bằng pdiv 0.75 /
+                  tau 0.6 · rp-off escape giữ an toàn.
                 </p>
               </div>
             </div>
@@ -1089,6 +1103,15 @@ function VersionsTab() {
                       </TableCell>
                       <TableCell className="py-1.5 font-mono text-[11px]">
                         6/12 → re-parent · 3/12 thiếu detection
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="py-1.5 text-xs">
+                        E2 · PPSWEEP-2 (20 config, wave1 v5)
+                      </TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px]">
+                        pp-tight-55-65 official 0.9437 (+0.0003) · relaxed8 bị
+                        gate adjEJ chặn đúng thiết kế
                       </TableCell>
                     </TableRow>
                   </TableBody>

@@ -609,3 +609,56 @@ Stage Summary:
 - Đã nắm toàn bộ tri thức ver-8: công thức điểm adjEJ + 0.1×divJ (đối chiếu 3 nguồn), phân rã 12 GT division (3 nhóm A/B/C), 4 bằng chứng độc lập chứng minh "ràng buộc là RANKING không phải GATES", 6 ca re-parent chi tiết (2/6 cạnh yếu + 4/6 cần DivNet; prob(M→D2)=0.858; 3/6 cạnh sai có prob 0.65-0.91), E0 grid 15 combo không tăng div_tp quá 3, E1 system-view adjEJ 0.9280 + div 2/1/10 → proxy 0.9434.
 - Kịch bản điểm ver-8: an toàn (thu 2/6 re-parent) → proxy +0.015 → LB ước 0.950-0.955; thận trọng (1/6) → +0.008 → 0.947-0.949; rủi ro div_fp nổ → cổng Phase B v2 chặn.
 - Đã trình bày báo cáo phát hiện + đề xuất xếp hạng cho user (kiểm tra kết quả ver-8 cần token Kaggle; các đòn kế tiếp: PPSWEEP chọn config, DIVERGE_UM 4.0-4.5 insight kimi-v18 chưa sweep, per-prefix tight, wave-3 tuỳ chọn).
+
+---
+Task ID: BIO-DEPLOY-8
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: Triển khai ver-8 với mọi vấn đề được khắc phục + nâng cấp nơi có thể (user cấp token Kaggle KGAT_…)
+
+Work Log:
+- CÀI TOKEN + CLI: kaggle 2.2.4 vào venv (python3 -m pip; pip hệ thống bị PEP 668 chặn; lưu ý import kaggle từ cwd /home/z/my-project là NHẦM thư mục kaggle/ local).
+- TRẠNG THÁI KAGGLE 22:39 UTC 14/9: biohub-ver8 v1 (GPU, push 18:42:54) RUNNING + biohub-ver8-wave1 v5 RUNNING; GPU quota 12,90/30h; LB 3551 đội — daoviet hạng 227 (0,947), cụm 0,948 = 44 đội.
+- WAVE1 v5 COMPLETE 00:07 → tải output/wave1-v5: E1 xác nhận adjEJ 0,9280 + div 2/1/10 proxy 0,9434; E2 PPSWEEP-2 (18 global + 2 per-prefix): pp-tight-55-65 official 0,94371 (+0,00032 vs tight55, +1 tp −1 fp −1 fn) = config tốt nhất; relaxed8 (div 4/2/8 internal) bị gate adjEJ −0,0005 chặn đúng thiết kế; E3: FP tập trung khung 5–12 (6bba_07e24132, ~330 FP/khung) + khung 33–37 (44b6_267148e4, ~270/khung). Lưu WAVE1-V5-E2E3-KET-QUA.md.
+- VER-8 v1 COMPLETE 00:57 (~6,2h T4×2) → tải output/ver8-v1 + viết analyze-ver8.py:
+  * PPSWEEP 16 candidates → CHỌN tight55 (proxy 0,9547→0,9591, adjEJ 0,9261→0,9284); ppsweep_selected.json key là "selected" (script đầu đọc nhầm "selected_label").
+  * SO SÁNH apples-to-apples vs ver-7 (cùng internal rule, ppsweep_results_v7.csv): ver-7 tight55 = 0,9511 (div 3/1/9) → ver-8 tight55 = 0,9591 (div 4/1/8) = Δproxy +0,0080 — ĐÚNG dự báo +0,0077/sự kiện; rp-off (tắt re-parent) = 0,9490 (3/1/9) = đối chứng.
+  * Re-parent trong production: 77 cạnh test (16+19+3+39) + 71 cạnh val; div_fp KHÔNG tăng ở config tight55.
+  * Submission 241.330 dòng · 122.792 nodes · 118.538 edges · 188 division parents (safe-div 124 + re-parent ~77 trùng lặp một phần) · kiểm định local: 0 cạnh sai thời gian, max_out 2, max_in 1 ✓.
+  * Cổng: ΔadjEJ +0,0004 ✓ · div_fp +0 ✓ · ELEVEN Δproxy +0,0080 ≥ +0,005 ✓ (div_tp +1 < +2 — dưới mục tiêu nhưng dương).
+- SUBMIT v1 01:09:47 UTC 15/9 (ref 56242181) — 4 lượt còn lại hôm nay.
+- PHÂN TÍCH 6 CA RE-PARENT: chỉ 2/6 qua được kiểm chứng cạnh yếu (ca 2, 5 — prob→0); ca 1/4/6 (prob 0,49–0,70) bị chặn bởi REPARENT_EDGE_PROB=0,25; ca 3 (prob 0,914, |Y→D2|=1,62µm) khó nhất. rp-pdiv30/ep35/far8/max11 = no-op (xác nhận pdiv/far/max không phải nút thắt).
+- VER-8 v2 (NÂNG CẤP) — sửa kaggle/ver-8/cell-monolith.py:
+  1. MOTION_RELINK_TIGHT_PER_PREFIX (env JSON, dict) + motion_relink_edges(tight_gate_um=) + filter_output_graph truyền per-prefix theo prefix dataset (44b6/6bba).
+  2. PP_SWEEP_KEYS + 'MOTION_RELINK_TIGHT_PER_PREFIX'; PP_CANDIDATES 17 mục: bỏ 4 no-op (rp-pdiv30/ep35/far8/max11), thêm rp-ep50 (mở ca 4: 0,494), rp-ep75 (ca 1: 0,647 + ca 6: 0,700), rp-ep75-pdiv75 + rp-ep75-tau06 (bù precision), ppTight5565 ({'44b6': 5.5, '6bba': 6.5} — E2 official +0,0003).
+  3. py_compile PASS + unit test 5/5 (parse per-prefix, default rỗng, pp_apply dict conversion, 17 candidates mọi key sweepable, call-site).
+  4. make-ver8-ipynb.py: header v2 + 4 mấu kiểm mới → build notebook 305KB PASS (4453 dòng monolith nguyên văn).
+- PUSH v2 01:16 UTC 15/9 → RUNNING (kernel version 2).
+- APP CẬP NHẬT: competition-data.ts (ver8: status SUBMITTED, runSeconds 22380, rows 241330, proxy 0,9591/adjEJ 0,9284/divJ 0,3077, 7 notes kết quả + v2; LB_CONTEXT rank 227/3551, cụm 0,948 = 44 đội; type +SUBMITTED) · hero.tsx (badge "v1 ĐÃ NỘP — đang chấm · v2 đang chạy") · tracking-demo.tsx (MODE_LABEL, VERSION_INFO 6 chips, STATUS_BADGE +SUBMITTED, console log 10 dòng: +1 sự kiện thật/ppsweep tight55/v1-run 6,2h/submit 56242181/v2-run) · submission-lab.tsx (badge v1+v2, hộp emerald KẾT QUẢ v1 Δproxy +0,0080, hộp amber v2 nâng cấp, bảng + hàng E2).
+- LINT EXIT 0 · agent-browser: trang 200, 0 console errors, selector ver-8 checked với label mới, nội dung Δproxy +0.0080 + E2 hiển thị, mobile 390px scrollWidth=390. Screenshot kaggle/tools/e2e-ver8v1-submitted.png.
+
+Stage Summary:
+- VER-8 v1 ĐÃ TRIỂN KHAI: nộp 01:09 UTC 15/9 (56242181) — đang chấm; bằng chứng held-out Δproxy +0,0080 vs ver-7 (đạt ELEVEN), adjEJ +0,0004, div_fp +0, topology hợp lệ 188 division parents.
+- VER-8 v2 ĐANG CHẠY (push 01:16): 5 ứng viên mới nhắm 3/6 ca re-parent còn bị chặn + per-prefix tight — quyết định submit v2 theo cùng cổng khi xong (~6,5h).
+- Wave-1 v5 đóng: pp-tight-55-65 official 0,9437 (+0,0003) → đã đưa vào v2 làm candidate ppTight5565.
+- Đang chờ: điểm public LB v1 (PENDING ~30 phút), v2 COMPLETE dự kiến ~07:45 UTC 15/9.
+
+---
+Task ID: BIO-RESEARCH-9
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: Trong lúc v8 chưa có điểm: khai thác nguồn tri thức mới từ Kaggle hub, phân tích nhân quả, đề xuất hướng v9 nâng điểm so với v8
+
+Work Log:
+- Kiểm tra trạng thái Kaggle (07:29 UTC): v8-v1 submission 56242181 vẫn PENDING; kernel v8-v2 RUNNING; GPU quota 21.32/30h (còn 8.68h); LB 3561 đội
+- Kéo 5 notebook public mới về kaggle/api/research/0949-research/: pawanmali divfix (15/9) + zhincez a-dividing-nucleus (13/9) + binasalama gap-recovery (14/9) + zhincez 0.947-runnable + caassicca thr099b
+- Đọc trực tiếp notebook zhincez "smaller not dimmer": đo GT bootstrap — volume -0.27 tại +3, thấp từ -2 trước tách; peak sáng giữ nguyên; mean rơi là ảo ảnh hình học
+- 2 subagent phân tích pawanmali divfix + binasalama gap-recovery: divfix = repeat-lineage filter (GT 0/132 lặp lineage, +0.0021 đo được); gap-recovery = code đã có trong stack ta (superset), giá trị chỉ là profile clean-strict DET 0.985
+- agent-browser đọc 4 discussion thread: 732103 (synthetic dataset 18.5GB CC0, 165k divisions — 540× GT; Lê Quang Cảnh đo linker 0/7 gắn con thứ 2 + reachability 9.9µm→71%/12µm→86%/15µm→100%; motion-relink phá mọi fork ILP; Juan Neira domain-shift warning -0.004 LB) + 741242 (Hammad tiết kiệm 75 phút hardcode tight55, HOCT budget) + 740145 (hengck23 magic/overfit) + 741386 (external data, 0 comment)
+- Leaderboard: top-50 0.951+; Lê Quang Cảnh 0.952 hạng 32 (bằng chứng division đang trả thưởng)
+- ĐO TRỰC TIẾP trên submission ver8-v1: 188 forks / 19 repeat-lineage (10%) / 19 cạnh xóa được → trần divfix
+- Viết kaggle/ver-9-planning/VER9-RESEARCH.md: 6 phát hiện mới (N1-N6) + phân tích 5 bậc nhân quả (metric → nút thắt T1-T4 → đòn D1-D6 → tương tác → quota) + kế hoạch 3 waves (α rlf port + synthetic data prep; β DivNet-v2 pretrain+finetune+calibrate; γ ver-9 run) + cây quyết định theo kết quả v8-v1/v2
+- Cập nhật kaggle/README.md registry với mục ver-9 research
+
+Stage Summary:
+- Tri thức mới giá trị nhất: (1) divfix repeat-lineage filter +0.001..0.003 chi phí ~0; (2) synthetic dataset 165k divisions nuôi DivNet-v2 (phải finetune+calibrate); (3) linker KHÔNG BAO GIỜ gắn con thứ 2 — re-parent post-hoc của ver-8 là đúng hướng; (4) volume-shrinkage là feature bằng chứng mới (peak không mean); (5) motion-relink phá fork ILP — xác nhận kiến trúc post-link
+- v9 = ver-8 + rlf filter + DivNet-v2 synthetic-pretrained + peak/volume features + cấu hình thắng từ v2; cổng Phase B v3 thêm guard G6
+- Chờ: v8-v1 điểm (calibrate mọi Δ), v8-v2 COMPLETE (~08:00-09:00 UTC) → quyết định REPARENT_EDGE_PROB mặc định

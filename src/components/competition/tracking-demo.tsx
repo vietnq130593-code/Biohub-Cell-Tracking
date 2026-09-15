@@ -387,7 +387,7 @@ interface RuntimeState {
 type Mode = 'ver8' | 'ver6' | 'ver7' | 'custom'
 
 const MODE_LABEL: Record<Mode, string> = {
-  ver8: 'Ver 8 · đang chạy',
+  ver8: 'Ver 8 · đã nộp — đang chấm',
   ver7: 'Ver 7 · Kaggle 0.947',
   ver6: 'Ver 6 · Kaggle 0.945',
   custom: 'Tùy chỉnh',
@@ -403,9 +403,9 @@ const VERSION_INFO: Record<Exclude<Mode, 'custom'>, string[]> = {
     'nền ver-7 (dual-seed + fusion + safe-div + retention + DeepCenter + TTA)',
     'divnet division rank: RANK-ONLY W=15 µm · giữ gate gốc tau 0.6 / diverge 2.25',
     're-parenting: tháo cạnh sai Y→D2 · nối mẹ thật M→D2',
-    'đồng thuận DivNet + geometry + DeepCenter — 6/12 sự kiện GT (≈ +0.0077 điểm/ca)',
-    'PPSWEEP 16 candidates: 6 rp-* (tuning + rp-off escape) + 7 gốc + 3 adjEJ mới',
-    'validator held-out tự chọn theo gate ±0.0005 adjEJ',
+    'v1 thu hồi +1 sự kiện thật (div 3/1/9 → 4/1/8) · Δproxy +0.0080 vs ver-7',
+    'PPSWEEP 16 candidates → chọn tight55: adjEJ 0.9261 → 0.9284',
+    'v2 đang chạy: + ppTight5565 + rp-ep50/75 (mở chứng cứ cạnh yếu)',
   ],
   ver6: [
     '2 lượt phát hiện độc lập (primary + seed 314159)',
@@ -439,6 +439,10 @@ const STATUS_BADGE: Record<KaggleRunStatus, { label: string; cls: string }> = {
   RUNNING: {
     label: 'ĐANG CHẠY',
     cls: 'border-teal-500/40 bg-teal-500/10 text-teal-700 dark:text-teal-300',
+  },
+  SUBMITTED: {
+    label: 'ĐÃ NỘP · ĐANG CHẤM',
+    cls: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300',
   },
 }
 
@@ -1178,8 +1182,8 @@ export default function TrackingDemo() {
                 aria-label="Chọn phiên bản thuật toán"
                 className="flex-wrap"
               >
-                <ToggleGroupItem value="ver8" aria-label="Ver 8, Phase D re-parenting division recovery — đang chạy trên Kaggle">
-                  Ver 8 · đang chạy
+                <ToggleGroupItem value="ver8" aria-label="Ver 8, Phase D re-parenting division recovery — v1 đã nộp, đang chấm public LB; v2 đang chạy">
+                  Ver 8 · đã nộp — đang chấm
                 </ToggleGroupItem>
                 <ToggleGroupItem value="ver7" aria-label="Ver 7, port notebook Reyhan — public LB 0.947">
                   Ver 7 · 0.947
@@ -1295,9 +1299,11 @@ export default function TrackingDemo() {
                     return [
                       ...base,
                       `[ver8·divnet] division rank RANK-ONLY W=15 µm · giữ NGUYÊN gate production tau 0.6 / diverge 2.25 (khác ver-7b nới gate đã thất bại)`,
-                      `[ver8·re-parent] tháo cạnh sai Y→D2 · nối mẹ thật M→D2 · DivNet + geometry + DeepCenter đồng thuận · 6/12 sự kiện GT (≈ +0.0077 điểm/ca)`,
-                      `[ppsweep] 16 candidates: 6 rp-* (re-parent tuning + rp-off escape) + 7 gốc + 3 adjEJ mới — validator held-out tự chọn (gate ±0.0005 adjEJ)`,
-                      `[submit] biohub-ver8 v1 · GPU T4×2 · push 21:20 14/9 → ĐANG CHẠY (~2,5–3 h)`,
+                      `[ver8·re-parent] tháo cạnh sai Y→D2 · nối mẹ thật M→D2 · DivNet + geometry + DeepCenter đồng thuận · thu hồi +1 sự kiện thật (div 3/1/9 → 4/1/8)`,
+                      `[ppsweep] 16 candidates → chọn tight55 · adjEJ held-out 0.9261 → 0.9284 · proxy 0.9547 → 0.9591 (Δ+0.0080 vs ver-7 — đạt ngưỡng ELEVEN +0.005)`,
+                      `[v1-run] T4×2 · 6,2 h COMPLETE · 241.330 dòng · 122.792 node · 118.538 cạnh · 188 division parents · guards 5/5`,
+                      `[submit] 56242181 · nộp 01:09 UTC 15/9 → ĐANG CHẤM public LB`,
+                      `[v2-run] push 01:16 → ĐANG CHẠY: + ppTight5565 (per-prefix tight, official +0.0003) + rp-ep50/75 (mở chứng cứ cạnh yếu prob ≤0.50/0.75, nhắm 3/6 ca còn bị chặn)`,
                     ].join('\n')
                   }
                   if (mode === 'ver7') {
