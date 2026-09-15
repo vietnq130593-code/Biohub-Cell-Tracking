@@ -1,8 +1,8 @@
 {
   "method": "unet_transformer_val",
-  "predict_val_seconds": 1026.1383502483368,
+  "predict_val_seconds": 996.1337313652039,
   "resume_schema": "biohub_0947_live_resume_v1",
-  "signature": "10527ee616526ab7e5b3aad7af0d5e008eba4d867aa41eabd3139482d3c3bcce",
+  "signature": "47b050a3b7ecae8dc04023433bc9c752154eb0555b7f86fd94e7b7605507c5c1",
   "status": "complete",
   "val_stems": [
     "44b6_12dfb391",

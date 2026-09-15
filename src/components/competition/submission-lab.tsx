@@ -1001,7 +1001,150 @@ function VersionsTab() {
     <div className="space-y-6">
       {/* Registry phiên bản */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {/* ver 8 — đang chạy */}
+        {/* ver 9 — đã nộp A/B, đang chấm */}
+        <Card className="border-emerald-500/40 bg-emerald-500/[0.03] md:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+              <span className="flex items-center gap-2">
+                <ScanSearch className="h-4 w-4 text-emerald-600 dark:text-emerald-300" aria-hidden />
+                ver 9 · HOCT consensus veto + RLF
+              </span>
+              <Badge className="gap-1 bg-emerald-500 text-[10px] leading-4 text-emerald-950 hover:bg-emerald-500 sm:text-xs">
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                ĐÃ NỘP A/B · ĐANG CHẤM HIDDEN TEST
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                56261328
+              </code>{" "}
+              (ver-9, kernel{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                biohub-ver9 v1
+              </code>
+              , nộp 19:07 UTC 15/9) + đối chứng{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                56261360
+              </code>{" "}
+              (v3-fast, kernel{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                biohub-ver8 v3
+              </code>
+              , nộp 19:09 UTC) — Kaggle rerun trên hidden test ~4,8h → điểm dự
+              kiến ~00:00–01:00 UTC.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="space-y-3">
+              <p className="text-sm font-medium">Kiến trúc (trên nền v3-fast):</p>
+              <ul className="space-y-1.5 text-sm text-muted-foreground">
+                <li>
+                  • <span className="font-semibold text-foreground">HOCT consensus veto mode 2</span>{" "}
+                  — port nguyên văn sjlee101/biohub-lf-hoctveto-div-b: linker
+                  thứ hai độc lập (royerlab general_v0, 6,25M params, arXiv
+                  2607.11754) chạy trên node set FINAL mỗi video — mọi cạnh
+                  (kể cả division) mà HOCT không đề xuất đều bị bỏ
+                </li>
+                <li>
+                  • <span className="font-semibold text-foreground">Repeat-lineage filter</span>{" "}
+                  (port pawanmali divfix): fork có tổ tiên cũng fork → bỏ cạnh
+                  con xa hơn · GT thật 0/132 lặp lineage · guard hoàn tác nếu bỏ
+                  &gt; 0,5% cạnh
+                </li>
+                <li>
+                  • <span className="font-semibold text-foreground">Tight hardcode</span> per-prefix
+                  44b6→5,5 / 6bba→6,5 µm · <span className="font-semibold text-foreground">BỎ PPSWEEP hoàn toàn</span>{" "}
+                  (v1/56242181 fail hidden-test runtime vì sweep 86% runtime)
+                </li>
+                <li>
+                  • <span className="font-semibold text-foreground">9 input</span>: 7 dataset của
+                  ver-8 + sjlee101/biohub-hoct-020-wheels +
+                  musculer/biohub-hoct-general-v0-official
+                </li>
+              </ul>
+              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
+                <p className="font-mono font-semibold">
+                  KẾT QUẢ KERNEL + [ver9-gate] trên 8 stems
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  adjEJ 0,9287 → 0,9303 (<span className="font-semibold text-emerald-700 dark:text-emerald-300">+0,0017 dương ổn định ~71k cạnh</span>) · div_tp 4→3
+                  (−1/4 mẫu — nhiễu nhỏ) · proxy −0,0060 → verdict{" "}
+                  <span className="font-mono font-semibold">FALLBACK_V3FAST</span>{" "}
+                  theo cổng §6 rev-2. Tín hiệu trái chiều (adjEJ dương + sjlee
+                  field +0,0040 CI-dương vs proxy âm do divJ thưa 10×) → nộp
+                  field A/B CẢ HAI để tách dứt điểm hiệu ứng veto trên LB thật.
+                </p>
+              </div>
+              <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+                <p className="flex items-start gap-2">
+                  <ListChecks className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" aria-hidden />
+                  <span>
+                    <span className="font-mono font-semibold">[ver9-run]</span>{" "}
+                    kernel COMPLETE 2,4h: test 4 video → 240.873 dòng → HOCT veto
+                    áp trong lần ghi (mode 2, 4 cạnh, 949s) → RLF bỏ 2 cạnh →{" "}
+                    <span className="font-mono font-semibold">240.871 dòng</span>{" "}
+                    cuối · topology 0 lỗi (0 cạnh dt≠±1 · max_out 2 · max_in 1) ·
+                    76 division parents · RLF 0,0017% cạnh
+                  </span>
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Cơ sở v3-fast (nền của ver-9 — đã chạy xong)
+              </p>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">thước đo</TableHead>
+                      <TableHead className="text-xs">kết quả</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="py-1.5 text-xs">
+                        runtime GPU T4×2
+                      </TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">
+                        1,74 h ≤ 2 h — hidden ~2× vẫn an toàn
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="py-1.5 text-xs">adjEJ</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">
+                        0,9287 (+0,0025 ≥ −0,0005)
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="py-1.5 text-xs">division</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">
+                        4/1/8 (div_tp 4 = 4 ≥ 0 · div_fp −1 ≤ +3)
+                      </TableCell>
+                    </TableRow>
+                    <TableRow className="bg-muted/50 font-semibold">
+                      <TableCell className="py-1.5 text-xs">
+                        proxy · submission
+                      </TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">
+                        0,9594 (ppTight5565fb) · 241.355 dòng
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                Kernel{" "}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                  biohub-ver8 v3
+                </code>{" "}
+                (push 13:57 UTC 15/9) COMPLETE 15:35 UTC — <span className="font-semibold text-foreground">tất cả cổng PASS</span> · đã nộp làm ĐỐI CHỨNG A/B (56261360, 19:09 UTC) cùng batch chấm với ver-9.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ver 8 — v3-fast COMPLETE (fallback ver-9) */}
         <Card className="border-amber-500/40 bg-amber-500/[0.03] md:col-span-2">
           <CardHeader>
             <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
@@ -1010,7 +1153,7 @@ function VersionsTab() {
                 ver 8 · Phase D re-parenting
               </span>
               <Badge className="bg-amber-500 text-[10px] leading-4 text-amber-950 hover:bg-amber-500 sm:text-xs">
-                v1 FAIL RUNTIME — v3-fast ĐANG CHẠY (sửa lỗi hidden test)
+                v3-fast COMPLETE — cổng PASS (fallback ver-9)
               </Badge>
             </CardTitle>
             <CardDescription>
@@ -1020,7 +1163,8 @@ function VersionsTab() {
               </code>{" "}
               — v1 nộp 01:09 UTC 15/9 (56242181) FAIL sau ~12h: rerun trên hidden
               test (lớn hơn public ~2×) vượt runtime limit; v2 COMPLETE 09:13
-              nhưng cùng lỗi chậm; v3-fast push 13:57 (kernel version 3).
+              nhưng cùng lỗi chậm; v3-fast push 13:57 → COMPLETE 1,74h — cổng
+              PASS.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -1071,13 +1215,14 @@ function VersionsTab() {
               </div>
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
                 <p className="font-mono font-semibold">
-                  v3-fast PUSH 13:57 UTC — cứu re-parent bằng cách rút sweep còn 1 candidate
+                  v3-fast COMPLETE 1,74h — CỔNG PASS (nền &amp; fallback của ver-9)
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  ppTight5565fb (per-prefix 44b6→5.5/6bba→6.5 + fallback global 5.5 cho
-                  prefix lạ trên hidden) · public ~1,3-1,8h → hidden ~2,5-3,6h an toàn ·
-                  REPARENT_EDGE_PROB giữ 0,25 (v2: mở chỉ thêm FP) · py_compile + 7/7 unit
-                  test PASS · 12 mấu tích hợp đủ mặt.
+                  Rút sweep còn 1 candidate ppTight5565fb (per-prefix
+                  44b6→5.5/6bba→6.5 + fallback global 5.5 cho prefix lạ trên
+                  hidden) · runtime 1,74h ≤ 2h · adjEJ +0,0025 · div 4/1/8 ·
+                  proxy 0,9594 · 241.355 dòng · REPARENT_EDGE_PROB giữ 0,25
+                  (v2: mở chỉ thêm FP).
                 </p>
               </div>
             </div>

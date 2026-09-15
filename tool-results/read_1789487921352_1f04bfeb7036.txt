@@ -1,0 +1,2002 @@
+     1→"use client";
+     2→
+     3→import * as React from "react";
+     4→import { motion } from "framer-motion";
+     5→import {
+     6→  Activity,
+     7→  ArrowDown,
+     8→  ArrowUp,
+     9→  BarChart3,
+    10→  BookOpenCheck,
+    11→  Calculator,
+    12→  CircleAlert,
+    13→  CircleCheck,
+    14→  ClipboardPaste,
+    15→  Database,
+    16→  FileSearch,
+    17→  FlaskConical,
+    18→  Gauge,
+    19→  GitBranch,
+    20→  GitFork,
+    21→  Lightbulb,
+    22→  ListChecks,
+    23→  Loader2,
+    24→  OctagonAlert,
+    25→  Play,
+    26→  Ruler,
+    27→  ScanSearch,
+    28→  Target,
+    29→  TriangleAlert,
+    30→  TrendingUp,
+    31→  Unlink,
+    32→  Upload,
+    33→  Workflow,
+    34→  X,
+    35→} from "lucide-react";
+    36→import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+    37→import {
+    38→  HELDOUT_MICRO_ADJEJ,
+    39→  HELDOUT_STEMS,
+    40→} from "@/lib/competition-data";
+    41→import {
+    42→  Card,
+    43→  CardAction,
+    44→  CardContent,
+    45→  CardDescription,
+    46→  CardHeader,
+    47→  CardTitle,
+    48→} from "@/components/ui/card";
+    49→import { Badge } from "@/components/ui/badge";
+    50→import { Button } from "@/components/ui/button";
+    51→import { Input } from "@/components/ui/input";
+    52→import { Label } from "@/components/ui/label";
+    53→import { Progress } from "@/components/ui/progress";
+    54→import { Separator } from "@/components/ui/separator";
+    55→import { Slider } from "@/components/ui/slider";
+    56→import {
+    57→  Table,
+    58→  TableBody,
+    59→  TableCell,
+    60→  TableHead,
+    61→  TableHeader,
+    62→  TableRow,
+    63→} from "@/components/ui/table";
+    64→import { Textarea } from "@/components/ui/textarea";
+    65→import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+    66→import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+    67→
+    68→/* =========================================================================
+    69→ * Hằng số & dữ liệu
+    70→ * ========================================================================= */
+    71→
+    72→const BIG_FILE_BYTES = 60 * 1024 * 1024; // 60 MB
+    73→
+    74→const SAMPLE_CSV = [
+    75→  "id,dataset,row_type,node_id,t,z,y,x,source_id,target_id",
+    76→  "1,mau_44b6,node,101,0,20,100,200,,",
+    77→  "2,mau_44b6,node,102,1,21,103,205,,",
+    78→  "3,mau_44b6,edge,,,,,,101,102",
+    79→  "4,mau_44b6,node,103,2,22,106,210,,",
+    80→  "5,mau_44b6,edge,,,,,,102,103",
+    81→  "6,mau_44b6,node,104,3,23,109,215,,",
+    82→  "7,mau_44b6,edge,,,,,,103,104",
+    83→  "8,mau_44b6,node,105,4,24,111,219,,",
+    84→  "9,mau_44b6,edge,,,,,,104,105",
+    85→  "10,mau_44b6,node,106,4,24,109,213,,",
+    86→  "11,mau_44b6,edge,,,,,,104,106",
+    87→  "12,mau_44b6,node,107,5,25,113,221,,",
+    88→  "13,mau_44b6,edge,,,,,,105,107",
+    89→  "14,mau_44b6,node,108,5,25,111,215,,",
+    90→  "15,mau_44b6,edge,,,,,,106,108",
+    91→  "16,mau_6bba,node,201,0,30,150,150,,",
+    92→  "17,mau_6bba,node,202,1,31,153,155,,",
+    93→  "18,mau_6bba,edge,,,,,,201,202",
+    94→  "19,mau_6bba,node,203,2,32,156,160,,",
+    95→  "20,mau_6bba,edge,,,,,,202,203",
+    96→  "21,mau_6bba,node,204,3,33,159,165,,",
+    97→  "22,mau_6bba,edge,,,,,,203,204",
+    98→  "23,mau_6bba,node,205,0,30,50,250,,",
+    99→  "24,mau_6bba,node,206,1,31,53,254,,",
+   100→  "25,mau_6bba,edge,,,,,,205,206",
+   101→].join("\n");
+   102→
+   103→const PLACEHOLDER_CSV = [
+   104→  "id,dataset,row_type,node_id,t,z,y,x,source_id,target_id",
+   105→  "1,44b6_0113de3b,node,1,0,24,118,205,,",
+   106→  "2,44b6_0113de3b,node,2,1,26,120,211,,",
+   107→  "3,44b6_0113de3b,edge,,,,,,1,2",
+   108→].join("\n");
+   109→
+   110→interface Preset {
+   111→  key: string;
+   112→  name: string;
+   113→  r: number;
+   114→  p: number;
+   115→  lambda: number;
+   116→  divJ: number;
+   117→  claim: string;
+   118→}
+   119→
+   120→const PRESETS: Preset[] = [
+   121→  {
+   122→    key: "ver6",
+   123→    name: "ver-6 (hiệu chỉnh)",
+   124→    r: 98,
+   125→    p: 99,
+   126→    lambda: 99.5,
+   127→    divJ: 20,
+   128→    claim: "≈ 0.945 · khớp LB ver-6",
+   129→  },
+   130→  {
+   131→    key: "ver7",
+   132→    name: "mục tiêu ver-7",
+   133→    r: 98,
+   134→    p: 99,
+   135→    lambda: 99.6,
+   136→    divJ: 21,
+   137→    claim: "≈ 0.947 · kỳ vọng port Reyhan",
+   138→  },
+   139→  {
+   140→    key: "top",
+   141→    name: "top đầu (tham khảo)",
+   142→    r: 99,
+   143→    p: 99.5,
+   144→    lambda: 99.8,
+   145→    divJ: 6,
+   146→    claim: "≈ 0.970 · top 1",
+   147→  },
+   148→];
+   149→
+   150→const LB_ROWS = [
+   151→  { label: "ver-6 — team ta (deterministic ×2)", score: 0.945, mine: true },
+   152→  { label: `bức tường — 360 đội copy notebook Reyhan`, score: 0.947, mine: false },
+   153→  { label: "top 1 · Sergio Alvarez", score: 0.97, mine: false },
+   154→] as const;
+   155→
+   156→interface HealthRule {
+   157→  label: string;
+   158→  good: string;
+   159→  warn: string;
+   160→  bad: string;
+   161→}
+   162→
+   163→const HEALTH_RULES: HealthRule[] = [
+   164→  { label: "cạnh/node", good: "≥ 0.80", warn: "0.65–0.80", bad: "< 0.65" },
+   165→  { label: "%node không cạnh vào", good: "< 20%", warn: "20–35%", bad: "> 35%" },
+   166→  { label: "%track 1-node", good: "< 8%", warn: "8–15%", bad: "> 15%" },
+   167→  {
+   168→    label: "độ dài track trung vị",
+   169→    good: "≥ 20 khung",
+   170→    warn: "10–20 khung",
+   171→    bad: "< 10 khung",
+   172→  },
+   173→  {
+   174→    label: "phân bào/100 khung",
+   175→    good: "2–25 khi node/khung ≥ 15",
+   176→    warn: "0–2 hoặc 25–60",
+   177→    bad: "0 khi node/khung ≥ 15 (bỏ sót) hoặc > 60 (merge-split)",
+   178→  },
+   179→];
+   180→
+   181→const TRACK_BINS: { label: string; lo: number; hi: number }[] = [
+   182→  { label: "1", lo: 1, hi: 1 },
+   183→  { label: "2–3", lo: 2, hi: 3 },
+   184→  { label: "4–7", lo: 4, hi: 7 },
+   185→  { label: "8–15", lo: 8, hi: 15 },
+   186→  { label: "16–31", lo: 16, hi: 31 },
+   187→  { label: "32+", lo: 32, hi: Number.POSITIVE_INFINITY },
+   188→];
+   189→
+   190→/* =========================================================================
+   191→ * Phân tích CSV (thuần client, không gọi API)
+   192→ * ========================================================================= */
+   193→
+   194→type Severity = "error" | "warning";
+   195→
+   196→interface Issue {
+   197→  severity: Severity;
+   198→  title: string;
+   199→  detail: string;
+   200→  rows: number[];
+   201→}
+   202→
+   203→interface IssueDraft extends Issue {
+   204→  rows: number[];
+   205→}
+   206→
+   207→type BadgeLevel = "good" | "warn" | "bad";
+   208→
+   209→interface BadgeAssessment {
+   210→  key: string;
+   211→  label: string;
+   212→  level: BadgeLevel;
+   213→  value: string;
+   214→  hint?: string;
+   215→}
+   216→
+   217→interface DatasetAnalysis {
+   218→  name: string;
+   219→  nodes: number;
+   220→  edges: number;
+   221→  divisions: number;
+   222→  frameLabel: string;
+   223→  frameSpan: number;
+   224→  nodesPerFrame: number;
+   225→  edgesPerNode: number;
+   226→  pctNoInEdge: number;
+   227→  pctSingleTrack: number;
+   228→  trackCount: number;
+   229→  medianTrackLen: number;
+   230→  divisionRate: number;
+   231→  trackLengths: number[];
+   232→  badges: BadgeAssessment[];
+   233→}
+   234→
+   235→interface AnalysisResult {
+   236→  datasets: DatasetAnalysis[];
+   237→  global: DatasetAnalysis;
+   238→  issues: Issue[];
+   239→  errorCount: number;
+   240→  warningCount: number;
+   241→  totalRows: number;
+   242→  nodeRows: number;
+   243→  edgeRows: number;
+   244→  parseMs: number;
+   245→  hasHeader: boolean;
+   246→  fileName: string | null;
+   247→}
+   248→
+   249→interface AnalysisOutput {
+   250→  ok: boolean;
+   251→  result: AnalysisResult | null;
+   252→  fatalIssues: Issue[];
+   253→}
+   254→
+   255→interface RawNode {
+   256→  dataset: string;
+   257→  nodeId: number;
+   258→  t: number;
+   259→  z: number;
+   260→  y: number;
+   261→  x: number;
+   262→  line: number;
+   263→}
+   264→
+   265→interface RawEdge {
+   266→  dataset: string;
+   267→  source: number;
+   268→  target: number;
+   269→  line: number;
+   270→}
+   271→
+   272→interface ValidEdge {
+   273→  dataset: string;
+   274→  source: number;
+   275→  target: number;
+   276→  line: number;
+   277→}
+   278→
+   279→const REQUIRED_COLS = [
+   280→  "dataset",
+   281→  "row_type",
+   282→  "node_id",
+   283→  "t",
+   284→  "z",
+   285→  "y",
+   286→  "x",
+   287→  "source_id",
+   288→  "target_id",
+   289→];
+   290→
+   291→function parseCsvLine(line: string): string[] {
+   292→  const out: string[] = [];
+   293→  let cur = "";
+   294→  let inQuotes = false;
+   295→  for (let i = 0; i < line.length; i++) {
+   296→    const ch = line[i] ?? "";
+   297→    if (inQuotes) {
+   298→      if (ch === '"') {
+   299→        if (line[i + 1] === '"') {
+   300→          cur += '"';
+   301→          i++;
+   302→        } else {
+   303→          inQuotes = false;
+   304→        }
+   305→      } else {
+   306→        cur += ch;
+   307→      }
+   308→    } else if (ch === '"') {
+   309→      inQuotes = true;
+   310→    } else if (ch === ",") {
+   311→      out.push(cur.trim());
+   312→      cur = "";
+   313→    } else {
+   314→      cur += ch;
+   315→    }
+   316→  }
+   317→  out.push(cur.trim());
+   318→  return out;
+   319→}
+   320→
+   321→function toNum(s: string): number | null {
+   322→  if (s === "") return null;
+   323→  const v = Number(s);
+   324→  return Number.isFinite(v) ? v : null;
+   325→}
+   326→
+   327→function median(values: number[]): number {
+   328→  if (values.length === 0) return 0;
+   329→  const sorted = [...values].sort((a, b) => a - b);
+   330→  const mid = Math.floor(sorted.length / 2);
+   331→  if (sorted.length % 2 === 1) {
+   332→    return sorted[mid] ?? 0;
+   333→  }
+   334→  const a = sorted[mid - 1] ?? 0;
+   335→  const b = sorted[mid] ?? 0;
+   336→  return (a + b) / 2;
+   337→}
+   338→
+   339→function assessBadges(input: {
+   340→  edgesPerNode: number;
+   341→  pctNoInEdge: number;
+   342→  pctSingleTrack: number;
+   343→  medianTrackLen: number;
+   344→  divisionRate: number;
+   345→  nodesPerFrame: number;
+   346→}): BadgeAssessment[] {
+   347→  const out: BadgeAssessment[] = [];
+   348→
+   349→  const e = input.edgesPerNode;
+   350→  out.push({
+   351→    key: "edgesPerNode",
+   352→    label: "cạnh/node",
+   353→    level: e >= 0.8 ? "good" : e >= 0.65 ? "warn" : "bad",
+   354→    value: e.toFixed(2),
+   355→  });
+   356→
+   357→  const p = input.pctNoInEdge;
+   358→  out.push({
+   359→    key: "noInEdge",
+   360→    label: "%node không cạnh vào",
+   361→    level: p < 20 ? "good" : p <= 35 ? "warn" : "bad",
+   362→    value: `${p.toFixed(1)}%`,
+   363→  });
+   364→
+   365→  const q = input.pctSingleTrack;
+   366→  out.push({
+   367→    key: "singleTrack",
+   368→    label: "%track 1-node",
+   369→    level: q < 8 ? "good" : q <= 15 ? "warn" : "bad",
+   370→    value: `${q.toFixed(1)}%`,
+   371→  });
+   372→
+   373→  const m = input.medianTrackLen;
+   374→  out.push({
+   375→    key: "medianTrack",
+   376→    label: "trung vị track",
+   377→    level: m >= 20 ? "good" : m >= 10 ? "warn" : "bad",
+   378→    value: `${Number.isInteger(m) ? m : m.toFixed(1)} khung`,
+   379→  });
+   380→
+   381→  const d = input.divisionRate;
+   382→  const dense = input.nodesPerFrame >= 15;
+   383→  let level: BadgeLevel;
+   384→  let hint: string | undefined;
+   385→  if (d > 60) {
+   386→    level = "bad";
+   387→    hint = "nhiễu merge-split";
+   388→  } else if (dense && d === 0) {
+   389→    level = "bad";
+   390→    hint = "bỏ sót phân bào";
+   391→  } else if (dense && d >= 2 && d <= 25) {
+   392→    level = "good";
+   393→  } else if (!dense) {
+   394→    level = "warn";
+   395→    hint = "mật độ node/khung < 15 — chỉ tham khảo";
+   396→  } else if (d < 2) {
+   397→    level = "warn";
+   398→    hint = "thấp hơn kỳ vọng";
+   399→  } else {
+   400→    level = "warn";
+   401→    hint = "cao — cần kiểm tra merge-split";
+   402→  }
+   403→  out.push({
+   404→    key: "divRate",
+   405→    label: "phân bào/100 khung",
+   406→    level,
+   407→    value: d.toFixed(1),
+   408→    hint,
+   409→  });
+   410→
+   411→  return out;
+   412→}
+   413→
+   414→function analyzeCsv(text: string, fileName: string | null): AnalysisOutput {
+   415→  const started = performance.now();
+   416→  const lines = text.split(/\r\n|\r|\n/);
+   417→
+   418→  const firstLine = (lines[0] ?? "").replace(/^\uFEFF/, "");
+   419→  const firstFields = parseCsvLine(firstLine);
+   420→  const hasHeader = firstFields.some((f) => f.trim().toLowerCase() === "row_type");
+   421→
+   422→  const col: Record<string, number> = {};
+   423→  if (hasHeader) {
+   424→    firstFields.forEach((f, i) => {
+   425→      const name = f.trim().toLowerCase();
+   426→      if (!(name in col)) col[name] = i;
+   427→    });
+   428→    const missing = REQUIRED_COLS.filter((c) => !(c in col));
+   429→    if (missing.length > 0) {
+   430→      return {
+   431→        ok: false,
+   432→        result: null,
+   433→        fatalIssues: [
+   434→          {
+   435→            severity: "error",
+   436→            title: "Thiếu cột bắt buộc",
+   437→            detail: `CSV thiếu các cột: ${missing.join(", ")}. Chuẩn: id, dataset, row_type, node_id, t, z, y, x, source_id, target_id (cột id có thể vắng).`,
+   438→            rows: [],
+   439→          },
+   440→        ],
+   441→      };
+   442→    }
+   443→  } else {
+   444→    const n = firstFields.length;
+   445→    if (n === 10) {
+   446→      REQUIRED_COLS.forEach((name, i) => {
+   447→        col[name] = i + 1;
+   448→      });
+   449→    } else if (n === 9) {
+   450→      REQUIRED_COLS.forEach((name, i) => {
+   451→        col[name] = i;
+   452→      });
+   453→    } else {
+   454→      return {
+   455→        ok: false,
+   456→        result: null,
+   457→        fatalIssues: [
+   458→          {
+   459→            severity: "error",
+   460→            title: "Không nhận dạng được định dạng",
+   461→            detail: `Dòng đầu tiên có ${n} cột và không chứa header (không tìm thấy cột "row_type"). Chuẩn: 10 cột (có cột id) hoặc 9 cột (không id).`,
+   462→            rows: [],
+   463→          },
+   464→        ],
+   465→      };
+   466→    }
+   467→  }
+   468→
+   469→  const drafts = new Map<string, IssueDraft>();
+   470→  const pushIssue = (
+   471→    key: string,
+   472→    severity: Severity,
+   473→    title: string,
+   474→    detail: string,
+   475→    row: number
+   476→  ): void => {
+   477→    const existing = drafts.get(key);
+   478→    if (existing) {
+   479→      existing.rows.push(row);
+   480→      return;
+   481→    }
+   482→    drafts.set(key, { severity, title, detail, rows: [row] });
+   483→  };
+   484→
+   485→  const idx = (name: string): number => col[name] ?? -1;
+   486→  const getField = (fields: string[], i: number): string =>
+   487→    i >= 0 && i < fields.length ? fields[i] ?? "" : "";
+   488→
+   489→  const nodesByDataset = new Map<string, Map<number, RawNode>>();
+   490→  const rawEdges: RawEdge[] = [];
+   491→  let nodeRows = 0;
+   492→  let edgeRows = 0;
+   493→  let totalRows = 0;
+   494→
+   495→  for (let li = hasHeader ? 1 : 0; li < lines.length; li++) {
+   496→    const raw = lines[li] ?? "";
+   497→    if (raw.trim() === "") continue;
+   498→    totalRows++;
+   499→    const lineNo = li + 1;
+   500→    const fields = parseCsvLine(raw);
+   501→    const rowType = getField(fields, idx("row_type")).trim().toLowerCase();
+   502→    const dataset = getField(fields, idx("dataset")).trim();
+   503→
+   504→    if (rowType !== "node" && rowType !== "edge") {
+   505→      pushIssue(
+   506→        "row_type",
+   507→        "error",
+   508→        "row_type lạ",
+   509→        `row_type phải là "node" hoặc "edge" — gặp "${rowType === "" ? "(rỗng)" : rowType}". Hàng bị bỏ qua.`,
+   510→        lineNo
+   511→      );
+   512→      continue;
+   513→    }
+   514→    if (dataset === "") {
+   515→      pushIssue(
+   516→        "unparsable",
+   517→        "error",
+   518→        "Thiếu tên dataset",
+   519→        "Cột dataset trống — không thể gán node/cạnh vào dataset nào. Hàng bị bỏ qua.",
+   520→        lineNo
+   521→      );
+   522→      continue;
+   523→    }
+   524→
+   525→    if (rowType === "node") {
+   526→      nodeRows++;
+   527→      const nodeIdRaw = getField(fields, idx("node_id")).trim();
+   528→      const nodeId = toNum(nodeIdRaw);
+   529→      if (nodeId === null || !Number.isInteger(nodeId) || nodeId <= 0) {
+   530→        pushIssue(
+   531→          "node_id",
+   532→          "error",
+   533→          "node_id không hợp lệ (≤ 0 hoặc không nguyên)",
+   534→          "node_id phải là số nguyên dương. Hàng bị bỏ qua.",
+   535→          lineNo
+   536→        );
+   537→        continue;
+   538→      }
+   539→      const t = toNum(getField(fields, idx("t")));
+   540→      const z = toNum(getField(fields, idx("z")));
+   541→      const y = toNum(getField(fields, idx("y")));
+   542→      const x = toNum(getField(fields, idx("x")));
+   543→      if (t === null || z === null || y === null || x === null) {
+   544→        pushIssue(
+   545→          "unparsable",
+   546→          "error",
+   547→          "Node thiếu tọa độ t/z/y/x",
+   548→          "Các cột t, z, y, x của node phải là số. Hàng bị bỏ qua.",
+   549→          lineNo
+   550→        );
+   551→        continue;
+   552→      }
+   553→      if (
+   554→        t < 0 ||
+   555→        z < 0 ||
+   556→        y < 0 ||
+   557→        x < 0 ||
+   558→        !Number.isInteger(t) ||
+   559→        !Number.isInteger(z) ||
+   560→        !Number.isInteger(y) ||
+   561→        !Number.isInteger(x)
+   562→      ) {
+   563→        pushIssue(
+   564→          "coords",
+   565→          "warning",
+   566→          "Node có t/z/y/x âm hoặc không nguyên",
+   567→          "Định dạng chuẩn của cuộc thi dùng chỉ số nguyên không âm (voxel). Node vẫn được tính vào thống kê.",
+   568→          lineNo
+   569→        );
+   570→      }
+   571→      let dsNodes = nodesByDataset.get(dataset);
+   572→      if (!dsNodes) {
+   573→        dsNodes = new Map();
+   574→        nodesByDataset.set(dataset, dsNodes);
+   575→      }
+   576→      if (dsNodes.has(nodeId)) {
+   577→        pushIssue(
+   578→          "dup_node",
+   579→          "error",
+   580→          "node_id trùng trong 1 dataset",
+   581→          `node_id ${nodeIdRaw} bị khai báo lần 2 trong cùng dataset — chỉ giữ node đầu tiên.`,
+   582→          lineNo
+   583→        );
+   584→        continue;
+   585→      }
+   586→      dsNodes.set(nodeId, { dataset, nodeId, t, z, y, x, line: lineNo });
+   587→    } else {
+   588→      edgeRows++;
+   589→      const source = toNum(getField(fields, idx("source_id")));
+   590→      const target = toNum(getField(fields, idx("target_id")));
+   591→      if (
+   592→        source === null ||
+   593→        target === null ||
+   594→        !Number.isInteger(source) ||
+   595→        !Number.isInteger(target)
+   596→      ) {
+   597→        pushIssue(
+   598→          "unparsable",
+   599→          "error",
+   600→          "Cạnh thiếu source_id/target_id hợp lệ",
+   601→          "source_id và target_id phải là số nguyên. Hàng bị bỏ qua.",
+   602→          lineNo
+   603→        );
+   604→        continue;
+   605→      }
+   606→      rawEdges.push({ dataset, source, target, line: lineNo });
+   607→    }
+   608→  }
+   609→
+   610→  if (totalRows === 0) {
+   611→    return {
+   612→      ok: false,
+   613→      result: null,
+   614→      fatalIssues: [
+   615→        {
+   616→          severity: "error",
+   617→          title: "Không có hàng dữ liệu",
+   618→          detail: "Sau khi bỏ header và dòng trống, không còn hàng dữ liệu nào để phân tích.",
+   619→          rows: [],
+   620→        },
+   621→      ],
+   622→    };
+   623→  }
+   624→
+   625→  const findOtherDataset = (nodeId: number, exclude: string): string | null => {
+   626→    for (const [name, m] of nodesByDataset) {
+   627→      if (name !== exclude && m.has(nodeId)) return name;
+   628→    }
+   629→    return null;
+   630→  };
+   631→
+   632→  const validEdges: ValidEdge[] = [];
+   633→  const edgeSeen = new Set<string>();
+   634→
+   635→  for (const e of rawEdges) {
+   636→    if (e.source === e.target) {
+   637→      pushIssue(
+   638→        "self_loop",
+   639→        "error",
+   640→        "Cạnh tự nối (source = target)",
+   641→        "Cạnh nối node với chính nó — vô nghĩa trong tracking. Cạnh bị loại.",
+   642→        e.line
+   643→      );
+   644→      continue;
+   645→    }
+   646→    const dsNodes = nodesByDataset.get(e.dataset);
+   647→    const srcOk = dsNodes !== undefined && dsNodes.has(e.source);
+   648→    const tgtOk = dsNodes !== undefined && dsNodes.has(e.target);
+   649→    if (!srcOk || !tgtOk) {
+   650→      const missing: string[] = [];
+   651→      if (!srcOk) {
+   652→        const other = findOtherDataset(e.source, e.dataset);
+   653→        if (other) {
+   654→          pushIssue(
+   655→            "cross_ds",
+   656→            "error",
+   657→            "Cạnh nối node khác dataset",
+   658→            `Cạnh khai báo dataset ${e.dataset} nhưng node ${e.source} thuộc dataset ${other} — cạnh bị loại.`,
+   659→            e.line
+   660→          );
+   661→        } else {
+   662→          missing.push(`source_id ${e.source}`);
+   663→        }
+   664→      }
+   665→      if (!tgtOk) {
+   666→        const other = findOtherDataset(e.target, e.dataset);
+   667→        if (other) {
+   668→          pushIssue(
+   669→            "cross_ds",
+   670→            "error",
+   671→            "Cạnh nối node khác dataset",
+   672→            `Cạnh khai báo dataset ${e.dataset} nhưng node ${e.target} thuộc dataset ${other} — cạnh bị loại.`,
+   673→            e.line
+   674→          );
+   675→        } else {
+   676→          missing.push(`target_id ${e.target}`);
+   677→        }
+   678→      }
+   679→      if (missing.length > 0) {
+   680→        pushIssue(
+   681→          "dangling",
+   682→          "error",
+   683→          "Cạnh treo lơ lửng (node không tồn tại)",
+   684→          `Không tìm thấy node: ${missing.join(", ")} trong dataset ${e.dataset} — cạnh bị loại.`,
+   685→          e.line
+   686→        );
+   687→      }
+   688→      continue;
+   689→    }
+   690→    const key = `${e.dataset}|${e.source}|${e.target}`;
+   691→    if (edgeSeen.has(key)) {
+   692→      pushIssue(
+   693→        "dup_edge",
+   694→        "warning",
+   695→        "Cạnh trùng lặp",
+   696→        "Cặp source-target xuất hiện hơn một lần — chỉ tính 1 lần.",
+   697→        e.line
+   698→      );
+   699→      continue;
+   700→    }
+   701→    edgeSeen.add(key);
+   702→    validEdges.push(e);
+   703→  }
+   704→
+   705→  const datasetNames = [...nodesByDataset.keys()].sort();
+   706→  const datasets: DatasetAnalysis[] = [];
+   707→  const allTrackLengths: number[] = [];
+   708→  let globalNodes = 0;
+   709→  let globalEdges = 0;
+   710→  let globalDivisions = 0;
+   711→  let globalSpan = 0;
+   712→  let globalNoIn = 0;
+   713→
+   714→  for (const name of datasetNames) {
+   715→    const dsNodes = nodesByDataset.get(name) ?? new Map<number, RawNode>();
+   716→    const nodes = [...dsNodes.values()];
+   717→    const edges = validEdges.filter((e) => e.dataset === name);
+   718→
+   719→    const outLines = new Map<number, number[]>();
+   720→    const inLines = new Map<number, number[]>();
+   721→    for (const e of edges) {
+   722→      const out = outLines.get(e.source);
+   723→      if (out) out.push(e.line);
+   724→      else outLines.set(e.source, [e.line]);
+   725→      const inn = inLines.get(e.target);
+   726→      if (inn) inn.push(e.line);
+   727→      else inLines.set(e.target, [e.line]);
+   728→
+   729→      const srcNode = dsNodes.get(e.source);
+   730→      const tgtNode = dsNodes.get(e.target);
+   731→      if (srcNode && tgtNode && tgtNode.t !== srcNode.t + 1) {
+   732→        pushIssue(
+   733→          "time_jump",
+   734→          "warning",
+   735→          "Cạnh nhảy thời gian (t đích ≠ t nguồn + 1)",
+   736→          "Metric chính thức BỎ hẳn cạnh t→t+k khi chấm — cạnh nhảy không phải FP nhưng cũng KHÔNG BAO GIỜ là TP; phải nội suy node giữa.",
+   737→          e.line
+   738→        );
+   739→      }
+   740→    }
+   741→    for (const linesArr of outLines.values()) {
+   742→      if (linesArr.length > 2) {
+   743→        for (const ln of linesArr) {
+   744→          pushIssue(
+   745→            "out_deg",
+   746→            "warning",
+   747→            "Node có cạnh ra > 2",
+   748→            "Metric chỉ coi tối đa 2 cạnh ra mỗi node (fork = phân bào); phần thừa bị bỏ.",
+   749→            ln
+   750→          );
+   751→        }
+   752→      }
+   753→    }
+   754→    for (const linesArr of inLines.values()) {
+   755→      if (linesArr.length > 1) {
+   756→        for (const ln of linesArr) {
+   757→          pushIssue(
+   758→            "in_deg",
+   759→            "warning",
+   760→            "Node có cạnh vào > 1",
+   761→            "Hợp nhất 2 tế bào = 1 track, sinh học vô lý.",
+   762→            ln
+   763→          );
+   764→        }
+   765→      }
+   766→    }
+   767→
+   768→    // thành phần liên thông yếu (union-find)
+   769→    const parent = new Map<number, number>();
+   770→    for (const n of nodes) parent.set(n.nodeId, n.nodeId);
+   771→    const find = (x: number): number => {
+   772→      let root = x;
+   773→      for (;;) {
+   774→        const p = parent.get(root) ?? root;
+   775→        if (p === root) break;
+   776→        root = p;
+   777→      }
+   778→      let cur = x;
+   779→      while (cur !== root) {
+   780→        const p = parent.get(cur) ?? root;
+   781→        parent.set(cur, root);
+   782→        cur = p;
+   783→      }
+   784→      return root;
+   785→    };
+   786→    for (const e of edges) {
+   787→      parent.set(find(e.source), find(e.target));
+   788→    }
+   789→    const sizeByRoot = new Map<number, number>();
+   790→    for (const n of nodes) {
+   791→      const r = find(n.nodeId);
+   792→      sizeByRoot.set(r, (sizeByRoot.get(r) ?? 0) + 1);
+   793→    }
+   794→    const trackLengths = [...sizeByRoot.values()];
+   795→
+   796→    const nodeCount = nodes.length;
+   797→    const edgeCount = edges.length;
+   798→    let divisions = 0;
+   799→    for (const linesArr of outLines.values()) {
+   800→      if (linesArr.length >= 2) divisions++;
+   801→    }
+   802→    let noIn = 0;
+   803→    for (const n of nodes) {
+   804→      if ((inLines.get(n.nodeId) ?? []).length === 0) noIn++;
+   805→    }
+   806→    let minT = Number.POSITIVE_INFINITY;
+   807→    let maxT = Number.NEGATIVE_INFINITY;
+   808→    for (const n of nodes) {
+   809→      if (n.t < minT) minT = n.t;
+   810→      if (n.t > maxT) maxT = n.t;
+   811→    }
+   812→    const span =
+   813→      nodes.length > 0 && Number.isFinite(minT) && Number.isFinite(maxT)
+   814→        ? maxT - minT + 1
+   815→        : 0;
+   816→    const singleTracks = trackLengths.filter((l) => l === 1).length;
+   817→    const trackCount = trackLengths.length;
+   818→    const nodesPerFrame = span > 0 ? nodeCount / span : nodeCount;
+   819→    const edgesPerNode = nodeCount > 0 ? edgeCount / nodeCount : 0;
+   820→    const pctNoInEdge = nodeCount > 0 ? (noIn / nodeCount) * 100 : 0;
+   821→    const pctSingleTrack = trackCount > 0 ? (singleTracks / trackCount) * 100 : 0;
+   822→    const medianTrackLen = median(trackLengths);
+   823→    const divisionRate = span > 0 ? (divisions / span) * 100 : 0;
+   824→
+   825→    datasets.push({
+   826→      name,
+   827→      nodes: nodeCount,
+   828→      edges: edgeCount,
+   829→      divisions,
+   830→      frameLabel:
+   831→        nodes.length > 0 && span > 0 ? `${minT}–${maxT}` : "—",
+   832→      frameSpan: span,
+   833→      nodesPerFrame,
+   834→      edgesPerNode,
+   835→      pctNoInEdge,
+   836→      pctSingleTrack,
+   837→      trackCount,
+   838→      medianTrackLen,
+   839→      divisionRate,
+   840→      trackLengths,
+   841→      badges: assessBadges({
+   842→        edgesPerNode,
+   843→        pctNoInEdge,
+   844→        pctSingleTrack,
+   845→        medianTrackLen,
+   846→        divisionRate,
+   847→        nodesPerFrame,
+   848→      }),
+   849→    });
+   850→
+   851→    globalNodes += nodeCount;
+   852→    globalEdges += edgeCount;
+   853→    globalDivisions += divisions;
+   854→    globalSpan += span;
+   855→    globalNoIn += noIn;
+   856→    allTrackLengths.push(...trackLengths);
+   857→  }
+   858→
+   859→  const global: DatasetAnalysis = {
+   860→    name: "Σ toàn cục",
+   861→    nodes: globalNodes,
+   862→    edges: globalEdges,
+   863→    divisions: globalDivisions,
+   864→    frameLabel: `Σ ${globalSpan}`,
+   865→    frameSpan: globalSpan,
+   866→    nodesPerFrame: globalSpan > 0 ? globalNodes / globalSpan : globalNodes,
+   867→    edgesPerNode: globalNodes > 0 ? globalEdges / globalNodes : 0,
+   868→    pctNoInEdge: globalNodes > 0 ? (globalNoIn / globalNodes) * 100 : 0,
+   869→    pctSingleTrack:
+   870→      allTrackLengths.length > 0
+   871→        ? (allTrackLengths.filter((l) => l === 1).length / allTrackLengths.length) * 100
+   872→        : 0,
+   873→    trackCount: allTrackLengths.length,
+   874→    medianTrackLen: median(allTrackLengths),
+   875→    divisionRate: globalSpan > 0 ? (globalDivisions / globalSpan) * 100 : 0,
+   876→    trackLengths: allTrackLengths,
+   877→    badges: [],
+   878→  };
+   879→  global.badges = assessBadges({
+   880→    edgesPerNode: global.edgesPerNode,
+   881→    pctNoInEdge: global.pctNoInEdge,
+   882→    pctSingleTrack: global.pctSingleTrack,
+   883→    medianTrackLen: global.medianTrackLen,
+   884→    divisionRate: global.divisionRate,
+   885→    nodesPerFrame: global.nodesPerFrame,
+   886→  });
+   887→
+   888→  const issues: Issue[] = [...drafts.values()].map((d) => ({
+   889→    severity: d.severity,
+   890→    title: d.title,
+   891→    detail: d.detail,
+   892→    rows: d.rows,
+   893→  }));
+   894→  const order: Record<Severity, number> = { error: 0, warning: 1 };
+   895→  issues.sort((a, b) => order[a.severity] - order[b.severity]);
+   896→
+   897→  return {
+   898→    ok: true,
+   899→    result: {
+   900→      datasets,
+   901→      global,
+   902→      issues,
+   903→      errorCount: issues.filter((i) => i.severity === "error").length,
+   904→      warningCount: issues.filter((i) => i.severity === "warning").length,
+   905→      totalRows,
+   906→      nodeRows,
+   907→      edgeRows,
+   908→      parseMs: Math.max(1, Math.round(performance.now() - started)),
+   909→      hasHeader,
+   910→      fileName,
+   911→    },
+   912→    fatalIssues: [],
+   913→  };
+   914→}
+   915→
+   916→/* =========================================================================
+   917→ * Mô hình what-if (Tab 2)
+   918→ * ========================================================================= */
+   919→
+   920→interface ModelResult {
+   921→  M: number;
+   922→  Npred: number;
+   923→  S: number;
+   924→  TP: number;
+   925→  FN: number;
+   926→  FP: number;
+   927→  EJ: number;
+   928→  adjEJ: number;
+   929→  score: number;
+   930→}
+   931→
+   932→function computeModel(r: number, p: number, lambda: number, divJ: number): ModelResult {
+   933→  const N = 1000;
+   934→  const q = 0.92;
+   935→  const M = (r / 100) * N;
+   936→  const Npred = M / (p / 100);
+   937→  const S = Npred - M;
+   938→  const Egt = q * N;
+   939→  const TP = (r / 100) * (r / 100) * (lambda / 100) * Egt;
+   940→  const FN = Egt - TP;
+   941→  const FP = q * Npred - TP;
+   942→  const denom = TP + FP + FN;
+   943→  const EJ = denom > 0 ? TP / denom : 0;
+   944→  const adjEJ = EJ * Math.max(0, 1 - (0.1 * (Npred - N)) / N);
+   945→  const score = adjEJ + 0.1 * (divJ / 100);
+   946→  return { M, Npred, S, TP, FN, FP, EJ, adjEJ, score };
+   947→}
+   948→
+   949→/* =========================================================================
+   950→ * Thành phần hiển thị dùng chung
+   951→ * ========================================================================= */
+   952→
+   953→type Tone = "neutral" | "good" | "warn" | "bad";
+   954→
+   955→const TONE_DOT: Record<Tone, string> = {
+   956→  neutral: "bg-muted-foreground/40",
+   957→  good: "bg-emerald-500",
+   958→  warn: "bg-amber-500",
+   959→  bad: "bg-rose-500",
+   960→};
+   961→
+   962→const TONE_TEXT: Record<Tone, string> = {
+   963→  neutral: "text-foreground",
+   964→  good: "text-emerald-700 dark:text-emerald-300",
+   965→  warn: "text-amber-700 dark:text-amber-300",
+   966→  bad: "text-rose-700 dark:text-rose-300",
+   967→};
+   968→
+   969→function StatChip({
+   970→  label,
+   971→  value,
+   972→  tone = "neutral",
+   973→}: {
+   974→  label: string;
+   975→  value: string;
+   976→  tone?: Tone;
+   977→}) {
+   978→  return (
+   979→    <div className="rounded-lg border bg-card px-2.5 py-1.5">
+   980→      <p className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+   981→        <span className={`h-1.5 w-1.5 rounded-full ${TONE_DOT[tone]}`} aria-hidden />
+   982→        {label}
+   983→      </p>
+   984→      <p className={`font-mono text-sm font-semibold tabular-nums ${TONE_TEXT[tone]}`}>
+   985→        {value}
+   986→      </p>
+   987→    </div>
+   988→  );
+   989→}
+   990→
+   991→function fmtMed(v: number): string {
+   992→  return Number.isInteger(v) ? String(v) : v.toFixed(1);
+   993→}
+   994→
+   995→/* =========================================================================
+   996→ * Tab 1 — Phiên bản & điểm
+   997→ * ========================================================================= */
+   998→
+   999→function VersionsTab() {
+  1000→  return (
+  1001→    <div className="space-y-6">
+  1002→      {/* Registry phiên bản */}
+  1003→      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+  1004→        {/* ver 8 — đang chạy */}
+  1005→        <Card className="border-amber-500/40 bg-amber-500/[0.03] md:col-span-2">
+  1006→          <CardHeader>
+  1007→            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+  1008→              <span className="flex items-center gap-2">
+  1009→                <GitFork className="h-4 w-4 text-amber-600 dark:text-amber-300" aria-hidden />
+  1010→                ver 8 · Phase D re-parenting
+  1011→              </span>
+  1012→              <Badge className="bg-amber-500 text-[10px] leading-4 text-amber-950 hover:bg-amber-500 sm:text-xs">
+  1013→                v1 FAIL RUNTIME — v3-fast ĐANG CHẠY (sửa lỗi hidden test)
+  1014→              </Badge>
+  1015→            </CardTitle>
+  1016→            <CardDescription>
+  1017→              Kernel{" "}
+  1018→              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+  1019→                vietnguyen130593/biohub-ver8 v1+v2
+  1020→              </code>{" "}
+  1021→              — v1 nộp 01:09 UTC 15/9 (56242181) FAIL sau ~12h: rerun trên hidden
+  1022→              test (lớn hơn public ~2×) vượt runtime limit; v2 COMPLETE 09:13
+  1023→              nhưng cùng lỗi chậm; v3-fast push 13:57 (kernel version 3).
+  1024→            </CardDescription>
+  1025→          </CardHeader>
+  1026→          <CardContent className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+  1027→            <div className="space-y-3">
+  1028→              <p className="text-sm font-medium">Kiến trúc (trên nền ver-7):</p>
+  1029→              <ul className="space-y-1.5 text-sm text-muted-foreground">
+  1030→                <li>
+  1031→                  • <span className="font-semibold text-foreground">DivNet rank</span>{" "}
+  1032→                  RANK-ONLY W=15 µm — giữ NGUYÊN gate production tau 0.6 /
+  1033→                  diverge 2.25 (khác ver-7b đã thất bại vì nới gate → div_fp
+  1034→                  1→21, không nộp)
+  1035→                </li>
+  1036→                <li>
+  1037→                  • <span className="font-semibold text-foreground">Re-parenting division recovery</span> —
+  1038→                  tháo cạnh sai Y→D2, nối mẹ thật M→D2 khi DivNet + geometry +
+  1039→                  DeepCenter đồng thuận
+  1040→                </li>
+  1041→                <li>
+  1042→                  • <span className="font-semibold text-foreground">PPSWEEP 16 candidates</span>:
+  1043→                  6 rp-* (re-parent tuning + rp-off escape) + 7 gốc + 3 adjEJ
+  1044→                  mới — validator held-out tự chọn theo gate ±0.0005 adjEJ
+  1045→                </li>
+  1046→              </ul>
+  1047→              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
+  1048→                <p className="font-mono font-semibold">
+  1049→                  KẾT QUẢ v1 (held-out internal, cùng rule ver-7): Δproxy +0.0080
+  1050→                  — đạt ngưỡng ELEVEN +0.005 → submit tự tin
+  1051→                </p>
+  1052→                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+  1053→                  Re-parent thu hồi +1 sự kiện thật (div 3/1/9 → 4/1/8, 0 FP thêm,
+  1054→                  adjEJ +0.0004) · PPSWEEP chọn tight55 (adjEJ 0.9261 → 0.9284) ·
+  1055→                  topology 4 video · 122.792 nodes · 188 division parents · guards
+  1056→                  5/5.
+  1057→                </p>
+  1058→              </div>
+  1059→              <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm">
+  1060→                <p className="font-mono font-semibold">
+  1061→                  v1 (56242181) FAIL — rerun hidden test vượt runtime limit
+  1062→                </p>
+  1063→                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+  1064→                  errorDescription Kaggle: "submission notebook exceeded the allowed
+  1065→                  runtime… hidden dataset can be larger/smaller/different than the
+  1066→                  public dataset" · totalBytes=0 · không có điểm. Nguyên nhân: sweep
+  1067→                  16-19 candidates = 86% runtime (6,87h) → kernel public 6,2h × hidden
+  1068→                  ~2× ≈ 12,4h vượt hạn 12h. ver-7 (117 phút) pass vì đủ nhanh → ngân sách
+  1069→                  runtime public ≤ 2h là ràng buộc CỨNG từ giờ.
+  1070→                </p>
+  1071→              </div>
+  1072→              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+  1073→                <p className="font-mono font-semibold">
+  1074→                  v3-fast PUSH 13:57 UTC — cứu re-parent bằng cách rút sweep còn 1 candidate
+  1075→                </p>
+  1076→                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+  1077→                  ppTight5565fb (per-prefix 44b6→5.5/6bba→6.5 + fallback global 5.5 cho
+  1078→                  prefix lạ trên hidden) · public ~1,3-1,8h → hidden ~2,5-3,6h an toàn ·
+  1079→                  REPARENT_EDGE_PROB giữ 0,25 (v2: mở chỉ thêm FP) · py_compile + 7/7 unit
+  1080→                  test PASS · 12 mấu tích hợp đủ mặt.
+  1081→                </p>
+  1082→              </div>
+  1083→            </div>
+  1084→            <div className="space-y-2">
+  1085→              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+  1086→                Cơ sở Wave-1 (CPU — đã chạy xong)
+  1087→              </p>
+  1088→              <div className="overflow-x-auto">
+  1089→                <Table>
+  1090→                  <TableHeader>
+  1091→                    <TableRow>
+  1092→                      <TableHead className="text-xs">thí nghiệm</TableHead>
+  1093→                      <TableHead className="text-xs">kết quả</TableHead>
+  1094→                    </TableRow>
+  1095→                  </TableHeader>
+  1096→                  <TableBody>
+  1097→                    <TableRow>
+  1098→                      <TableCell className="py-1.5 text-xs">
+  1099→                        E1 · system view official (8 video held-out)
+  1100→                      </TableCell>
+  1101→                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">
+  1102→                        adjEJ 0.9280 · div 2/1/10 · proxy 0.9434
+  1103→                      </TableCell>
+  1104→                    </TableRow>
+  1105→                    <TableRow>
+  1106→                      <TableCell className="py-1.5 text-xs">
+  1107→                        E0 · grid 15 combo gate
+  1108→                      </TableCell>
+  1109→                      <TableCell className="py-1.5 font-mono text-[11px]">
+  1110→                        KHÔNG combo tăng div_tp — trần safe-div, mở gate chỉ
+  1111→                        thêm FP
+  1112→                      </TableCell>
+  1113→                    </TableRow>
+  1114→                    <TableRow className="bg-muted/50 font-semibold">
+  1115→                      <TableCell className="py-1.5 text-xs">
+  1116→                        Phân rã 12 sự kiện GT division
+  1117→                      </TableCell>
+  1118→                      <TableCell className="py-1.5 font-mono text-[11px]">
+  1119→                        6/12 → re-parent · 3/12 thiếu detection
+  1120→                      </TableCell>
+  1121→                    </TableRow>
+  1122→                    <TableRow>
+  1123→                      <TableCell className="py-1.5 text-xs">
+  1124→                        E2 · PPSWEEP-2 (20 config, wave1 v5)
+  1125→                      </TableCell>
+  1126→                      <TableCell className="py-1.5 font-mono text-[11px]">
+  1127→                        pp-tight-55-65 official 0.9437 (+0.0003) · relaxed8 bị
+  1128→                        gate adjEJ chặn đúng thiết kế
+  1129→                      </TableCell>
+  1130→                    </TableRow>
+  1131→                  </TableBody>
+  1132→                </Table>
+  1133→              </div>
+  1134→              <p className="text-[11px] leading-snug text-muted-foreground">
+  1135→                Số liệu từ kernel{" "}
+  1136→                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+  1137→                  biohub-ver8-wave1
+  1138→                </code>{" "}
+  1139→                (CPU, 0 GPU quota) — E1 dùng scorer official 075fc5f đúng luật
+  1140→                chấm.
+  1141→              </p>
+  1142→            </div>
+  1143→          </CardContent>
+  1144→        </Card>
+  1145→
+  1146→        {/* ver 7 — featured */}
+  1147→        <Card className="border-emerald-500/40 bg-emerald-500/[0.03] md:col-span-2">
+  1148→          <CardHeader>
+  1149→            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+  1150→              <span className="flex items-center gap-2">
+  1151→                <GitBranch className="h-4 w-4 text-emerald-600 dark:text-emerald-300" aria-hidden />
+  1152→                ver 7 · port notebook Reyhan 0.947
+  1153→              </span>
+  1154→              <Badge className="bg-emerald-600 text-[10px] leading-4 hover:bg-emerald-600 sm:text-xs">
+  1155→                ĐÃ NỘP · ĐANG CHẤM PUBLIC LB (6–12 h)
+  1156→              </Badge>
+  1157→            </CardTitle>
+  1158→            <CardDescription>
+  1159→              Port nguyên văn notebook public LB 0.947 của Reyhan Ksatria — chỉ
+  1160→              vá 5 dòng env path sang dataset pilkwang public, SHA256 khớp
+  1161→              100%.
+  1162→            </CardDescription>
+  1163→          </CardHeader>
+  1164→          <CardContent className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+  1165→            <div className="space-y-3">
+  1166→              <p className="text-sm font-medium">Kiến trúc (trên nền ver-6):</p>
+  1167→              <ul className="space-y-1.5 text-sm text-muted-foreground">
+  1168→                <li>
+  1169→                  • <span className="font-semibold text-foreground">DeepCenter veto</span> —
+  1170→                  bỏ node sửa chữa có center-prior thấp (theo độ sáng/tâm),
+  1171→                  không đụng cạnh đã liên kết
+  1172→                </li>
+  1173→                <li>
+  1174→                  • <span className="font-semibold text-foreground">TTA 8-view × 3 chip</span> —
+  1175→                  tái xác nhận tâm node mờ
+  1176→                </li>
+  1177→                <li>
+  1178→                  • <span className="font-semibold text-foreground">PPSWEEP</span> tự
+  1179→                  chọn config{" "}
+  1180→                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+  1181→                    tight55
+  1182→                  </code>{" "}
+  1183→                  (MOTION_RELINK_TIGHT_UM 5.5)
+  1184→                </li>
+  1185→                <li>• Toàn bộ dual-seed ensemble + fusion + safe-div + retention guard của ver-6</li>
+  1186→              </ul>
+  1187→              <p className="border-t pt-3 text-xs text-muted-foreground">
+  1188→                Run T4×2 ~117 phút <span className="font-semibold text-foreground">COMPLETE</span> ·
+  1189→                submission{" "}
+  1190→                <span className="font-mono font-semibold text-foreground">241.356 dòng</span> ·
+  1191→                sha256{" "}
+  1192→                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+  1193→                  d34533806b3153dd…
+  1194→                </code>{" "}
+  1195→                · kernel{" "}
+  1196→                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+  1197→                  vietnguyen130593/biohub-ver7 v1
+  1198→                </code>
+  1199→              </p>
+  1200→              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
+  1201→                <p className="font-mono font-semibold">
+  1202→                  PROXY held-out 0.9490 → 0.9511 (tight55)
+  1203→                </p>
+  1204→                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+  1205→                  Official eval 8 video held-out (scorer 075fc5f): adjEJ micro{" "}
+  1206→                  <span className="font-mono font-semibold text-foreground">0.9345</span> ·
+  1207→                  div 0/0/12. Kỳ vọng public LB ≈{" "}
+  1208→                  <span className="font-mono font-semibold text-foreground">0.947</span> —
+  1209→                  rơi vào bức tường 360 đội.
+  1210→                </p>
+  1211→              </div>
+  1212→              <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+  1213→                <p className="flex items-start gap-2">
+  1214→                  <Target className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" aria-hidden />
+  1215→                  <span>
+  1216→                    Paired A/B vs ver-6 trên 4 video chung:{" "}
+  1217→                    <span className="font-mono font-semibold">
+  1218→                      ΔadjEJ +0.0000 (CI95 ±0.0001)
+  1219→                    </span>{" "}
+  1220→                    — <strong>KHÔNG regression</strong> · guards{" "}
+  1221→                    <span className="font-mono font-semibold">5/5</span>
+  1222→                  </span>
+  1223→                </p>
+  1224→              </div>
+  1225→            </div>
+  1226→            <div className="space-y-2">
+  1227→              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+  1228→                Official eval — 8 video held-out
+  1229→              </p>
+  1230→              <div className="overflow-x-auto">
+  1231→                <Table>
+  1232→                  <TableHeader>
+  1233→                    <TableRow>
+  1234→                      <TableHead className="text-xs">video</TableHead>
+  1235→                      <TableHead className="text-xs">phôi</TableHead>
+  1236→                      <TableHead className="text-right text-xs">adjEJ</TableHead>
+  1237→                    </TableRow>
+  1238→                  </TableHeader>
+  1239→                  <TableBody>
+  1240→                    {HELDOUT_STEMS.map((v) => (
+  1241→                      <TableRow key={v.stem}>
+  1242→                        <TableCell className="py-1.5 font-mono text-[11px]">{v.stem}</TableCell>
+  1243→                        <TableCell className="py-1.5 font-mono text-[11px] text-muted-foreground">
+  1244→                          {v.embryo}
+  1245→                        </TableCell>
+  1246→                        <TableCell className="py-1.5 text-right font-mono text-xs tabular-nums">
+  1247→                          {v.estimated ? (
+  1248→                            <span title="video chưa có số riêng — dùng adjEJ micro của 8 video">
+  1249→                              {HELDOUT_MICRO_ADJEJ.toFixed(4)} *
+  1250→                            </span>
+  1251→                          ) : (
+  1252→                            <span className="font-semibold">{v.adjEJDisplay.toFixed(4)}</span>
+  1253→                          )}
+  1254→                        </TableCell>
+  1255→                      </TableRow>
+  1256→                    ))}
+  1257→                    <TableRow className="bg-muted/50 font-semibold">
+  1258→                      <TableCell className="py-1.5 text-xs">micro (8 video)</TableCell>
+  1259→                      <TableCell className="py-1.5 text-xs text-muted-foreground">—</TableCell>
+  1260→                      <TableCell className="py-1.5 text-right font-mono text-xs tabular-nums">
+  1261→                        {HELDOUT_MICRO_ADJEJ.toFixed(4)}
+  1262→                      </TableCell>
+  1263→                    </TableRow>
+  1264→                  </TableBody>
+  1265→                </Table>
+  1266→              </div>
+  1267→              <p className="text-[11px] leading-snug text-muted-foreground">
+  1268→                * 4 video chưa công bố số riêng — hiển thị adjEJ micro của cả 8
+  1269→                video. Phân bào: div 0/0/12 (tp/fp/evaluable) — trọng số 0.1
+  1270→                nên không đổi kết luận.
+  1271→              </p>
+  1272→            </div>
+  1273→          </CardContent>
+  1274→        </Card>
+  1275→
+  1276→        {/* ver 6 */}
+  1277→        <Card>
+  1278→          <CardHeader>
+  1279→            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+  1280→              <span className="flex items-center gap-2">
+  1281→                <Workflow className="h-4 w-4 text-emerald-600 dark:text-emerald-300" aria-hidden />
+  1282→                ver 6 · dual-seed ensemble
+  1283→              </span>
+  1284→              <Badge
+  1285→                variant="outline"
+  1286→                className="border-emerald-500/40 text-[10px] text-emerald-700 dark:text-emerald-300"
+  1287→              >
+  1288→                0.945 ×2 — DETERMINISTIC
+  1289→              </Badge>
+  1290→            </CardTitle>
+  1291→            <CardDescription>
+  1292→              Kernel{" "}
+  1293→              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+  1294→                vietnguyen130593/biohub-ver6
+  1295→              </code>{" "}
+  1296→              — 2 bản nộp đều 0.945 public LB, khớp tuyệt đối.
+  1297→            </CardDescription>
+  1298→          </CardHeader>
+  1299→          <CardContent className="space-y-3">
+  1300→            <ul className="space-y-1.5 text-sm text-muted-foreground">
+  1301→              <li>
+  1302→                • 2 lượt phát hiện độc lập — primary + seed{" "}
+  1303→                <span className="font-mono">314159</span>, jitter &amp; miss-rate khác nhau
+  1304→              </li>
+  1305→              <li>
+  1306→                • Fusion theo src: cả hai thấy → trung bình vị trí · một thấy →
+  1307→                cửa sổ mờ, nhân dimFactor
+  1308→              </li>
+  1309→              <li>
+  1310→                • Hungarian gate <span className="font-mono">7.2 µm</span> + motion EMA
+  1311→              </li>
+  1312→              <li>
+  1313→                • Safe-div: mẹ ≤ 6.0 µm · chị em ≤ 11.5 µm · khối lượng hợp lý ·
+  1314→                xác nhận động học sau 1 khung
+  1315→              </li>
+  1316→              <li>
+  1317→                • Retention guard: gap ≤ 2 · bước ≤ 3.6 + 0.4×gap µm (node nội
+  1318→                suy chỉ cạnh liền khung)
+  1319→              </li>
+  1320→            </ul>
+  1321→            <p className="border-t pt-3 text-xs text-muted-foreground">
+  1322→              T4×2: v2 2147 s · v3 2290 s · 241.761 dòng (122.975 node +
+  1323→              118.786 cạnh) · submissions{" "}
+  1324→              <span className="font-mono">56207468</span> /{" "}
+  1325→              <span className="font-mono">56210873</span>
+  1326→            </p>
+  1327→          </CardContent>
+  1328→        </Card>
+  1329→
+  1330→        {/* ver 6 — validator 4 video */}
+  1331→        <Card>
+  1332→          <CardHeader>
+  1333→            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+  1334→              <span className="flex items-center gap-2">
+  1335→                <Gauge className="h-4 w-4 text-primary" aria-hidden />
+  1336→                ver 6 · validator nội bộ (rule cũ)
+  1337→              </span>
+  1338→              <Badge variant="outline" className="text-[10px]">
+  1339→                adjEJ 0.9230 · divJ 0.2000
+  1340→              </Badge>
+  1341→            </CardTitle>
+  1342→            <CardDescription>
+  1343→              4 video validator · PROXY{" "}
+  1344→              <span className="font-mono font-semibold">0.9430</span> → public LB{" "}
+  1345→              <span className="font-mono font-semibold">0.945</span>.
+  1346→            </CardDescription>
+  1347→          </CardHeader>
+  1348→          <CardContent className="space-y-2">
+  1349→            <div className="overflow-x-auto">
+  1350→              <Table>
+  1351→                <TableHeader>
+  1352→                  <TableRow>
+  1353→                    <TableHead className="text-xs">phim</TableHead>
+  1354→                    <TableHead className="text-right text-xs">phân bào GT</TableHead>
+  1355→                    <TableHead className="text-right text-xs">node</TableHead>
+  1356→                    <TableHead className="text-right text-xs">cạnh</TableHead>
+  1357→                  </TableRow>
+  1358→                </TableHeader>
+  1359→                <TableBody>
+  1360→                  {[62, 51, 9, 78].map((div, i) => (
+  1361→                    <TableRow key={i}>
+  1362→                      <TableCell className="py-1.5 text-xs">video #{i + 1}</TableCell>
+  1363→                      <TableCell className="py-1.5 text-right font-mono text-xs tabular-nums">
+  1364→                        {div}
+  1365→                      </TableCell>
+  1366→                      <TableCell className="py-1.5 text-right font-mono text-xs tabular-nums text-muted-foreground">
+  1367→                        —
+  1368→                      </TableCell>
+  1369→                      <TableCell className="py-1.5 text-right font-mono text-xs tabular-nums text-muted-foreground">
+  1370→                        —
+  1371→                      </TableCell>
+  1372→                    </TableRow>
+  1373→                  ))}
+  1374→                  <TableRow className="bg-muted/50 font-semibold">
+  1375→                    <TableCell className="py-1.5 text-xs">tổng</TableCell>
+  1376→                    <TableCell className="py-1.5 text-right font-mono text-xs tabular-nums">
+  1377→                      200
+  1378→                    </TableCell>
+  1379→                    <TableCell className="py-1.5 text-right font-mono text-xs tabular-nums">
+  1380→                      122.975
+  1381→                    </TableCell>
+  1382→                    <TableCell className="py-1.5 text-right font-mono text-xs tabular-nums">
+  1383→                      118.786
+  1384→                    </TableCell>
+  1385→                  </TableRow>
+  1386→                </TableBody>
+  1387→              </Table>
+  1388→            </div>
+  1389→            <p className="text-[11px] leading-snug text-muted-foreground">
+  1390→              PROXY = adjEJ + 0.1 × divJ = 0.9230 + 0.0200 = 0.9430 — chạy
+  1391→              trước submit để không đốt quota.
+  1392→            </p>
+  1393→          </CardContent>
+  1394→        </Card>
+  1395→
+  1396→        {/* Local scorer — giữ lại, cập nhật bối cảnh */}
+  1397→        <Card className="md:col-span-2">
+  1398→          <CardHeader>
+  1399→            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+  1400→              <span className="flex items-center gap-2">
+  1401→                <Gauge className="h-4 w-4 text-teal-600 dark:text-teal-300" aria-hidden />
+  1402→                Local scorer + validator held-out
+  1403→              </span>
+  1404→              <Badge className="bg-teal-600 text-[10px] leading-4 hover:bg-teal-600 sm:text-xs">
+  1405→                port metric chính thức
+  1406→              </Badge>
+  1407→            </CardTitle>
+  1408→            <CardDescription>
+  1409→              Chấm offline bằng port metric chính thức (repo BTC royerlab) —
+  1410→              validator ver-7 dùng 8 video held-out (scorer 075fc5f), paired
+  1411→              A/B so ver-6 trước khi nộp.
+  1412→            </CardDescription>
+  1413→          </CardHeader>
+  1414→          <CardContent className="grid grid-cols-1 gap-2 text-sm text-muted-foreground sm:grid-cols-3">
+  1415→            <p>• adjEJ micro-averaged đúng summarise của BTC</p>
+  1416→            <p>• Phân rã node recall / cạnh TP-FP-FN / division per-window</p>
+  1417→            <p>• Paired A/B + CI95 — không submit khi có dấu hiệu regression</p>
+  1418→          </CardContent>
+  1419→        </Card>
+  1420→      </div>
+  1421→
+  1422→      {/* Điểm yếu định lượng */}
+  1423→      <Card className="border-rose-500/30 bg-rose-500/[0.02]">
+  1424→        <CardHeader>
+  1425→          <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+  1426→            <span className="flex items-center gap-2">
+  1427→              <Activity className="h-4 w-4 text-rose-600 dark:text-rose-300" aria-hidden />
+  1428→              Điểm yếu định lượng của ver-6 / ver-7
+  1429→            </span>
+  1430→            <Badge
+  1431→              variant="outline"
+  1432→              className="border-rose-500/40 text-[10px] text-rose-700 dark:text-rose-300"
+  1433→            >
+  1434→              đo được trên validator — không suy đoán
+  1435→            </Badge>
+  1436→          </CardTitle>
+  1437→          <CardDescription>
+  1438→            Ba chỗ mất điểm lớn nhất — đúng thứ tự ưu tiên.
+  1439→          </CardDescription>
+  1440→        </CardHeader>
+  1441→        <CardContent className="space-y-4">
+  1442→          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+  1443→            <div className="rounded-lg border p-3">
+  1444→              <p className="flex items-center gap-2 text-sm font-semibold">
+  1445→                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-rose-500/10">
+  1446→                  <GitFork className="h-4 w-4 text-rose-600 dark:text-rose-400" aria-hidden />
+  1447→                </span>
+  1448→                Phân bào 100% FN
+  1449→              </p>
+  1450→              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+  1451→                div tp=0 / fp=0 trên validator — mất trắng mảnh 10% điểm
+  1452→                (0.1 × divJ). Trọng số nhỏ nhưng là khác biệt lớn ở top đầu.
+  1453→              </p>
+  1454→            </div>
+  1455→            <div className="rounded-lg border p-3">
+  1456→              <p className="flex items-center gap-2 text-sm font-semibold">
+  1457→                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-rose-500/10">
+  1458→                  <Unlink className="h-4 w-4 text-rose-600 dark:text-rose-400" aria-hidden />
+  1459→                </span>
+  1460→                Retention worst 0.453
+  1461→              </p>
+  1462→              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+  1463→                Tại{" "}
+  1464→                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+  1465→                  44b6_0b24845f
+  1466→                </code>{" "}
+  1467→                — 65/400 khung rơi vào fallback, track đứt nhiều nhất cả tập.
+  1468→              </p>
+  1469→            </div>
+  1470→            <div className="rounded-lg border p-3">
+  1471→              <p className="flex items-center gap-2 text-sm font-semibold">
+  1472→                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-rose-500/10">
+  1473→                  <ScanSearch className="h-4 w-4 text-rose-600 dark:text-rose-400" aria-hidden />
+  1474→                </span>
+  1475→                Over-prediction +17/35%
+  1476→              </p>
+  1477→              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+  1478→                2 phim dự đoán thừa node 17% và 35% — bị trừ nhẹ qua hệ số
+  1479→                penalty của adjEJ.
+  1480→              </p>
+  1481→            </div>
+  1482→          </div>
+  1483→          <div className="rounded-lg border border-teal-500/30 bg-teal-500/10 p-3.5 text-sm" role="note">
+  1484→            <p className="flex items-start gap-2">
+  1485→              <FlaskConical className="mt-0.5 h-4 w-4 shrink-0 text-teal-600 dark:text-teal-300" aria-hidden />
+  1486→              <span>
+  1487→                <strong>ver-7b đang chạy trên Kaggle</strong> (Phase C): divnet
+  1488→                division ranker <span className="font-mono">RANK-ONLY W=15 µm</span> +
+  1489→                nới gate tau 0.6→1.2 / diverge 2.25→1.0 — nhắm đúng điểm yếu
+  1490→                số 1 (phân bào 100% FN). divnet AUC{" "}
+  1491→                <span className="font-mono font-semibold">0.887</span> · upside
+  1492→                sim ≈ <span className="font-mono font-semibold">0.9556</span>.
+  1493→              </span>
+  1494→            </p>
+  1495→          </div>
+  1496→        </CardContent>
+  1497→      </Card>
+  1498→
+  1499→      {/* Bối cảnh leaderboard */}
+  1500→      <Card>
+  1501→        <CardHeader>
+  1502→          <CardTitle className="flex items-center gap-2 text-base">
+  1503→            <TrendingUp className="h-4 w-4 text-primary" aria-hidden />
+  1504→            Vị trí trên public leaderboard
+  1505→          </CardTitle>
+  1506→          <CardDescription>
+  1507→            Điểm thật của team, bức tường notebook công khai và đỉnh bảng.
+  1508→          </CardDescription>
+  1509→        </CardHeader>
+  1510→        <CardContent className="space-y-3.5">
+  1511→          {LB_ROWS.map((row) => (
+  1512→            <div key={row.label}>
+  1513→              <div className="mb-1 flex items-baseline justify-between gap-2">
+  1514→                <span className="text-sm font-medium">{row.label}</span>
+  1515→                <span className="font-mono text-sm font-bold tabular-nums">
+  1516→                  {row.score.toFixed(3)}
+  1517→                </span>
+  1518→              </div>
+  1519→              <Progress
+  1520→                value={row.score * 100}
+  1521→                className="h-2"
+  1522→                aria-label={`${row.label}: ${row.score.toFixed(3)}`}
+  1523→              />
+  1524→            </div>
+  1525→          ))}
+  1526→          <div className="flex items-start gap-2 rounded-lg border bg-muted/40 p-3 text-sm">
+  1527→            <Target className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" aria-hidden />
+  1528→            <p>
+  1529→              Ver-7 (port nguyên văn) kỳ vọng chạm{" "}
+  1530→              <span className="font-mono font-bold">0.947</span> — ngang bức
+  1531→              tường 360 đội. Vượt tường phải đóng góp kiến trúc riêng: ver-7b
+  1532→              nhắm phân bào, đúng mảnh điểm còn bỏ trống.
+  1533→            </p>
+  1534→          </div>
+  1535→        </CardContent>
+  1536→      </Card>
+  1537→
+  1538→      {/* Insight metric */}
+  1539→      <Card className="border-teal-500/30 bg-teal-500/[0.04]">
+  1540→        <CardHeader>
+  1541→          <CardTitle className="flex items-center gap-2 text-base">
+  1542→            <Lightbulb className="h-4.5 w-4.5 text-teal-600 dark:text-teal-300" aria-hidden />
+  1543→            Metric thực tế khác gì ta tưởng
+  1544→          </CardTitle>
+  1545→          <CardDescription>
+  1546→            Hai cơ chế quan trọng đọc từ code chấm chính thức — ảnh hưởng trực tiếp đến
+  1547→            chiến lược.
+  1548→          </CardDescription>
+  1549→        </CardHeader>
+  1550→        <CardContent className="space-y-4">
+  1551→          <div className="space-y-1.5">
+  1552→            <p className="text-sm font-semibold">
+  1553→              1 · Cạnh FP chỉ bị tính khi bám vào node khớp GT
+  1554→            </p>
+  1555→            <p className="text-sm leading-relaxed text-muted-foreground">
+  1556→              Một cạnh dự đoán chỉ là FP khi nguồn khớp một node-GT-có-cạnh-ra{" "}
+  1557→              <em>hoặc</em> đích khớp một node-GT-có-cạnh-vào. Cạnh nối 2 tế bào không
+  1558→              được GT chú thích bị{" "}
+  1559→              <strong className="text-foreground">BỎ QUA — không phạt</strong>.
+  1560→            </p>
+  1561→          </div>
+  1562→          <div className="space-y-1.5">
+  1563→            <p className="text-sm font-semibold">
+  1564→              2 · Phạt node thừa rất nhẹ — thiếu còn được thưởng nhẹ
+  1565→            </p>
+  1566→            <pre className="overflow-x-auto rounded-md bg-muted/70 p-2.5 font-mono text-xs">
+  1567→              adjEJ = EJ × (1 − 0.1 × (N_pred − N_true) / N_true)
+  1568→            </pre>
+  1569→            <p className="text-sm leading-relaxed text-muted-foreground">
+  1570→              Hệ số chỉ <span className="font-mono">0.1</span>: dự đoán{" "}
+  1571→              <strong className="text-foreground">thiếu</strong> node làm hệ số &gt; 1
+  1572→              (thưởng nhẹ), dự đoán thừa chỉ bị trừ nhẹ — vì vậy over-prediction
+  1573→              +17/35% của ver-6 chưa phá điểm nhiều.
+  1574→            </p>
+  1575→          </div>
+  1576→          <Separator className="bg-teal-500/20" />
+  1577→          <p className="flex items-start gap-2 text-sm font-semibold text-teal-700 dark:text-teal-300">
+  1578→            <Target className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+  1579→            Kết luận: giữ cạnh liền mạch (adjEJ ~0.92+) đã xong ở ver-6/7 — mảnh
+  1580→            điểm lớn còn lại là phân bào (divJ) mà chưa ai trong bức tường
+  1581→            0.947 làm được.
+  1582→          </p>
+  1583→        </CardContent>
+  1584→      </Card>
+  1585→    </div>
+  1586→  );
+  1587→}
+  1588→
+  1589→/* =========================================================================
+  1590→ * Tab 2 — Máy tính điểm
+  1591→ * ========================================================================= */
+  1592→
+  1593→function CalculatorTab() {
+  1594→  const [r, setR] = React.useState(98);
+  1595→  const [p, setP] = React.useState(99);
+  1596→  const [lambda, setLambda] = React.useState(99.5);
+  1597→  const [divJ, setDivJ] = React.useState(20);
+  1598→
+  1599→  const m = computeModel(r, p, lambda, divJ);
+  1600→  const activePreset = PRESETS.find(
+  1601→    (pr) => pr.r === r && pr.p === p && pr.lambda === lambda && pr.divJ === divJ
+  1602→  );
+  1603→  const deltaVsVer6 = m.score - 0.945;
+  1604→  const lambdaLabel = Number.isInteger(lambda) ? String(lambda) : lambda.toFixed(1);
+  1605→  const pLabel = Number.isInteger(p) ? String(p) : p.toFixed(1);
+  1606→  const scoreColor =
+  1607→    m.score >= 0.945
+  1608→      ? "text-emerald-600 dark:text-emerald-400"
+  1609→      : m.score >= 0.9
+  1610→        ? "text-amber-600 dark:text-amber-400"
+  1611→        : "text-rose-600 dark:text-rose-400";
+  1612→
+  1613→  return (
+  1614→    <div className="space-y-4">
+  1615→      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+  1616→        <Card className="h-fit">
+  1617→          <CardHeader>
+  1618→            <CardTitle className="flex items-center gap-2 text-base">
+  1619→              <Ruler className="h-4 w-4 text-primary" aria-hidden />
+  1620→              Tham số mô hình
+  1621→            </CardTitle>
+  1622→            <CardDescription>
+  1623→              Kéo 4 thanh trượt — điểm cập nhật tức thì ở bảng bên phải.
+  1624→            </CardDescription>
+  1625→          </CardHeader>
+  1626→          <CardContent className="space-y-5">
+  1627→            <div>
+  1628→              <div className="mb-2 flex items-baseline justify-between gap-2">
+  1629→                <Label className="text-sm font-medium">
+  1630→                  Node recall{" "}
+  1631→                  <span className="font-mono text-muted-foreground">(r)</span> — % node
+  1632→                  GT được phát hiện
+  1633→                </Label>
+  1634→                <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-sm font-semibold tabular-nums">
+  1635→                  {r}%
+  1636→                </span>
+  1637→              </div>
+  1638→              <Slider
+  1639→                value={[r]}
+  1640→                min={0}
+  1641→                max={100}
+  1642→                step={1}
+  1643→                onValueChange={(v) => setR(v[0] ?? r)}
+  1644→                aria-label="Node recall"
+  1645→              />
+  1646→            </div>
+  1647→            <div>
+  1648→              <div className="mb-2 flex items-baseline justify-between gap-2">
+  1649→                <Label className="text-sm font-medium">
+  1650→                  Node precision{" "}
+  1651→                  <span className="font-mono text-muted-foreground">(p)</span> — % node
+  1652→                  dự đoán là thật
+  1653→                </Label>
+  1654→                <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-sm font-semibold tabular-nums">
+  1655→                  {pLabel}%
+  1656→                </span>
+  1657→              </div>
+  1658→              <Slider
+  1659→                value={[p]}
+  1660→                min={50}
+  1661→                max={100}
+  1662→                step={0.5}
+  1663→                onValueChange={(v) => setP(v[0] ?? p)}
+  1664→                aria-label="Node precision"
+  1665→              />
+  1666→            </div>
+  1667→            <div>
+  1668→              <div className="mb-2 flex items-baseline justify-between gap-2">
+  1669→                <Label className="text-sm font-medium">
+  1670→                  Link correctness{" "}
+  1671→                  <span className="font-mono text-muted-foreground">(λ)</span> — % cạnh
+  1672→                  nối đúng
+  1673→                </Label>
+  1674→                <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-sm font-semibold tabular-nums">
+  1675→                  {lambdaLabel}%
+  1676→                </span>
+  1677→              </div>
+  1678→              <Slider
+  1679→                value={[lambda]}
+  1680→                min={0}
+  1681→                max={100}
+  1682→                step={0.1}
+  1683→                onValueChange={(v) => setLambda(v[0] ?? lambda)}
+  1684→                aria-label="Link correctness"
+  1685→              />
+  1686→            </div>
+  1687→            <div>
+  1688→              <div className="mb-2 flex items-baseline justify-between gap-2">
+  1689→                <Label className="text-sm font-medium">
+  1690→                  Division jaccard{" "}
+  1691→                  <span className="font-mono text-muted-foreground">(divJ)</span> — độ
+  1692→                  khớp sự kiện phân bào
+  1693→                </Label>
+  1694→                <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-sm font-semibold tabular-nums">
+  1695→                  {divJ}%
+  1696→                </span>
+  1697→              </div>
+  1698→              <Slider
+  1699→                value={[divJ]}
+  1700→                min={0}
+  1701→                max={100}
+  1702→                step={1}
+  1703→                onValueChange={(v) => setDivJ(v[0] ?? divJ)}
+  1704→                aria-label="Division jaccard"
+  1705→              />
+  1706→            </div>
+  1707→            <Separator />
+  1708→            <div>
+  1709→              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+  1710→                Preset
+  1711→              </p>
+  1712→              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+  1713→                {PRESETS.map((pr) => (
+  1714→                  <Button
+  1715→                    key={pr.key}
+  1716→                    type="button"
+  1717→                    variant="outline"
+  1718→                    aria-pressed={activePreset?.key === pr.key}
+  1719→                    onClick={() => {
+  1720→                      setR(pr.r);
+  1721→                      setP(pr.p);
+  1722→                      setLambda(pr.lambda);
+  1723→                      setDivJ(pr.divJ);
+  1724→                    }}
+  1725→                    className={`h-auto flex-col items-start gap-0.5 px-3 py-2 text-left ${
+  1726→                      activePreset?.key === pr.key
+  1727→                        ? "border-primary/60 bg-primary/10"
+  1728→                        : ""
+  1729→                    }`}
+  1730→                  >
+  1731→                    <span className="text-xs font-semibold">{pr.name}</span>
+  1732→                    <span className="font-mono text-[10px] text-muted-foreground">
+  1733→                      r{pr.r} · p{pr.p} · λ{pr.lambda} · divJ{pr.divJ}
+  1734→                    </span>
+  1735→                    <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+  1736→                      → {pr.claim}
+  1737→                    </span>
+  1738→                  </Button>
+  1739→                ))}
+  1740→              </div>
+  1741→              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+  1742→                Preset “ver-6 (hiệu chỉnh)” cho ≈{" "}
+  1743→                <span className="font-mono font-semibold">0.945</span> — khớp điểm
+  1744→                public LB 0.945 của ver-6 (deterministic × 2 bản), xác nhận mô
+  1745→                hình phản ánh đúng cơ chế ở vùng điểm cao.
+  1746→              </p>
+  1747→            </div>
+  1748→          </CardContent>
+  1749→        </Card>
+  1750→
+  1751→        <Card className="h-fit">
+  1752→          <CardHeader>
+  1753→            <CardTitle className="flex items-center gap-2 text-base">
+  1754→              <Calculator className="h-4 w-4 text-primary" aria-hidden />
+  1755→              Mô hình điểm what-if
+  1756→            </CardTitle>
+  1757→            <CardDescription>
+  1758→              N = 1000 node (chuẩn hoá) · q = 0.92 (tỷ lệ cạnh GT). Công thức đầy đủ:
+  1759→            </CardDescription>
+  1760→          </CardHeader>
+  1761→          <CardContent className="space-y-4">
+  1762→            <pre className="overflow-x-auto rounded-lg bg-muted/60 p-3 font-mono text-[11px] leading-relaxed">
+  1763→{`M = r·N ;  N_pred = M/p ;  S = N_pred − M
+  1764→E_gt = q·N
+  1765→TP = r²·λ·E_gt        (cả 2 đầu phải được phát hiện và nối đúng)
+  1766→FN = E_gt − TP
+  1767→FP = q·N_pred − TP
+  1768→EJ = TP/(TP+FP+FN)
+  1769→adjEJ = EJ × max(0, 1 − 0.1×(N_pred−N_true)/N_true) ,  N_true = N
+  1770→score = adjEJ + 0.1 × divJ`}
+  1771→            </pre>
+  1772→            <div className="grid grid-cols-3 gap-2">
+  1773→              <StatChip label="M — node khớp" value={m.M.toFixed(1)} />
+  1774→              <StatChip label="N_pred" value={m.Npred.toFixed(1)} />
+  1775→              <StatChip label="S — node thừa" value={m.S.toFixed(1)} />
+  1776→            </div>
+  1777→            <div className="grid grid-cols-3 gap-2">
+  1778→              <StatChip label="TP — cạnh đúng" value={m.TP.toFixed(1)} tone="good" />
+  1779→              <StatChip label="FP — cạnh giả" value={m.FP.toFixed(1)} tone="bad" />
+  1780→              <StatChip label="FN — cạnh sót" value={m.FN.toFixed(1)} tone="warn" />
+  1781→            </div>
+  1782→            <div className="grid grid-cols-2 gap-2">
+  1783→              <StatChip label="EJ" value={m.EJ.toFixed(3)} />
+  1784→              <StatChip label="adjEJ" value={m.adjEJ.toFixed(3)} />
+  1785→            </div>
+  1786→            <Separator />
+  1787→            <div>
+  1788→              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+  1789→                Điểm tổng — adjEJ + 0.1 × divJ
+  1790→              </p>
+  1791→              <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+  1792→                <p className={`font-mono text-5xl font-extrabold tabular-nums tracking-tight ${scoreColor}`}>
+  1793→                  {m.score.toFixed(3)}
+  1794→                </p>
+  1795→                <span
+  1796→                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-xs font-semibold tabular-nums ${
+  1797→                    deltaVsVer6 >= 0
+  1798→                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+  1799→                      : "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300"
+  1800→                  }`}
+  1801→                >
+  1802→                  {deltaVsVer6 >= 0 ? (
+  1803→                    <ArrowUp className="h-3 w-3" aria-hidden />
+  1804→                  ) : (
+  1805→                    <ArrowDown className="h-3 w-3" aria-hidden />
+  1806→                  )}
+  1807→                  {deltaVsVer6 >= 0 ? "+" : "−"}
+  1808→                  {Math.abs(deltaVsVer6).toFixed(3)} so với ver-6
+  1809→                </span>
+  1810→              </div>
+  1811→              <Progress
+  1812→                className="mt-3 h-2.5"
+  1813→                value={Math.min(100, Math.max(0, m.score * 100))}
+  1814→                aria-label={`Điểm tổng ${m.score.toFixed(3)}`}
+  1815→              />
+  1816→              <div className="mt-1.5 flex justify-between font-mono text-[10px] text-muted-foreground">
+  1817→                <span>0</span>
+  1818→                <span>0.945 · ver-6</span>
+  1819→                <span>0.970 · top 1</span>
+  1820→                <span>1.0</span>
+  1821→              </div>
+  1822→            </div>
+  1823→          </CardContent>
+  1824→        </Card>
+  1825→      </div>
+  1826→
+  1827→      <div
+  1828→        className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3.5 text-sm"
+  1829→        role="note"
+  1830→      >
+  1831→        <p className="flex items-start gap-2">
+  1832→          <Lightbulb
+  1833→            className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300"
+  1834→            aria-hidden
+  1835→          />
+  1836→          <span>
+  1837→            <strong>Mô hình xấp xỉ</strong> để hiểu cơ chế điểm — node recall xuất hiện{" "}
+  1838→            <strong>bình phương</strong> trong TP (cả 2 đầu cạnh đều phải được phát
+  1839→            hiện) → <strong>tăng recall là đòn bẩy mạnh nhất</strong>.
+  1840→          </span>
+  1841→        </p>
+  1842→      </div>
+  1843→    </div>
+  1844→  );
+  1845→}
+  1846→
+  1847→/* =========================================================================
+  1848→ * Tab 3 — Kiểm tra submission.csv
+  1849→ * ========================================================================= */
+  1850→
+  1851→function AnalyzerTab() {
+  1852→  const [source, setSource] = React.useState<"file" | "text">("text");
+  1853→  const [fileText, setFileText] = React.useState("");
+  1854→  const [fileName, setFileName] = React.useState<string | null>(null);
+  1855→  const [fileSize, setFileSize] = React.useState(0);
+  1856→  const [fileError, setFileError] = React.useState<string | null>(null);
+  1857→  const [pasted, setPasted] = React.useState("");
+  1858→  const [result, setResult] = React.useState<AnalysisOutput | null>(null);
+  1859→  const [loading, setLoading] = React.useState(false);
+  1860→  const [noData, setNoData] = React.useState(false);
+  1861→  const [bigWarn, setBigWarn] = React.useState(false);
+  1862→  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  1863→
+  1864→  const handleFile = (event: React.ChangeEvent<HTMLInputElement>): void => {
+  1865→    const file = event.target.files?.[0];
+  1866→    if (!file) return;
+  1867→    setFileName(file.name);
+  1868→    setFileSize(file.size);
+  1869→    setFileError(null);
+  1870→    setBigWarn(file.size > BIG_FILE_BYTES);
+  1871→    setSource("file");
+  1872→    const reader = new FileReader();
+  1873→    reader.onload = () => {
+  1874→      setFileText(typeof reader.result === "string" ? reader.result : "");
+  1875→    };
+  1876→    reader.onerror = () => {
+  1877→      setFileError("Không đọc được file — thử dán trực tiếp vào ô văn bản.");
+  1878→      setFileText("");
+  1879→    };
+  1880→    reader.readAsText(file);
+  1881→  };
+  1882→
+  1883→  const clearFile = (): void => {
+  1884→    setFileName(null);
+  1885→    setFileText("");
+  1886→    setFileSize(0);
+  1887→    setFileError(null);
+  1888→    setBigWarn(false);
+  1889→    if (fileInputRef.current) fileInputRef.current.value = "";
+  1890→  };
+  1891→
+  1892→  const loadSample = (): void => {
+  1893→    setSource("text");
+  1894→    setPasted(SAMPLE_CSV);
+  1895→    setResult(null);
+  1896→    setNoData(false);
+  1897→    setBigWarn(false);
+  1898→  };
+  1899→
+  1900→  const analyze = (): void => {
+  1901→    const text = source === "file" ? fileText : pasted;
+  1902→    if (text.trim() === "") {
+  1903→      setNoData(true);
+  1904→      return;
+  1905→    }
+  1906→    setNoData(false);
+  1907→    if (text.length > BIG_FILE_BYTES) setBigWarn(true);
+  1908→    setLoading(true);
+  1909→    window.setTimeout(() => {
+  1910→      let out: AnalysisOutput;
+  1911→      try {
+  1912→        out = analyzeCsv(text, source === "file" ? fileName : null);
+  1913→      } catch {
+  1914→        out = {
+  1915→          ok: false,
+  1916→          result: null,
+  1917→          fatalIssues: [
+  1918→            {
+  1919→              severity: "error",
+  1920→              title: "Không phân tích được dữ liệu",
+  1921→              detail: "Đã xảy ra lỗi không xác định — kiểm tra lại định dạng CSV.",
+  1922→              rows: [],
+  1923→            },
+  1924→          ],
+  1925→        };
+  1926→      }
+  1927→      setResult(out);
+  1928→      setLoading(false);
+  1929→    }, 40);
+  1930→  };
+  1931→
+  1932→  const res = result?.result ?? null;
+  1933→  const fileLineCount =
+  1934→    fileText === "" ? 0 : fileText.split(/\r\n|\r|\n/).filter((l) => l.trim() !== "").length;
+  1935→
+  1936→  return (
+  1937→    <div className="space-y-4">
+  1938→      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+  1939→        {/* Nguồn dữ liệu */}
+  1940→        <Card className="h-fit">
+  1941→          <CardHeader>
+  1942→            <CardTitle className="flex items-center gap-2 text-base">
+  1943→              <FileSearch className="h-4 w-4 text-primary" aria-hidden />
+  1944→              Nguồn dữ liệu
+  1945→            </CardTitle>
+  1946→            <CardDescription>
+  1947→              Mọi xử lý chạy ngay trong trình duyệt — dữ liệu không rời máy bạn.
+  1948→            </CardDescription>
+  1949→          </CardHeader>
+  1950→          <CardContent className="space-y-4">
+  1951→            <ToggleGroup
+  1952→              type="single"
+  1953→              variant="outline"
+  1954→              value={source}
+  1955→              onValueChange={(v) => {
+  1956→                if (v === "file" || v === "text") setSource(v);
+  1957→              }}
+  1958→              aria-label="Chọn nguồn dữ liệu"
+  1959→            >
+  1960→              <ToggleGroupItem value="file" className="gap-1.5 text-xs sm:text-sm">
+  1961→                <Upload className="h-3.5 w-3.5" aria-hidden />
+  1962→                Tải file CSV
+  1963→              </ToggleGroupItem>
+  1964→              <ToggleGroupItem value="text" className="gap-1.5 text-xs sm:text-sm">
+  1965→                <ClipboardPaste className="h-3.5 w-3.5" aria-hidden />
+  1966→                Dán văn bản
+  1967→              </ToggleGroupItem>
+  1968→            </ToggleGroup>
+  1969→
+  1970→            {source === "file" ? (
+  1971→              <div className="space-y-2">
+  1972→                <Input
+  1973→                  ref={fileInputRef}
+  1974→                  type="file"
+  1975→                  accept=".csv,text/csv,text/plain"
+  1976→                  onChange={handleFile}
+  1977→                  className="cursor-pointer text-xs"
+  1978→                  aria-label="Chọn file CSV"
+  1979→                />
+  1980→                {fileName && (
+  1981→                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+  1982→                    <p>
+  1983→                      <span className="font-medium text-foreground">{fileName}</span> ·{" "}
+  1984→                      {(fileSize / (1024 * 1024)).toFixed(2)} MB
+  1985→                      {fileLineCount > 0 && ` · ${fileLineCount} dòng`}
+  1986→                    </p>
+  1987→                    <button
+  1988→                      type="button"
+  1989→                      onClick={clearFile}
+  1990→                      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-accent hover:text-accent-foreground"
+  1991→                    >
+  1992→                      <X className="h-3 w-3" aria-hidden />
+  1993→                      bỏ chọn file
+  1994→                    </button>
+  1995→                  </div>
+  1996→                )}
+  1997→                {fileError && (
+  1998→                  <p className="text-xs font-medium text-rose-600 dark:text-rose-400">
+  1999→                    {fileError}
+  2000→                  </p>
+
+[showing lines 1-2000 of 2531; use offset=2001 with limit to continue reading]

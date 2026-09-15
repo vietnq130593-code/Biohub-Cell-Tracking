@@ -87,10 +87,10 @@ export function Hero() {
           </Badge>
           <Badge
             variant="outline"
-            className="border-amber-400/40 bg-amber-400/10 text-amber-200 backdrop-blur-sm"
+            className="border-emerald-400/40 bg-emerald-400/10 text-emerald-200 backdrop-blur-sm"
           >
             <Loader2 className="mr-1 h-3 w-3 animate-spin" aria-hidden />
-            Ver 8 · v1 FAIL runtime hidden test — v3-fast đang chạy (sweep rút còn 1 candidate)
+            Ver 9 · ĐÃ NỘP A/B (56261328 + 56261360) — đang chấm trên hidden test
           </Badge>
         </motion.div>
 

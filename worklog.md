@@ -724,3 +724,78 @@ Stage Summary:
 - Review ver-9 hoàn tất với 3 vòng (rev-2 sửa 6 lỗi + 7 thiếu sót; rev-3 phát hiện runtime failure của v8-v1 và dựng v3-fast khắc phục).
 - v3-fast RUNNING — dự kiến COMPLETE ~15:30-16:00 UTC → kiểm cổng (ΔadjEJ ≥ −0.0005, div_tp ≥ 0, runtime public ≤ 2h) → submit (còn 2 lượt hôm nay).
 - Kế hoạch v9 cuối cùng: nền v3-fast + HOCT mode 2 + RLF sau cùng + audit A1 GPU trước khi tin; EV +0.004…+0.007 so v8.
+
+---
+Task ID: BIO-DEPLOY-9
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: Triển khai ver-9 trên Kaggle và nộp bài ver-9 (yêu cầu user 15/9).
+
+Work Log:
+- Kiểm tra trạng thái 15:35 UTC: v3-fast COMPLETE 1,74h — CỔNG PASS (runtime 1,74h ≤ 2h; adjEJ +0,0025 ≥ −0,0005; div_tp 4=4 ≥ 0; div_fp 1 vs 2 = −1 ≤ +3; selected ppTight5565fb proxy 0,9594; submission 241.355 dòng) → fallback hợp lệ.
+- Quota GPU 5,19h còn (refresh 19/9); validator 8 stems = 188.813 nodes → HOCT ước ~38 phút; test 122k nodes ~18 phút; budget ver-9 ~2,5-3h → vừa.
+- DỰNG VER-9 (kaggle/ver-9/): build-ver9-monolith.py ghép 6 thay đổi vào v3-fast cell-monolith.py:
+  1. EXPERIMENT_TAG → secondary_deepcenter_tta_0947_reparent_hoct_v9
+  2. env [ver9]: BIOHUB_HOCT_VETO=2 · DEADLINE 10.5h · MAX_VIDEO_S 900 · RLF=1 · hardcode tight 5.5 + per-prefix {"44b6":5.5,"6bba":6.5} (bỏ sweep hoàn toàn theo A3.3 rev-2)
+  3. [ver9-hoct] arming block (559 dòng port nguyên văn cell 6 sjlee101) cắm TRƯỚC lần ghi base → hook intercept write_test_submission/filter_output_graph
+  4. PP_CANDIDATES = {} (0 candidates — cấu hình thắng đã hardcode)
+  5. [ver9-hoct-finalize] + [ver9-rlf] (port pawanmali cell 10.5 output-level, guard ≤ 0.5% hoàn tác) + [ver9-gate] (replay 8 stems ref/veto2/veto2rlf → ver9_gate_report.json với 6 cổng + ELEVEN + verdict SUBMIT/SUBMIT_SAFE/FALLBACK_V3FAST) cắm SAU final-write, TRƯỚC audit cuối
+  6. guard report: experiment/status phase_e_hoct_veto_rlf_v9 + final print ver-9
+- UNIT TEST: test-ver9-blocks.py 52/52 PASS (veto mode 1/2, budget rule, snap KD-tree 1-1, RLF walk + so khớp ngữ nghĩa pawanmali độc lập, gate verdict 6 kịch bản, 18 mấu tích hợp, thứ tự block).
+- INTEGRATION TEST: test-ver9-hook.py 19/19 PASS — hook wrap write_test_submission đúng chữ ký monolith (filter_output_graph(nodes, raw_edges, dataset=...)), veto áp trong lần ghi (12→8 cạnh, divisions 4→0), filter swap-restore đúng; RLF no-op sau veto; RLF áp đúng (bỏ con xa, giữ node, topology per-dataset OK); guard revert giữ nguyên byte; HOCT fail → pass-through từng video + restore backup. (Lỗi 2 vòng đầu là harness test — mock ngoài namespace; sửa theo đúng kiến trúc monolith.)
+- make-ver9-ipynb.py: notebook 3 cell (header + S1 monolith 5250 dòng + S2 eval cell) — 18 mấu [ver9] + gate production (tau 0.6/diverge 2.25/ep 0.25) kiểm PASS → download/ver9-cell-tracking.ipynb 357KB.
+- ktool.py: VER9_DATASETS = 7 của ver-8 + sjlee101/biohub-hoct-020-wheels + musculer/biohub-hoct-general-v0-official (verify API OK: hoct-0.2.0 wheel + general_v0.pt 25.5MB); VER9_SLUG biohub-ver9; watch timeout 300 phút; argparse +choice "9" (7 chỗ).
+- PUSH ver-9 15:56 UTC (kernel version 1, GPU T4×2, Internet OFF, 9 dataset + competition) → RUNNING. Watch nền PID 18540 (/tmp/ver9-watch.log, poll 120s).
+- Chờ: COMPLETE (~18:30-19:00 UTC ước) → tải output → đọc ver9_gate_report.json + HOCT_VETO_SUMMARY + RLF_REPORT → quyết định theo cổng §6 rev-2 → submit ver-9 (2 lượt còn lại hôm nay; fallback v3-fast nếu verdict FALLBACK).
+
+Stage Summary:
+- VER-9 ĐÃ PUSH Kaggle (vietnguyen130593/biohub-ver9 v1) — RUNNING: v3-fast + HOCT veto mode 2 + RLF + gate report trong kernel.
+- v3-fast (fallback) đã COMPLETE với tất cả cổng PASS — có thể nộp nếu ver-9 verdict FALLBACK.
+- 71 unit/integration test PASS trước push; hardcode tight bỏ sweep bảo đảm runtime hidden-test an toàn (~4-5h < 12h).
+
+---
+Task ID: APP-VER9
+Agent: frontend subagent
+Task: Cập nhật app Next.js (route /) với trạng thái ver-9 (HOCT consensus veto mode 2 + repeat-lineage filter) đang RUNNING trên Kaggle — chỉ dữ liệu + thêm mục phiên bản, KHÔNG đổi cấu trúc trang.
+
+Work Log:
+- Đọc worklog các Task APP-VER8 / BIO-DEPLOY-8 / BIO-REVIEW-9 (rev-3) / BIO-DEPLOY-9 để nắm pattern cập nhật app theo version và ngữ cảnh ver-9 (push 15:56 UTC 15/9, kernel biohub-ver9 v1, GPU T4×2, 9 input, ~2,5-3h; nền v3-fast COMPLETE 1,74h cổng PASS).
+- src/lib/competition-data.ts: THÊM mục ver-9 vào cuối KAGGLE_RESULTS (id "ver9", label "Ver 9 · HOCT veto + RLF", kaggleRef biohub-ver9 v1 GPU T4×2 · 9 input, status RUNNING, mọi số liệu null → hiển thị "—") với 6 notes: (a) HOCT consensus veto mode 2 port nguyên văn sjlee101/biohub-lf-hoctveto-div-b — linker thứ hai độc lập royerlab general_v0 6,25M params arXiv 2607.11754 chạy trên node set FINAL, mọi cạnh HOCT không đề xuất bị bỏ, sjlee 20 video honest +0,0040 [+0,0006, +0,0058], false divisions 55→29; (b) RLF pawanmali divfix — fork có tổ tiên cũng fork bỏ cạnh con xa, GT 0/132 lặp lineage, guard ≤ 0,5%; (c) hardcode tight per-prefix 44b6→5,5/6bba→6,5 + BỎ PPSWEEP (v1 fail hidden-test runtime vì sweep 86%); (d) [ver9-gate] system-view official SAU veto+RLF trên 8 stems → ver9_gate_report.json 6 cổng §6 rev-2 + ELEVEN → verdict SUBMIT/SUBMIT_SAFE/FALLBACK_V3FAST; (e) nền v3-fast COMPLETE 1,74h cổng PASS (proxy 0,9594, adjEJ +0,0025, div 4/1/8, 241.355 dòng); (f) kỳ vọng +0,004…+0,007 so với v3-fast.
+- src/lib/competition-data.ts (ver8): status RUNNING → COMPLETE (v3-fast đã xong), submittedAt cập nhật đuôi "v3-fast COMPLETE", THÊM note "★ v3-fast COMPLETE 15:35 UTC chỉ sau 1,74h — CỔNG PASS … là fallback của ver-9" (giữ nguyên 7 note cũ). LB_CONTEXT giữ nguyên (đã đúng 3569 đội / hạng 183 / cụm 0,948 = 46 đội), chỉ đổi comment cho rõ.
+- src/components/competition/hero.tsx: badge amber "Ver 8 · v1 FAIL runtime hidden test — v3-fast đang chạy…" → "Ver 9 · HOCT consensus veto + RLF — ĐANG CHẠY (GPU T4×2)" (giữ Loader2 animate-spin + border/bg/text amber); 4 stat thành tích giữ nguyên.
+- src/components/competition/tracking-demo.tsx: type Mode thêm 'ver9' đứng đầu; MODE_LABEL ver9 "Ver 9 · đang chạy" (ver8 → "Ver 8 · v3-fast COMPLETE"); default mode = 'ver9'; VERSION_INFO thêm 6 chips ver-9 (HOCT veto mode 2 · RLF · tight 5.5/6.5 hardcode · no sweep · gate 6 cổng §6 rev-2 · [ver9-gate] report); analysis + console log map ver9 → tái dùng pipeline ver-8 (nền ensemble ver-7, không đụng tracking-pipeline.ts); console log ver-9 đúng 11 dòng: ensemble → fusion → link → safe-div → [ver9·divnet] → [ver9·re-parent] → [ver9·hoct-veto mode 2 +0,0040 CI-dương sjlee] → [ver9·rlf 0/132 GT] → [ver9·tight hardcode 5,5/6,5 bỏ sweep] → [ver9-gate ref vs veto2 vs veto2rlf → SUBMIT/SUBMIT_SAFE/FALLBACK] → [submit biohub-ver9 v1 ĐANG CHẠY ~2,5-3h]; dòng [v3-fast] của log ver-8 cập nhật sang COMPLETE 1,74h cổng PASS; selector ToggleGroup thêm "Ver 9 · đang chạy" ở ĐẦU (5 mục); CardDescription + header comment thêm câu ver-9.
+- src/components/competition/submission-lab.tsx: tab "Phiên bản & điểm" THÊM card ver-9 (md:col-span-2, amber, icon ScanSearch + Loader2 spin) ở ĐẦU registry: badge "ĐANG CHẠY · GPU T4×2 (~2,5-3 H)", kiến trúc (HOCT veto mode 2 port sjlee101 · RLF pawanmali · tight 5.5/6.5 hardcode bỏ sweep · 9 input +2 HOCT datasets), hộp amber "KỲ VỌNG +0,004…+0,007 so với v3-fast" (sjlee +0,0040 CI-dương 20 video · RLF 0/132 GT), hộp [ver9-gate] 6 cổng + verdict, bảng "Cơ sở v3-fast" (runtime 1,74h ≤ 2h · adjEJ 0,9287 +0,0025 · div 4/1/8 · proxy 0,9594 · 241.355 dòng · cổng PASS). Card ver-8: badge → "v3-fast COMPLETE — cổng PASS (fallback ver-9)", hộp amber v3-fast cập nhật kết quả COMPLETE, CardDescription đuôi cập nhật.
+- LINT: bun run lint EXIT 0 sạch; bunx tsc --noEmit 0 lỗi trong src/ (chỉ examples/skills template có sẵn — không phải app).
+- BROWSER VERIFY (agent-browser, dev server PM2 port 3000): trang / HTTP 200, 0 lỗi console (chỉ HMR/Fast Refresh info), 0 page errors; hero badge amber "Ver 9 · HOCT consensus veto + RLF — ĐANG CHẠY (GPU T4×2)"; selector 5 mục với "Ver 9 · đang chạy" pressed=on mặc định — bấm Ver 6 (9 dòng log) / Ver 8 (11 dòng, đuôi v3-fast COMPLETE) / quay lại Ver 9 (11 dòng [ver9·divnet]/[ver9·re-parent]/[ver9·hoct-veto]/[ver9·rlf]/[ver9·tight]/[ver9-gate]/[submit đang chạy]) OK; bảng KAGGLE_RESULTS có hàng "Ver 9 · HOCT veto + RLF" badge ĐANG CHẠY + mọi số null → "—" + 6 notes hiển thị, hàng Ver 8 chuyển COMPLETE; card ver-9 hiển thị đầy đủ ở ĐẦU registry (badge/kiến trúc/kỳ vọng/gate/cơ sở v3-fast), card ver-8 badge mới; mobile 390px scrollWidth=390 không tràn ngang, footer đáy (footerAtBottom=true). Screenshots: kaggle/tools/e2e-ver9-{hero,selector,card,mobile}.png.
+
+Stage Summary:
+- App phản ánh đúng trạng thái ver-9 RUNNING: badge hero amber + selector mặc định "Ver 9 · đang chạy" + console log 11 dòng + card ver-9 (kỳ vọng +0,004…+0,007, cơ sở v3-fast, [ver9-gate]) + hàng bảng KAGGLE_RESULTS mọi số "—".
+- Ver-8 được chuyển sang COMPLETE với v3-fast cổng PASS làm fallback của ver-9; LB_CONTEXT 3569 đội / hạng 183 / cụm 0,948 = 46 đội.
+- Không đổi route, không đụng file ngoài 4 file trên, không thêm deadline/prize, layout/footer giữ nguyên; lint EXIT 0.
+
+---
+Task ID: BIO-SUBMIT-9
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: Triển khai ver-9 trên Kaggle và nộp bài ver-9 (tiếp tục từ BIO-DEPLOY-9 — kernel đã push RUNNING)
+
+Work Log:
+- Kiểm tra 18:50 UTC: kernel biohub-ver9 v1 COMPLETE (~2,4h kể từ push 15:56) — tải output toàn bộ (submission.csv 240.871 dòng + ver9_gate_report.json + ver9_rlf_report.json + log).
+- Đọc gate report: adjEJ veto2rlf vs ref +0,0017 (0,9287→0,9303 — tín hiệu dương ổn định ~71k cạnh) · div_tp 4→3 (−1/4 mẫu, nhiễu) · div_fn 8→9 · proxy −0,0060 → gates G1/G3/G4/G5/G6 PASS, G2 (div_tp) + ELEVEN FAIL → verdict FALLBACK_V3FAST.
+- Phân tích log: pipeline chạy đúng thiết kế — test 4 video → ghi 240.873 dòng (HOCT veto áp trong lần ghi, mode 2, veto 4 cạnh, 949s) → RLF bỏ 2 cạnh (0,0017%) → 240.871 dòng cuối; validator replay 8 stems veto 20 cạnh. RLF report: dropped=2/118.061 cạnh.
+- Kiểm định topology submission ver-9 local: 122.812 nodes + 118.059 edges · 0 cạnh dt≠±1 · max_out 2 · max_in 1 · 76 division parents ✓.
+- SUBMIT BỊ CHẶN 400: kaggle CLI file submit → "This competition only accepts Submissions from Notebooks" — phát hiện cơ chế thật: cuộc thi notebooks-only, mọi submission phải là code submission từ kernel version. Giải thích các submission trước (ver-6/7/8) vào bằng create_code_submission; file bị bỏ qua (totalBytes 207MB = output kernel, KHÔNG phải file 12,3MB).
+- Khám phá kagglesdk: CompetitionApiClient.create_code_submission(ApiCreateCodeSubmissionRequest{competition_name, kernel_owner, kernel_slug, kernel_version, file_name, submission_description}) — submit từ kernel version CỤ THỂ qua API, không cần re-push.
+- get_submission_limits: numToday=2, numTotal=7, numAllowedNow=3 (limit 5/ngày).
+- ★ SUBMIT VER-9 19:07:48 UTC 15/9 — ref 56261328, code submission từ kernel vietnguyen130593/biohub-ver9 v1 (HOCT veto mode 2 + RLF + tight 5,5/6,5 hardcode + no sweep). Kaggle rerun hidden ~4,8h (public 2,4h × ~2 < 12h an toàn) → điểm dự kiến ~00:00-01:00 UTC.
+- ★ SUBMIT A/B ĐỐI CHỨNG 19:09 UTC — ref 56261360, code submission từ kernel biohub-ver8 v3 (v3-fast, COMPLETE 1,74h, cổng PASS, verdict fallback). Cùng batch chấm → sáng mai so 2 điểm tách riêng hiệu ứng HOCT veto + RLF trên LB thật. Chi phí 0 GPU (dùng kernel version sẵn có). Còn 1 lượt hôm nay.
+- Quyết định vượt verdict FALLBACK_V3FAST (chỉ nộp v3-fast) sang nộp A/B CẢ HAI: bằng chứng trái chiều — adjEJ validator +0,0017 (71k cạnh tin cậy) + sjlee field +0,0040 CI-dương vs proxy −0,006 (bị kéo bởi divJ 4-mẫu thưa 10× so hidden 124 forks/video); còn 3 lượt → field test là cách duy nhất giải dứt điểm; kỷ luật cổng §6 rev-2 thiết kế cho thế giới 1-lượt.
+- Watch nền PID 21249 (/tmp/watch-subs.sh, poll 300s → /tmp/ver9-subs-watch.log) theo dõi 56261328 + 56261360 + 56255523.
+- APP CẬP NHẬT (frontend): competition-data.ts (ver9: status SUBMITTED, submittedAt 19:07 A/B, runSeconds 8663, rows 240.871, proxy 0,9534/adjEJ 0,9303/divJ 0,2308 từ gate report + 7 notes mới: nộp A/B, kernel results, gate trái chiều, vì sao vẫn nộp, RLF no-op, quota) · hero.tsx (badge emerald "Ver 9 · ĐÃ NỘP A/B (56261328 + 56261360) — đang chấm trên hidden test") · tracking-demo.tsx (MODE_LABEL "Ver 9 · đã nộp A/B", console log ver-9 12 dòng: +[ver9-gate] kết quả thật +[ver9-run] 2,4h COMPLETE +[submit] ĐÃ NỘP A/B 19:07, CardDescription + header comment + aria-label/selector label) · submission-lab.tsx (card ver-9 chuyển emerald: badge "ĐÃ NỘP A/B · ĐANG CHẤM HIDDEN TEST", CardDescription 2 refs + kernel + dự kiến điểm, hộp KẾT QUẢ KERNEL + [ver9-gate] thay KỲ VỌNG, hộp [ver9-run] topology 0 lỗi, caption v3-fast "đã nộp làm ĐỐI CHỨNG A/B (56261360)").
+- LINT EXIT 0 · PM2 biohub-web online 20h · HTTP 200 · agent-browser: 0 lỗi console/page, hero badge + selector ver-9 checked (aria-label mới) + card emerald + nội dung 56261328/56261360/FALLBACK_V3FAST/240.871/+0,0017 đều hiển thị · mobile 390px scrollWidth=390 · footer đáy khi scroll cuối. Screenshots: kaggle/tools/e2e-ver9-submitted-{hero,card,mobile}.png.
+
+Stage Summary:
+- ★ VER-9 ĐÃ NỘP: 56261328 (19:07 UTC 15/9) — HOCT consensus veto mode 2 + RLF + tight hardcode, từ kernel biohub-ver9 v1, đang chấm hidden test ~4,8h.
+- A/B field test: 56261360 v3-fast đối chứng (kernel biohub-ver8 v3) nộp 19:09 — cùng batch → sáng mai 2 điểm tách hiệu ứng veto trên LB thật.
+- Phát kiến hạ tầng QUAN TRỌNG: cuộc thi notebooks-only — submit phải qua create_code_submission (kagglesdk) với kernel_version cụ thể; file submission bị bỏ qua hoàn toàn (CLI file submit bị 400).
+- Gate verdict FALLBACK_V3FAST (proxy −0,006) nhưng adjEJ +0,0017 dương + sjlee CI-dương → nộp A/B cả hai (3 lượt còn → dùng 2, còn 1).
+- Điểm dự kiến ~00:00-01:00 UTC: ver-9 >0,947 → giữ ver-9 làm production; ver-9 ≤0,947 → v3-fast là mỏ neo, v10 xoá veto giữ RLF+tight.
+- 56255523 (13:33, description rỗng, không phải tool ta) vẫn PENDING — nghi submit từ kernel v2 sẽ fail runtime.

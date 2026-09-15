@@ -287,8 +287,8 @@ export const KAGGLE_RESULTS: KaggleVersionResult[] = [
     label: "Ver 8 · Phase D re-parenting",
     kaggleRef: "vietnguyen130593/biohub-ver8 v1+v2+v3fast · GPU T4×2",
     lbScore: null,
-    submittedAt: "2026-09-15 01:09 · v1 nộp nhưng FAIL runtime (56242181) — v3-fast đã push",
-    status: "RUNNING",
+    submittedAt: "2026-09-15 01:09 · v1 nộp nhưng FAIL runtime (56242181) — v3-fast COMPLETE",
+    status: "COMPLETE",
     runSeconds: 22380,
     submissionRows: 241330,
     proxy: 0.9591,
@@ -302,11 +302,34 @@ export const KAGGLE_RESULTS: KaggleVersionResult[] = [
       "v2 COMPLETE 09:13 (7,9h): chọn ppTight5565 (proxy 0,9594) nhưng KHÔNG nộp — cả v1/v2 đều quá chậm cho hidden test",
       "Bài học v2: rp-ep50 no-op · rp-ep75 làm div_fp 2→4 mà div_tp đứng ở 4 → REPARENT_EDGE_PROB giữ 0,25",
       "★ v3-fast PUSH 13:57 UTC (kernel version 3): sweep rút còn 1 candidate ppTight5565fb (per-prefix + fallback global 5.5) → public ~1,3-1,8h → hidden ~2,5-3,6h — an toàn trong hạn · py_compile + 7/7 unit test PASS",
+      "★ v3-fast COMPLETE 15:35 UTC chỉ sau 1,74h — CỔNG PASS (runtime ≤ 2h · adjEJ +0,0025 · div 4/1/8 · proxy 0,9594 · 241.355 dòng) — là fallback của ver-9",
+    ],
+  },
+  {
+    id: "ver9",
+    label: "Ver 9 · HOCT veto + RLF",
+    kaggleRef: "vietnguyen130593/biohub-ver9 v1 · GPU T4×2 · 9 input",
+    lbScore: null,
+    submittedAt: "2026-09-15 19:07 UTC · ĐÃ NỘP A/B — 56261328 (ver-9) + 56261360 (v3-fast đối chứng)",
+    status: "SUBMITTED",
+    runSeconds: 8663,
+    submissionRows: 240871,
+    proxy: 0.9534,
+    adjEJ: 0.9303,
+    divJ: 0.2308,
+    notes: [
+      "★ VER-9 ĐÃ NỘP 19:07 UTC 15/9 (ref 56261328, code submission từ kernel biohub-ver9 v1) — Kaggle rerun trên hidden test ~4,8h (public 2,4h × ~2) → điểm dự kiến ~00:00-01:00 UTC",
+      "A/B field test: nộp thêm v3-fast đối chứng 19:09 (ref 56261360, kernel biohub-ver8 v3) — cùng batch chấm → sáng mai so 2 điểm tách riêng hiệu ứng HOCT veto + RLF trên LB thật",
+      "Kernel COMPLETE 2,4h: test 4 video → submission 240.873 dòng → HOCT veto áp trong lần ghi (mode 2, veto 4 cạnh, 949s) → RLF bỏ 2 cạnh → 240.871 dòng cuối · kiểm định topology: 0 cạnh dt≠±1, max_out 2, max_in 1 ✓ · 76 division parents",
+      "[ver9-gate] replay 8 stems validator: adjEJ 0,9287 → 0,9303 (+0,0017 ✓ tín hiệu dương ổn định ~71k cạnh) nhưng div_tp 4→3 (−1/4 mẫu, nhiễu) → proxy −0,0060 → verdict FALLBACK_V3FAST theo cổng §6 rev-2",
+      "Vì sao vẫn nộp ver-9: tín hiệu trái chiều — adjEJ validator dương + sjlee field +0,0040 CI-dương, còn proxy âm bị kéo bởi divJ chỉ 4 divisions (validator thưa 10× so hidden 124 forks/video) → field test là cách duy nhất giải dứt điểm",
+      "RLF trên validator = no-op (0,0017% cạnh) · trên test bỏ 2/118.061 cạnh — an toàn tuyệt đối đúng thiết kế guard ≤ 0,5%",
+      "Còn 1 lượt submit hôm nay (4/5 đã dùng) · GPU quota còn ~0,4h/30h (refresh 19/9) · 56255523 (13:33, không phải tool ta) vẫn PENDING — nghi là kernel v2 sẽ fail runtime",
     ],
   },
 ];
 
-/** Bối cảnh leaderboard cập nhật 15/9 13:15 UTC (3569 đội) */
+/** Bối cảnh leaderboard cập nhật 15/9 13:15 UTC — 3569 đội */
 export const LB_CONTEXT = {
   ourTeam: "daoviet",
   ourScore: 0.947,

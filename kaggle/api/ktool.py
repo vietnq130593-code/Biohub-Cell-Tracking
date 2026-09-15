@@ -76,10 +76,19 @@ VER8W1_SLUG = "biohub-ver8-wave1"
 VER8_NOTEBOOK = PROJECT / "download" / "ver8-cell-tracking.ipynb"
 VER8_DATASETS = VER7_DATASETS + ["giorgosi/biohub-divnet-v2"]
 VER8_SLUG = "biohub-ver8"
+# ver-9: Phase E — v3-fast (bỏ sweep, hardcode tight 5.5/6.5) + HOCT consensus veto
+# mode 2 (port sjlee101 cell 6/12) + repeat-lineage filter (port pawanmali cell 10.5)
+# + [ver9-gate] cổng §6 rev-2 trong kernel. 9 input = 7 của ver-8 + 2 dataset HOCT.
+VER9_NOTEBOOK = PROJECT / "download" / "ver9-cell-tracking.ipynb"
+VER9_DATASETS = VER8_DATASETS + [
+    "sjlee101/biohub-hoct-020-wheels",
+    "musculer/biohub-hoct-general-v0-official",
+]
+VER9_SLUG = "biohub-ver9"
 ACCELERATOR = "NvidiaTeslaT4"   # GPU T4 × 2 (giống notebook gốc 0.945) — enum theo kagglesdk
 DEFAULT_SLUG = "biohub-ver6"
 POLL_SECONDS = 60
-WATCH_TIMEOUT_MIN = 240
+WATCH_TIMEOUT_MIN = 300   # ver-9 (~2,5-3h: core + HOCT test + gate 8 stems) — dự phòng 5h
 WATCH_TIMEOUT_MIN_CPU = 700   # wave1 CPU chạy 2,5-4h (deadline nội bộ 8,5h)
 
 
@@ -95,6 +104,8 @@ def version_config(ver) -> tuple[Path, list[str], str]:
         return VER8W1_NOTEBOOK, VER8W1_DATASETS, VER8W1_SLUG
     if ver == "8":
         return VER8_NOTEBOOK, VER8_DATASETS, VER8_SLUG
+    if ver == "9":
+        return VER9_NOTEBOOK, VER9_DATASETS, VER9_SLUG
     return NOTEBOOK, DATASETS, DEFAULT_SLUG
 
 
@@ -443,7 +454,7 @@ def main() -> int:
     p.set_defaults(func=cmd_token)
 
     p = sub.add_parser("verify", help="kiểm tra token + input + quota")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8"], default="6",
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9"], default="6",
                    help="6: 3 dataset; 7: 6 dataset; 7b: 7 dataset; 8w1: 5 dataset CPU mini-kernel")
     p.set_defaults(func=cmd_verify)
 
@@ -451,27 +462,27 @@ def main() -> int:
     p.add_argument("--username", help="username Kaggle (tự phát hiện nếu có thể)")
     p.add_argument("--slug")
     p.add_argument("--public", action="store_true", help="để public (mặc định private)")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8"], default="6",
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9"], default="6",
                    help="6: ver-6; 7: ver-7 port 0.947; 7b: + divnet; 8w1: wave1 CPU (E0-E3)")
     p.set_defaults(func=cmd_push)
 
     p = sub.add_parser("status", help="xem trạng thái run hiện tại")
     p.add_argument("--username")
     p.add_argument("--slug")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8"], default="6")
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9"], default="6")
     p.set_defaults(func=cmd_status)
 
     p = sub.add_parser("watch", help="đợi chạy xong rồi tải output")
     p.add_argument("--username")
     p.add_argument("--slug")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8"], default="6")
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9"], default="6")
     p.add_argument("--poll", type=int, default=POLL_SECONDS)
     p.set_defaults(func=cmd_watch)
 
     p = sub.add_parser("output", help="tải output của run gần nhất")
     p.add_argument("--username")
     p.add_argument("--slug")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8"], default="6")
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9"], default="6")
     p.set_defaults(func=cmd_output)
 
     p = sub.add_parser("submit", help="nộp notebook version vào competition")
@@ -479,7 +490,7 @@ def main() -> int:
     p.add_argument("--slug")
     p.add_argument("--version", type=int)
     p.add_argument("--message")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8"], default="6",
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9"], default="6",
                    help="dùng khi không có --slug và chưa có state push")
     p.set_defaults(func=cmd_submit)
 
@@ -493,7 +504,7 @@ def main() -> int:
     p.add_argument("--username")
     p.add_argument("--slug")
     p.add_argument("--public", action="store_true")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8"], default="6")
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9"], default="6")
     p.add_argument("--poll", type=int, default=POLL_SECONDS)
     p.add_argument("--version", type=int)
     p.add_argument("--message")

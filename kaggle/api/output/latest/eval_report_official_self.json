@@ -1,10 +1,10 @@
 {
   "schema": "biohub-eval-report/1",
   "meta": {
-    "version": "secondary_deepcenter_tta_0947_divnet_rank_v7b",
+    "version": "secondary_deepcenter_tta_0947_reparent_hoct_v9",
     "source": "kaggle-eval-cell",
     "rule_note": "official-075fc5f (tracking_cellmot \u2014 divJ strict topology, \u0111\u00fang lu\u1eadt ch\u1ea5m th\u1eadt)",
-    "created_utc": "2026-09-14T02:31:06Z",
+    "created_utc": "2026-09-15T18:23:01Z",
     "kernel_note": "ver-7 monolith (Reyhan port) \u2014 eval cell Phase B",
     "pred_root": "/kaggle/working/tracking_repo/predictions"
   },
