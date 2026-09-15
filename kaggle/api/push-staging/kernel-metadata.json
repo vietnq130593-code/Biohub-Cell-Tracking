@@ -1,7 +1,7 @@
 {
-  "id": "vietnguyen130593/biohub-ver8",
-  "title": "biohub-ver8",
-  "code_file": "ver8-cell-tracking.ipynb",
+  "id": "vietnguyen130593/biohub-ver9",
+  "title": "biohub-ver9",
+  "code_file": "ver9-cell-tracking.ipynb",
   "language": "python",
   "kernel_type": "notebook",
   "is_private": true,
@@ -16,7 +16,9 @@
     "dalloliogm/biohub-official-scorer-patched",
     "dariushafshar/biohub-local-cv-pack",
     "vietnguyen130593/biohub-v6-heldout-preds",
-    "giorgosi/biohub-divnet-v2"
+    "giorgosi/biohub-divnet-v2",
+    "sjlee101/biohub-hoct-020-wheels",
+    "musculer/biohub-hoct-general-v0-official"
   ],
   "competition_sources": [
     "biohub-cell-tracking-during-development"

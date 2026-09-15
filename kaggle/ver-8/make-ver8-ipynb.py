@@ -19,16 +19,21 @@ MONOLITH = ROOT / "cell-monolith.py"
 EVAL_CELL = KAGGLE / "eval" / "cell-eval-official.py"
 OUT = DOWNLOAD / "ver8-cell-tracking.ipynb"
 
-HEADER_MARKDOWN = """# ver 8 — Biohub Cell Tracking (Phase D: Re-parenting division recovery)
+HEADER_MARKDOWN = """# ver 8 — Biohub Cell Tracking (Phase D: Re-parenting division recovery) — **v3-fast**
 
 **ver-7 (port 0.947, LB đã xác nhận) + [ver8]**: hai cơ chế phân bào song song:
 
 1. **DivNet RANK-ONLY** (giữ NGUYÊN gate production tau 0.6 / diverge 2.25 — khác ver-7b đã thất bại
    vì nới gate): chỉ xếp lại thứ tự đề xuất theo `P(division)` của node mẹ.
-2. **RE-PARENTING** (cơ chế MỚI, chưa ai làm — VER8-REPARENT-DESIGN.md): 6/12 sự kiện phân bào GT
-   held-out có CẢ HAI con đã detect nhưng con thứ 2 (D2) bị nối nhầm vào node Y (không mồ côi →
-   safe-div không bao giờ xét). Cơ chế: tháo cạnh yếu `Y→D2` + nối `M→D2` khi DivNet + geometry +
-   cạnh hiện tại yếu + DeepCenter đồng thuận. Mỗi sự kiện thu hồi ≈ +0.0077 điểm.
+2. **RE-PARENTING** (VER8-REPARENT-DESIGN.md): 6/12 sự kiện phân bào GT held-out có CẢ HAI con
+   đã detect nhưng con thứ 2 (D2) bị nối nhầm vào node Y. Cơ chế: tháo cạnh yếu `Y→D2` + nối
+   `M→D2` khi DivNet + geometry + cạnh hiện tại yếu + DeepCenter đồng thuận.
+
+**[ver8.3-fast] — SỬA LỖI RUNTIME HIDDEN TEST (15/9):** submission v1 (56242181) FAILED vì
+rerun trên hidden test (lớn hơn public ~2×) vượt runtime limit — sweep 16-19 candidates chiếm
+86% runtime kernel. v3 rút sweep về **1 candidate duy nhất** `ppTight5565fb` (per-prefix
+44b6→5.5/6bba→6.5 + fallback global 5.5 cho prefix lạ) → kernel public ~1,3-1,8h → hidden
+~2,5-3,6h, an toàn trong hạn. REPARENT_EDGE_PROB giữ 0.25 (v2: mở 0.50/0.75 chỉ thêm FP).
 
 **Settings trước khi Run All**
 
@@ -41,12 +46,11 @@ HEADER_MARKDOWN = """# ver 8 — Biohub Cell Tracking (Phase D: Re-parenting div
 + official-scorer + local-cv-pack + v6-heldout-preds + **giorgosi/biohub-divnet-v2**.
 
 **2 code cell:**
-- **S1 — monolith** (~2h T4×2): ver-8 với PPSWEEP mở rộng (candidates re-parent + 7 gốc; chọn theo
-  gate ±0.0005 adjEJ đã có sẵn) + eval cell tự chấm official system-view trong run.
+- **S1 — monolith** (~1,3-1,8h T4×2 public): ver-8 re-parent + sweep 1 candidate + eval trong run.
 - **S2 — Phase B official eval** (exception-safe): self + baseline ver-6 → JSON schema chung.
 
-Sau run: local `compare.py --gate adj:0.928 --gate proxy:0.9434` (baseline = system view E1).
-**Cổng submit:** div_tp ≥ +2, div_fp ≤ +3, ΔadjEJ ≥ −0.0005, guards 5/5, Δproxy ≥ +0.005.
+**Cổng submit v3:** ΔadjEJ ≥ −0.0005 so replay không veto · div_tp ≥ 0 · div_fp ≤ +3 ·
+guards 5/5 · runtime public ≤ 2h (BẮT BUỘC — hidden test ~2×).
 """
 
 
@@ -93,9 +97,11 @@ def static_checks() -> None:
         "REPARENT_MIN_PDIV",
         "def load_divnet_ranker",
         "DIVNET_RANKER = load_divnet_ranker()",
-        "EXPERIMENT_TAG = 'secondary_deepcenter_tta_0947_reparent_v8'",
+        "EXPERIMENT_TAG = 'secondary_deepcenter_tta_0947_reparent_v8_3fast'",
         "'REPARENT_MAX_UM', 'REPARENT_SISTER_UM'",
         "phase_d_reparent_division_recovery",
+        "ppTight5565fb",
+        "[ver8.3-fast]",
     ]
     for token in required:
         if token not in text:
@@ -105,8 +111,8 @@ def static_checks() -> None:
         sys.exit("[check] THẤT BẠI: tau còn 1.2 (phải 0.6 — gate production)")
     if "BIOHUB_SAFE_DIV_DIVERGE_UM'] = '1.0'" in text:
         sys.exit("[check] THẤT BẠI: diverge còn 1.0 (phải 2.25 — gate production)")
-    print(f"[check] {len(required)} mấu [ver8] đủ mặt + gate production (tau 0.6 / diverge 2.25) OK")
-    print(f"[check] số điểm đánh dấu [ver8]: {text.count('[ver8]')}")
+    print(f"[check] {len(required)} mấu [ver8/v8.3] đủ mặt + gate production (tau 0.6 / diverge 2.25) OK")
+    print(f"[check] số điểm đánh dấu [ver8]: {text.count('[ver8]')} · [ver8.3-fast]: {text.count('[ver8.3-fast]')}")
 
 
 def verify_notebook(nb: dict) -> None:

@@ -20,6 +20,8 @@ notebook Kaggle gốc rồi **Save & Run All → Submit**.
 | 5 | Fork giải pháp ML 0.945 — cell 5 ver 5.1 nâng cấp | nghiên cứu ✓ + nâng cấp ✓ | — |
 | 6 | Ensemble 2 lượt + retention guard | **0.945** ×2 deterministic | 13/09/2026 |
 | 7 | Port monolith Reyhan 0.947 + Phase B official eval | **0.947** ✓ (hạng 342/3523) | 14/09/2026 |
+| 8 | Phase D re-parenting + DivNet rank-only (PPSWEEP tight55) | đang chấm (56242181, submit 01:09 15/9) | 15/09/2026 |
+| 9 | Kế hoạch: HOCT consensus veto + repeat-lineage filter (nghiên cứu đầy đủ) | nghiên cứu ✓ — chờ điểm v8 để rẽ nhánh | 15/09/2026 |
 
 ## Hotfix — NameError STRUCT26 (rơi trên Kaggle 13/09/2026)
 
@@ -156,6 +158,29 @@ continuation, 72 cạnh phân bào, 572 track) — không phải dự đoán:
 | **Mới — kiểm tra "ổn định khối lượng mẹ"**: khối lượng blob mẹ tại khung tách ≤ ~1,7× baseline riêng của nó | merge-split giả: blob gộp 2 tế bào ≈ 2× đơn; phân bào thật chỉ sáng lên nhẹ (AUC 0,73) |
 | Giữ nội suy + xác nhận động học | GT 100% cạnh liền khung; base rate 24:1 |
 | Phân bổ công lực: 90% cho adjEJ (trọng số 1,0) — division chỉ 0,1 | Kể cả hạng 40 cũng hỏi "tín hiệu gì chạy được division > 0" |
+
+## ver 9 — Kế hoạch HOCT consensus + repeat-lineage (nghiên cứu 15/9, REV-2 review 13:30 — chờ điểm v8)
+
+- **Nghiên cứu tri thức mới từ trang /code của cuộc thi** (17 notebook + 6 discussions): đầy đủ tại `ver-9-planning/VER9-RESEARCH.md` — 6 phát hiện then chốt:
+  1. **HOCT consensus veto MODE 2** (sjlee101 + arXiv 2607.11754, royerlab BSD-3): linker độc lập chỉ giữ cạnh CẢ HAI linker đề xuất (kể cả cạnh division) — **+0.0040 CI [+0.0006,+0.0058] trên 20 video honest**, false divisions 55→29; đã chạy thật 4/4 video test (log xác nhận `mode=2` — biến thể fielded); wheels + weights public trên Kaggle (A2 đã verify truy cập được). Chưa ai đo veto trên validator (khoảng trống ta lấp).
+  2. **Repeat-lineage division filter** (pawanmali divfix 15/9): 0/132 divisions GT có tổ tiên đã division — lọc fork lặp lineage giảm div_fp, chỉ bỏ cạnh (an toàn).
+  3. **Division = smaller not dimmer** (zhincez): volume −0.27 tại +3, bắt đầu từ lag −2; peak bất biến — feature ranker sớm hơn brightness.
+  4. **2 embryo train / test = embryo 3; nhãn lệch 12×** (zhincez label-eda) — held-out under-estimate hoạt động division trên test dày (sjlee sinh 124 forks/4 video test vs 12 GT/8 stems).
+  5. **Frontier thật 0.949–0.970** (Pilkwang 0.949, hạng 32 fielded 0.9557): fine-tune encoder phá frozen linker; velocity-only 0/381 contested — không đi.
+  6. **Ultrack weights chính chủ public + Zebrahub OK** — validator embryo-3 (`2024_03_22_dorado`) cho private phase.
+- **REV-2 review 15/9 13:30** (chi tiết VER9-RESEARCH.md §10): 6 lỗi sửa (attribution mode 2 — không phải mode 1; cổng mode bất khả; EV +0.004…+0.007 so v8; 9 input; RLF chạy sau cùng; hardcode ppTight5565 theo v2) + 7 thiếu sót bù (DIVERGE 4.0/4.5 kimi-v18 vào audit; timeline rút — push được ngay 15/9 vì v9 lean ≈ 1,5–2h vs quota 6,93h; audit A1 chuyển GPU; nhánh C1b; evidence v2; gap-edge đã kiểm chứng 0 cạnh dt>1; app cập nhật).
+- **Cấu hình v9 cốt lõi (rev-2)**: v8-v1 nền + HOCT veto mode 2 (fallback mode 1) + RLF output-level sau cùng + hardcode ppTight5565 + REPARENT_EDGE_PROB 0.25 + (DIVERGE 4.0/4.5 nếu audit xanh) + bỏ PPSWEEP (tiết kiệm 6,87h).
+- LB 15/9 13:15: 3569 đội, ta hạng 183, cụm 0.948 = 46 đội (hạng 79–124).
+
+## ver 8 — Phase D re-parenting + DivNet RANK-ONLY (v1 FAIL runtime → v3-fast đang chạy)
+
+- **v1 (56242181) submit 01:09 15/9 → FAIL ~13:15 UTC**: rerun notebook trên HIDDEN TEST (lớn hơn public ~2×) vượt runtime limit — errorDescription "submission notebook exceeded the allowed runtime… hidden dataset can be larger/smaller/different than the public dataset", totalBytes=0, không có điểm. Nguyên nhân gốc: PPSWEEP 16-19 candidates = 86% runtime (6,87/7,95h) → kernel public 6,2h × ~2× ≈ 12,4h > hạn 12h. ver-7 (117 phút) pass vì đủ nhanh.
+- **Bài học hạ tầng (REV-3):** mọi submission đều rerun trên hidden test lớn hơn — ngân sách runtime là ràng buộc CỨNG (kernel public ≤ 2h an toàn). Hammad warning "hidden test lớn hơn 4 video public" đúng ngay cả dev-phase.
+- **v2 COMPLETE 09:13 UTC (7,9h — 19 candidates)**: chọn ppTight5565 (proxy 0,9594 · adjEJ 0,9287 · div 4/1/8 — +0,0003 so v1) → KHÔNG nộp (cả v1/v2 đều quá chậm cho hidden test). Bài học thuật toán: rp-ep50 no-op · rp-ep75/ep75-pdiv75 làm div_fp 2→4 không tăng div_tp → REPARENT_EDGE_PROB giữ 0,25. Phân tích runtime: PPSWEEP 6,87/7,95h kernel.
+- **v3-fast PUSH 13:57 UTC (kernel version 3)**: fork v2 (source phục hồi từ Kaggle sau rollback sandbox) + rút PP_CANDIDATES còn 1 candidate `ppTight5565fb` ({'MOTION_RELINK_TIGHT_UM': 5.5, 'MOTION_RELINK_TIGHT_PER_PREFIX': {'44b6': 5.5, '6bba': 6.5}} — fallback global 5.5 cho prefix lạ trên hidden) → public ~1,3-1,8h → hidden ~2,5-3,6h an toàn · EXPERIMENT_TAG `…_v8_3fast` · py_compile + 7/7 unit test + 12 mấu tích hợp PASS · giá trị thuật toán giữ nguyên v1 (re-parent +1 sự kiện, Δproxy +0,0080 held-out).
+- Cảnh báo: submission 56255523 (13:33, KHÔNG phải tool của ta, không mô tả) PENDING totalBytes=0 — nếu là kernel ver-8 v1/v2 thì sẽ fail y hệt sau ~12h.
+- Cơ chế: re-parent 6/12 GT division FN (tháo cạnh sai Y→D2, nối M→D2 đúng GT), DivNet rank RANK-ONLY giữ gate gốc (khác ver-7b).
+- Cơ sở Wave-1: E1 system-view official adjEJ 0.9280 / div 2/1/10 / proxy 0.9434; E0 grid 15 combo không tăng div_tp (trần safe-div); 17 unit test PASS.
 
 ## ver 7 — Port monolith Reyhan 0.947 + Phase B official eval (PUBLIC LB 0.947 ✓)
 

@@ -191,7 +191,7 @@ SUBMISSION_PATH = WORKING_DIR / 'submission.csv'
 RUN_STATS_PATH = WORKING_DIR / 'run_stats.csv'
 METHOD = 'unet_transformer'
 WEIGHTS_RELATIVE = f'weights/{METHOD}/split_0/edge_predictor_best.pth'
-EXPERIMENT_TAG = 'secondary_deepcenter_tta_0947_reparent_v8'
+EXPERIMENT_TAG = 'secondary_deepcenter_tta_0947_reparent_v8_3fast'
 RESUME_DIR = WORKING_DIR / 'biohub_live_resume'
 TEST_PREDICTION_STATE_PATH = RESUME_DIR / 'test_prediction_state.json'
 TEST_PREDICTION_LOG_PATH = RESUME_DIR / 'test_prediction.log'
@@ -435,6 +435,8 @@ OUTPUT_SINGLE_CHILD_REPAIR = os.environ.get('BIOHUB_OUTPUT_SINGLE_CHILD_REPAIR',
 OUTPUT_PRUNE_ISOLATED = os.environ.get('BIOHUB_OUTPUT_PRUNE_ISOLATED', '1') != '0'
 OUTPUT_MOTION_RELINK = os.environ.get('BIOHUB_OUTPUT_MOTION_RELINK', '1') != '0'
 MOTION_RELINK_TIGHT_UM = float(os.environ.get('BIOHUB_MOTION_RELINK_TIGHT_UM', '6.0'))
+# [ver8.2] per-prefix tight gate (E2 wave1: pp-tight-55-65 official +0.0003) — prefix dataset như '44b6_xxx' → '44b6'
+MOTION_RELINK_TIGHT_PER_PREFIX: dict[str, float] = {str(_k): float(_v) for _k, _v in json.loads(os.environ.get('BIOHUB_MOTION_RELINK_TIGHT_PER_PREFIX', '{}') or '{}').items()}
 MOTION_RELINK_RELAXED_UM = float(os.environ.get('BIOHUB_MOTION_RELINK_RELAXED_UM', '10.0'))
 MOTION_RELINK_VELOCITY_WEIGHT = float(os.environ.get('BIOHUB_MOTION_RELINK_VELOCITY_WEIGHT', '0.5'))
 MOTION_RELINK_LEARNED_BONUS = float(os.environ.get('BIOHUB_MOTION_RELINK_LEARNED_BONUS', '0.75'))
@@ -2217,10 +2219,12 @@ def _position_um(node: dict[str, object]) -> np.ndarray:
     return np.array([float(node['z']) * VOXEL_SCALE_UM[0], float(node['y']) * VOXEL_SCALE_UM[1], float(node['x']) * VOXEL_SCALE_UM[2]], dtype = np.float64)
 
 # Recover plausible missing edges using motion consistency and learned edge evidence
-def motion_relink_edges(nodes_by_id: dict[int, dict[str, object]], stats: dict[str, int], learned_edge_probs: dict[tuple[int, int], float] | None = None) -> list[dict[str, object]]:
+def motion_relink_edges(nodes_by_id: dict[int, dict[str, object]], stats: dict[str, int], learned_edge_probs: dict[tuple[int, int], float] | None = None, tight_gate_um: float | None = None) -> list[dict[str, object]]:
     if not OUTPUT_MOTION_RELINK or not nodes_by_id:
         return []
     learned_edge_probs = learned_edge_probs or {}
+    # [ver8.2] tight gate hiệu lực theo per-prefix (nếu có) — mặc định global
+    _tight_um_eff = MOTION_RELINK_TIGHT_UM if tight_gate_um is None else float(tight_gate_um)
 
     # Read the learned association probability for a candidate edge
     def learned_prob(source_id: int, target_id: int) -> float:
@@ -2304,7 +2308,7 @@ def motion_relink_edges(nodes_by_id: dict[int, dict[str, object]], stats: dict[s
         unmatched_targets = set(target_ids)
         frame_matches: list[tuple[int, int, float, float, str, float]] = []
 
-        for pass_name, gate_um in (('tight', MOTION_RELINK_TIGHT_UM), ('relaxed', MOTION_RELINK_RELAXED_UM)):
+        for pass_name, gate_um in (('tight', _tight_um_eff), ('relaxed', MOTION_RELINK_RELAXED_UM)):
             pass_sources = [node_id for node_id in source_ids if node_id in unmatched_sources]
             pass_targets = [node_id for node_id in target_ids if node_id in unmatched_targets]
             matches = assign_pass(pass_sources, pass_targets, gate_um)
@@ -3482,7 +3486,9 @@ def filter_output_graph(nodes_by_id: dict[int, dict[str, object]], raw_edges: li
             if np.isfinite(prob):
                 key = (int(edge['source_id']), int(edge['target_id']))
                 learned_edge_probs[key] = max(learned_edge_probs.get(key, float('-inf')), prob)
-        motion_edges = motion_relink_edges(nodes_by_id, stats, learned_edge_probs)
+        # [ver8.2] per-prefix tight gate cho dataset hiện tại (44b6 → 5.5, 6bba → 6.5 khi bật ppTight5565)
+        _pp_tight_gate = MOTION_RELINK_TIGHT_PER_PREFIX.get(str(dataset).split('_')[0]) if dataset else None
+        motion_edges = motion_relink_edges(nodes_by_id, stats, learned_edge_probs, tight_gate_um=_pp_tight_gate)
 
         if motion_edges:
             stats['motion_relink_replaced_raw_edges'] = len(edges)
@@ -4110,7 +4116,7 @@ def aggregate_official(sample_rows):
 
 import copy as _copy
 
-PP_SWEEP_KEYS = ['SAFE_DIV_MAX_UM', 'SAFE_DIV_SISTER_MAX_UM', 'SAFE_DIV_DIVERGE_UM', 'SAFE_DIV_SISTER_SYMMETRY_TAU', 'SAFE_DIV_EXISTING_CHILD_MAX_UM', 'SAFE_DIV_FRAME_FRAC_CAP', 'SAFE_DIV_GLOBAL_FRAC_CAP', 'DEEPCENTER_SAFE_DIV_THRESHOLD', 'DEEPCENTER_GAP_THRESHOLD', 'GAP_CLOSE_UM', 'OUTPUT_MIN_TRACK_LEN', 'SHORT_TRACK_RESCUE_MIN_MEAN_EDGE_PROB', 'MOTION_RELINK_TIGHT_UM', 'MOTION_RELINK_RELAXED_UM', 'GAP2_MAX_STEP_UM', 'GAP2_MAX_TOTAL_UM', 'MOTION_RELINK_LEARNED_BONUS', 'MOTION_RELINK_VELOCITY_WEIGHT', 'GAP_CLOSE_REUSE_UM', 'OUTPUT_EDGE_MAX_UM', 'REPARENT_ENABLE', 'REPARENT_MAX_UM', 'REPARENT_SISTER_UM', 'REPARENT_TAU', 'REPARENT_EDGE_PROB', 'REPARENT_CURRENT_FAR_UM', 'REPARENT_MIN_PDIV', 'REPARENT_W_UM', 'REPARENT_DIVERGE_UM', 'REPARENT_FRAME_FRAC_CAP', 'REPARENT_GLOBAL_FRAC_CAP']
+PP_SWEEP_KEYS = ['SAFE_DIV_MAX_UM', 'SAFE_DIV_SISTER_MAX_UM', 'SAFE_DIV_DIVERGE_UM', 'SAFE_DIV_SISTER_SYMMETRY_TAU', 'SAFE_DIV_EXISTING_CHILD_MAX_UM', 'SAFE_DIV_FRAME_FRAC_CAP', 'SAFE_DIV_GLOBAL_FRAC_CAP', 'DEEPCENTER_SAFE_DIV_THRESHOLD', 'DEEPCENTER_GAP_THRESHOLD', 'GAP_CLOSE_UM', 'OUTPUT_MIN_TRACK_LEN', 'SHORT_TRACK_RESCUE_MIN_MEAN_EDGE_PROB', 'MOTION_RELINK_TIGHT_UM', 'MOTION_RELINK_TIGHT_PER_PREFIX', 'MOTION_RELINK_RELAXED_UM', 'GAP2_MAX_STEP_UM', 'GAP2_MAX_TOTAL_UM', 'MOTION_RELINK_LEARNED_BONUS', 'MOTION_RELINK_VELOCITY_WEIGHT', 'GAP_CLOSE_REUSE_UM', 'OUTPUT_EDGE_MAX_UM', 'REPARENT_ENABLE', 'REPARENT_MAX_UM', 'REPARENT_SISTER_UM', 'REPARENT_TAU', 'REPARENT_EDGE_PROB', 'REPARENT_CURRENT_FAR_UM', 'REPARENT_MIN_PDIV', 'REPARENT_W_UM', 'REPARENT_DIVERGE_UM', 'REPARENT_FRAME_FRAC_CAP', 'REPARENT_GLOBAL_FRAC_CAP']
 PP_BASE_CONFIG = {key: globals()[key] for key in PP_SWEEP_KEYS}
 for key in PP_SWEEP_KEYS:
     pass
@@ -4219,8 +4225,14 @@ if VALIDATOR_ENABLE and val_stems:
         for row in base_rows:
             writer.writerow(row)
 
+# [ver8.3-fast] Submission 56242181 (v1, tight55) FAILED trên hidden test vì rerun vượt
+# runtime limit (kernel public 6,2h × hidden ~2× > 12h; sweep 16-19 candidates = 86%
+# runtime). v3 rút sweep về 1 candidate duy nhất (ppTight5565fb — per-prefix theo E2
+# wave1 + fallback global 5.5 cho prefix lạ trên hidden test) → public ~1,3-1,8h,
+# hidden ~2,5-3,6h — an toàn trong hạn. Cấu hình re-parent giữ nguyên v1/v2:
+# REPARENT_EDGE_PROB 0.25 (v2 chứng minh mở 0.50/0.75 chỉ thêm FP không thêm tp).
 # Retain the narrow post-process candidate set used by the 0.946 pipeline
-PP_CANDIDATES: dict[str, dict] = {'gap45': {'GAP_CLOSE_UM': 4.5}, 'tight55': {'MOTION_RELINK_TIGHT_UM': 5.5}, 'relaxed9': {'MOTION_RELINK_RELAXED_UM': 9.0}, 'bonus125': {'MOTION_RELINK_LEARNED_BONUS': 1.25}, 'gap2step40': {'GAP2_MAX_STEP_UM': 4.0}, 'reuse28': {'GAP_CLOSE_REUSE_UM': 2.8}, 'dcgap035': {'DEEPCENTER_GAP_THRESHOLD': 0.35}, 'rp-off': {'REPARENT_ENABLE': False}, 'rp-pdiv30': {'REPARENT_MIN_PDIV': 0.3}, 'rp-ep35': {'REPARENT_EDGE_PROB': 0.35}, 'rp-far8': {'REPARENT_CURRENT_FAR_UM': 8.0}, 'rp-max11': {'REPARENT_MAX_UM': 11.0}, 'rp-tau08': {'REPARENT_TAU': 0.8}, 'vw060': {'MOTION_RELINK_VELOCITY_WEIGHT': 0.60}, 'gap2step48': {'GAP2_MAX_STEP_UM': 4.8}, 'minlen5': {'OUTPUT_MIN_TRACK_LEN': 5}}
+PP_CANDIDATES: dict[str, dict] = {'ppTight5565fb': {'MOTION_RELINK_TIGHT_UM': 5.5, 'MOTION_RELINK_TIGHT_PER_PREFIX': {'44b6': 5.5, '6bba': 6.5}}}
 PP_SELECT_MARGIN = float(os.environ.get('BIOHUB_PPSWEEP_SELECT_MARGIN', '0.002'))
 PP_MAX_ADJ_LOSS = float(os.environ.get('BIOHUB_PPSWEEP_MAX_ADJ_LOSS', '0.0005'))
 PP_SWEEP_RESULTS_PATH = WORKING_DIR / 'ppsweep_results.csv'
