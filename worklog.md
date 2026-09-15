@@ -662,3 +662,28 @@ Stage Summary:
 - Tri thức mới giá trị nhất: (1) divfix repeat-lineage filter +0.001..0.003 chi phí ~0; (2) synthetic dataset 165k divisions nuôi DivNet-v2 (phải finetune+calibrate); (3) linker KHÔNG BAO GIỜ gắn con thứ 2 — re-parent post-hoc của ver-8 là đúng hướng; (4) volume-shrinkage là feature bằng chứng mới (peak không mean); (5) motion-relink phá fork ILP — xác nhận kiến trúc post-link
 - v9 = ver-8 + rlf filter + DivNet-v2 synthetic-pretrained + peak/volume features + cấu hình thắng từ v2; cổng Phase B v3 thêm guard G6
 - Chờ: v8-v1 điểm (calibrate mọi Δ), v8-v2 COMPLETE (~08:00-09:00 UTC) → quyết định REPARENT_EDGE_PROB mặc định
+---
+Task ID: BIO-RESEARCH-9B
+Agent: main (Z.ai Code — Bio)
+Task: User cung cấp link https://www.kaggle.com/competitions/biohub-cell-tracking-during-development/code — nghiên cứu bài viết/notebooks tìm tri thức + dữ liệu quan trọng cho v9 (v8 đang chấm điểm, chưa xác định thành bại); tập trung kế hoạch triển khai v9.
+
+Work Log:
+- Đọc lại ngữ cảnh đầy đủ: worklog repo (Task 35-39), VER8-RESEARCH.md, VER8-REPARENT-DESIGN.md; ver-8 (56242181) PENDING ~10h.
+- List public notebooks 3 chế độ (dateRun/dateCreated/voteCount) → 17 notebook mới sau 14/9 → pull về kaggle/api/research/v9-research/ + phân tích từng notebook (extract markdown + diff cell + grep config).
+- F1 HOCT CONSENSUS VETO: sjlee101/biohub-lf-hoctveto-div-b (25 votes) — HOCT = Higher-Order Cell Tracking Transformer (arXiv 2607.11754, royerlab BSD-3, general_v0.pt 6.25M params). Pull cả OUTPUT kernel: log chạy thật (vetoed 4/4 video test, 1097s), 2 submission trước/sau veto → diff: divisions 124→71 (−43%), edges −2130. sjlee đo offline 20 video: +0.0040 [+0.0006,+0.0058], false divisions 55→29. Datasets public: sjlee101/biohub-hoct-020-wheels + musculer/biohub-hoct-general-v0-official. Khoảng trống: chưa ai đo veto trên validator (Hammad Farooq xác nhận) — ta có hệ đo system-view official 8 stems để lấp.
+- F2 REPEAT-LINEAGE FILTER: pawanmali/biohub-942tta-fork-divfix-v1 (15/9) — diff với 942tta-fork-v1: cell 10.5 mới (divider có tổ tiên divider → drop cạnh xa hơn); 0/132 GT có repeat-lineage division; +0.0021 pipeline khác; chỉ bỏ cạnh.
+- F3 SMALLER-NOT-DIMMER (zhincez): volume −0.27 tại +3, bắt đầu lag −2, peak bất biến → feature division sớm hơn brightness.
+- F4 LABEL EDA (zhincez): 2 embryo train (density 12× lệch), test = embryo 3 → held-out under-estimate division trên test dày (124 forks/4 test videos vs 12 GT/8 stems).
+- F5 FRONTIER (thread focus3d + LB): Pilkwang 0.949 hạng 77; hạng 32 fielded 0.9557 (fine-tune detection head OK, encoder moving phá frozen linker; velocity 0/381 contested; structured softmax +0.005 EJ). Bản đồ không-đi xác nhận.
+- F6 EXTERNAL: Ultrack weights chính chủ public (czbiohub.org/royerlab), Zebrahub OK, embryo 2024_03_22_dorado validation embryo-3.
+- 6 THREAD DISCUSSIONS đọc bằng agent-browser (Hammad speedup 75': hardcode tight55; focus3d; magic-or-overfitting; divJ 0.22 hikaggler; external Masha; base rates).
+- LB full CSV 15/9 10:50: 3567 đội, ta hạng 182, cụm 0.948 = 46 (79–124), đỉnh 0.970.
+- VIẾT kaggle/ver-9-planning/VER9-RESEARCH.md ~420 dòng: 6 phát hiện + BẬC NHÂN QUẢ 3 cấp (O→I→C: rẽ nhánh theo điểm v8 C1/C2, fail-safe 1 chiều C3/C4, cộng gộp +0.004…+0.021 C5) + Wave-A CPU (A1 audit HOCT 4 chế độ trên 8 stems bằng mini-kernel; A2 verify datasets; A3 soạn ver-9 monolith: port veto 550 dòng + rlf + hardcode tight55) + Wave-B GPU submit cổng siết (ΔadjEJ ≥ −0.0005, div_tp ≥ 0, div_fp ≤ +3, guards 5/5, RLF ≤ 0.5%, runtime ≤ 11h) + Wave-C (v9.1 volume feature, validator dorado) + 3 nguyên tắc mới.
+- Cập nhật kaggle/README.md: bảng ver-8 (đang chấm) + ver-9 (nghiên cứu ✓) + 2 section mới.
+- Repo worklog Task 40 appended (594 dòng).
+
+Stage Summary:
+- Kế hoạch v9 hoàn chỉnh: v9 = v8 + (A) HOCT veto mode-1 +0.004 CI dương (chủ lực, độc lập pipeline — đúng nguyên tắc consensus) + (B) repeat-lineage filter (0/132 GT, an toàn) + (C) volume-feature v9.1; rẽ nhánh theo điểm v8: <0.947 → bỏ re-parent giữ HOCT/RLF trên nền ver-7; ≥0.948 → giữ cả 3 đòn.
+- Sản phẩm: VER9-RESEARCH.md (bậc nhân quả + cổng + timeline tới 29/9), v9-research/ 17 notebook + output sjlee101 + LB snapshot, README ver-8/9.
+- Chờ: điểm v8 (56242181, ~sắp có trong cửa sổ 6-12h) → Wave-A audit CPU → push ver-9.
+- App chưa đụng (ver-8 PENDING — UI giữ "đang chạy"); cập nhật app khi có điểm v8 + quyết định v9.
