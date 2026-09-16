@@ -937,3 +937,22 @@ Stage Summary:
 - Dataset mới vietnguyen130593/biohub-v10-lab-filelist là hạ tầng dùng lại được (có thể gắn làm input kernel CPU sau này thay listing).
 - Thang đo thật: 984 file · 3,40 GB cho 8 stems — tải ~10-30 phút trên Colab với 4 luồng + backoff.
 - 113/113 PASS · không push kernel · app không đổi (HTTP 200).
+
+---
+Task ID: V10-COLABCLI-RESEARCH
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: User hỏi (1) Colab CLI trong giao diện Colab mới — cài vào sandbox thì em có thao tác được Colab không; (2) có công cụ nào tự đánh giá/so sánh các phiên bản trước khi nộp Kaggle không.
+
+Work Log:
+- WEB SEARCH xác minh: Google Colab CLI là THẬT — công bố 5/6/2026 (developers.googleblog.com "Introducing the Google Colab CLI"), repo github.com/googlecolab/google-colab-cli (Apache-2.0, 1.2k stars, commit mới 15/9/2026, v0.6.0) — thiết kế cho "headless automation, and AI agent integrations", Linux/macOS only.
+- Đọc README đầy đủ (page_reader): lệnh chính colab new (--gpu T4/L4/G4/H100/A100, --tpu, --high-mem) / exec (-f .py hoặc .ipynb) / run (job 1 lần: provision→chạy→lấy output→teardown) / upload/download/install/drivemount/ssh (WebSocket) / log / pay; keep-alive daemon chống idle; session state ~/.config/colab-cli/sessions.json; yêu cầu Colab Pro/Pro+ entitlement cho accelerator + compute units (pay-as-you-go $9.99/100CU; H100 ~$3.50/h).
+- ★ Đọc source auth.py trong package: auth mặc định oauth2 dùng REMOTE COPY-PASTE flow — in URL (redirect sdk.cloud.google.com/applicationdefaultauthcode.html, token_usage=remote), user mở URL bằng browser bất kỳ (máy anh/điện thoại), approve, Google hiển thị authorization code, paste lại cho CLI — "works identically in local and remote environments" (tác giả cố tình tránh localhost redirect + OOB đã bị Google chặn 2022) → HOẠT ĐỘNG ĐƯỢC TRÊN SANDBOX HEADLESS. Token lưu ~/.config/colab-cli/token.json sau khi auth 1 lần.
+- ★ CÀI THÀNH CÔNG trong sandbox: uv pip install google-colab-cli → v0.6.0, lệnh `colab` chạy được (help OK); test `colab sessions` treo ở input() chờ authorization code — đúng như thiết kế (chưa auth). Kiểm tra không phá kaggle CLI (typer 0.23.1→0.27.2 tương thích, kaggle competitions list OK).
+- KẾT LUẬN Q1: CÀI ĐƯỢC + THAO TÁC ĐƯỢC — chỉ cần anh auth 1 lần (30 giây: mở URL → approve → paste code cho em), sau đó em tự chạy colab run --gpu T4 script.py → tự download kết quả → vòng lặp agent hoàn toàn không cần anh paste cell nữa. Chi phí: GPU qua CLI ăn compute units Colab (để xác định chính xác mức T4 khi chạy thật).
+- TRẢ LỜI Q2: công cụ tự đánh giá đã có sẵn = V10-LAB (đang triển khai): 3 tầng (replay CPU 0 GPU trên cache raw graphs + grid config + official scorer adjEJ/proxy/div + bootstrap CI 95% paired 10k resample / dump 1 lần GPU Colab / field test Kaggle 5 subs-ngày); tiền lệ vận hành ver9_gate_report adjEJ +0.0017 & v3-fast 0.9287→LB 0.947; giới hạn trung thực (validator ≠ hidden test, div samples thưa, adjEJ vs proxy có thể lệch hướng — ver-9 đã thấy).
+
+Stage Summary:
+- ★ Colab CLI v0.6.0 ĐÃ CÀI trong sandbox, auth flow copy-paste remote xác minh từ source — KHẢ THI hoàn toàn cho agent-driven GPU loop; chờ user auth 1 lần để kích hoạt.
+- Quy trình đánh giá ver-8 vs ver-10 vs tương lai = V10-LAB 3 tầng + bootstrap paired CI; grid 9 config mặc định chính là phép so ver-8 (ref) vs từng thành phần ver-9 (tight/rlf/veto).
+- Kaggle CLI nguyên vẹn sau cài; LB hiện 3616 đội hạng 169 (trôi tự nhiên).
+- Không push Kaggle; không đụng app (HTTP 200).
