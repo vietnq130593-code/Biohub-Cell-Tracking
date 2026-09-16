@@ -564,6 +564,9 @@ check('colab setup: cài wheel HOCT từ biohub-hoct-020-wheels', 'biohub-hoct-0
 check('colab setup: %pip --upgrade kaggle>=2.2 (fix 2.0.x thiếu __main__)', '%pip install -q --upgrade "kaggle>=2.2"' in setup_src)
 check('colab setup: preflight V10_KAGGLE_CMD + fallback console script shutil.which', all(t in setup_src for t in ('def _v10_kaggle_base_cmd', 'V10_KAGGLE_CMD = _v10_kaggle_base_cmd()', '[*V10_KAGGLE_CMD, *args]', 'shutil.which("kaggle")')))
 check('colab setup: tổng bytes fallback cột size khi thiếu totalBytes', 'r.get("totalBytes") or r.get("size") or 0' in setup_src)
+check('colab setup: 429 backoff phối hợp (threading lock + _V10_PAUSE_UNTIL + retry tries)', all(t in setup_src for t in ('import threading', '_V10_429_LOCK = threading.Lock()', '_V10_PAUSE_UNTIL', '429 rate-limit', 'tries=6')))
+check('colab setup: filelist 3 bậc (cache local → dataset dựng sẵn → listing sleep 2s/page)', all(t in setup_src for t in ('V10_FILELIST_DATASET = "vietnguyen130593/biohub-v10-lab-filelist"', 'def _v10_load_comp_rows', 'v10_comp_files_cache.csv', 'time.sleep(2.0)')))
+check('colab setup: resume per-file (đã tải → bỏ qua)', 'đã tải ở lần chạy trước' in setup_src)
 check('colab setup: token KGAT nhúng sẵn + ưu tiên Colab Secrets', 'KAGGLE_API_TOKEN = "KGAT_' in setup_src and 'KGAT_DAN_TOKEN_VAO_DAY' not in setup_src and 'userdata.get' in setup_src)
 lab_colab = ''.join(nb_colab['cells'][2]['source'])
 check('colab lab cell: env LAB_MODE + DEADLINE 9h + MAX_VIDEO_S 900 + VALIDATOR + HOCT_VETO 2 + RLF 1 + GRID default', all(t in lab_colab for t in ('os.environ["BIOHUB_LAB_MODE"] = "1"', 'os.environ["BIOHUB_HOCT_DEADLINE_H"] = "9"', 'os.environ["BIOHUB_HOCT_MAX_VIDEO_S"] = "900"', 'os.environ["BIOHUB_VALIDATOR_ENABLE"] = "1"', 'os.environ["BIOHUB_HOCT_VETO"] = "2"', 'os.environ["BIOHUB_RLF_ENABLE"] = "1"', 'os.environ["BIOHUB_V10_GRID"]')))
@@ -692,6 +695,59 @@ except RuntimeError as _e13:
     check('functional preflight: cả hai fail → RuntimeError hướng dẫn', 'restart' in str(_e13).lower(), str(_e13)[:80])
 
 check('colab results: upload dùng _v10_sp_kaggle + bắt lỗi __main__', '_v10_sp_kaggle' in res_colab and 'No module named kaggle.__main__' in res_colab)
+
+# T12 [v10-lab-429] rate-limit: backoff phối hợp + resume + filelist 3 bậc
+print('T12 [v10-lab-429] backoff 429 + resume + filelist cache')
+
+# (a) functional v10_run_kaggle: 429 hai lần rồi thành công → trả kết quả, pause toàn cục được set
+import time as _time12
+import threading as _th12
+class _R12:
+    def __init__(self, rc=0, out='', err=''):
+        self.returncode, self.stdout, self.stderr = rc, out, err
+import sys as _sys12
+_seq12 = [_R12(1, '', '429 Client Error: Too Many Requests'), _R12(1, '429 Too Many Requests', ''), _R12(0, 'OK', '')]
+_ns12 = {'subprocess': type('_SP12', (), {'run': staticmethod(lambda cmd, **kw: _seq12.pop(0))})(), 'threading': _th12, 'time': _time12,
+         'V10_KAGGLE_CMD': ['/fake/bin/kaggle'], 'print': lambda *a, **k: None,
+         '_V10_429_LOCK': _th12.Lock(), 'sys': _sys12}
+_i_rr12 = setup_src.index('def v10_run_kaggle')
+_i_rr_end12 = setup_src.index('for _p in (INPUT_ROOT, WORKING_DIR):')
+_rr_src12 = setup_src[_i_rr12:_i_rr_end12]
+_ns12['_V10_PAUSE_UNTIL'] = 0.0  # global của hàm = chính namespace dict này
+exec(compile(_rr_src12, 'run_kaggle', 'exec'), _ns12)
+_r12 = _ns12['v10_run_kaggle'](['datasets', 'download', 'x/y'])
+check('functional v10_run_kaggle: 429×2 rồi OK → trả kết quả + pause toàn cục > 0', _r12.returncode == 0 and _ns12['_V10_PAUSE_UNTIL'] > 0)
+
+# (b) functional v10_run_kaggle: lỗi non-429 → RuntimeError ngay (không retry)
+_seq12b = [_R12(1, '', '404 Not Found')]
+import sys as _sys12
+_ns12b = {'subprocess': type('_SP12b', (), {'run': staticmethod(lambda cmd, **kw: _seq12b.pop(0))})(), 'threading': _th12, 'time': _time12,
+          'V10_KAGGLE_CMD': ['/fake/bin/kaggle'], 'print': lambda *a, **k: None,
+          '_V10_429_LOCK': _th12.Lock(), 'sys': _sys12}
+_ns12b['_V10_PAUSE_UNTIL'] = 0.0
+exec(compile(_rr_src12, 'run_kaggle', 'exec'), _ns12b)
+try:
+    _ns12b['v10_run_kaggle'](['datasets', 'download', 'x/y'])
+    check('functional v10_run_kaggle: non-429 lỗi → RuntimeError ngay', False, 'không raise')
+except RuntimeError:
+    check('functional v10_run_kaggle: non-429 lỗi → RuntimeError ngay', True)
+
+# (c) functional resume: _v10_fetch_comp_file bỏ qua file đã có
+import tempfile as _tf12
+with _tf12.TemporaryDirectory() as _td12:
+    from pathlib import Path as _P12
+    _train12 = _P12(_td12) / 'train'
+    (_train12 / 'sub').mkdir(parents=True)
+    _existing12 = _train12 / 'sub' / 'a.zarr' / 'chunk'
+    _existing12.parent.mkdir(parents=True, exist_ok=True)
+    _existing12.write_bytes(b'x' * 123)
+    _ns12c = {'Path': _P12, 'TRAIN_DEST': _train12}
+    _i_ff12 = setup_src.index('def _v10_fetch_comp_file')
+    _i_ff_end12 = setup_src.index('_done = 0')
+    _ff_src12 = setup_src[_i_ff12:_i_ff_end12]
+    exec(compile(_ff_src12, 'fetch', 'exec'), _ns12c)
+    _n12, _sz12 = _ns12c['_v10_fetch_comp_file']('sub/a.zarr/chunk')
+    check('functional resume: file đã tồn tại → return ngay không tải lại', _n12 == 'sub/a.zarr/chunk' and _sz12 == 123)
 
 # ============================================================================================
 print('T9 ver-9 gốc giữ nguyên byte (KHÔNG sửa file ngoài ver-10-lab + download)')

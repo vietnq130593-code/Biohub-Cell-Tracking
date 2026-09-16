@@ -538,14 +538,41 @@ def _v10_kaggle_base_cmd():
 V10_KAGGLE_CMD = _v10_kaggle_base_cmd()
 
 
-def v10_run_kaggle(args, check=True, timeout=3600):
+import threading  # [v10-lab-setup] 429: backoff phối hợp giữa các luồng tải
+
+_V10_429_LOCK = threading.Lock()
+_V10_PAUSE_UNTIL = 0.0
+
+
+def v10_run_kaggle(args, check=True, timeout=3600, tries=6):
+    # [v10-lab-setup] 429 Too Many Requests → backoff luỹ tiến 30→60→120→240→300s, MỌI luồng cùng
+    # tôn trọng khoảng pause chung (tránh dồn API Kaggle khi tải hàng nghìn file nhỏ).
+    global _V10_PAUSE_UNTIL
     cmd = [*V10_KAGGLE_CMD, *args]
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-    if check and r.returncode != 0:
-        print((r.stdout or "")[-2000:])
-        print((r.stderr or "")[-2000:], file=sys.stderr)
-        raise RuntimeError(f"kaggle {' '.join(args[:3])} thất bại (exit {r.returncode})")
-    return r
+    last = None
+    for attempt in range(tries):
+        with _V10_429_LOCK:
+            _wait = _V10_PAUSE_UNTIL - time.time()
+        if _wait > 0:
+            time.sleep(_wait)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        if r.returncode == 0:
+            return r
+        _blob = (r.stdout or "") + (r.stderr or "")
+        if "429" in _blob or "Too Many Requests" in _blob:
+            _backoff = min(30 * (2 ** attempt), 300)
+            with _V10_429_LOCK:
+                _V10_PAUSE_UNTIL = max(_V10_PAUSE_UNTIL, time.time() + _backoff)
+            print(f"[v10-lab-setup] 429 rate-limit — mọi luồng pause {_backoff}s (lần {attempt + 1}/{tries})")
+            last = r
+            continue
+        last = r
+        break
+    if check:
+        print((last.stdout or "")[-2000:])
+        print((last.stderr or "")[-2000:], file=sys.stderr)
+        raise RuntimeError(f"kaggle {' '.join(args[:3])} thất bại (exit {last.returncode})")
+    return last
 
 
 for _p in (INPUT_ROOT, WORKING_DIR):
@@ -597,6 +624,12 @@ else:
 
 
 # --- 4) tải competition train files CHO 8 STEMS validator --------------------------------------
+# [v10-lab-setup] API files bị rate-limit 429 khi phân trang — nên filelist lấy theo bậc:
+# (a) cache local từ lần chạy trước → (b) dataset filelist dựng sẵn (0 listing call) →
+# (c) listing trực tiếp (sleep 2s/page, có 429-backoff trong v10_run_kaggle) + ghi cache.
+V10_FILELIST_DATASET = "vietnguyen130593/biohub-v10-lab-filelist"
+
+
 def _v10_list_comp_files():
     rows = []
     token = None
@@ -617,10 +650,46 @@ def _v10_list_comp_files():
         if not next_token:
             return rows
         token = next_token
+        time.sleep(2.0)  # [v10-lab-setup] giảm tốc phân trang — tránh 429
+
+
+def _v10_load_comp_rows():
+    _cache = WORKING_DIR / "v10_comp_files_cache.csv"
+    if _cache.is_file():
+        with _cache.open() as _f:
+            _rows = list(csv.DictReader(_f))
+        if _rows:
+            print(f"[v10-lab-setup] filelist từ CACHE LOCAL: {len(_rows):,} dòng (0 API call)")
+            return _rows
+    _dest = INPUT_ROOT / "biohub-v10-lab-filelist"
+    if not (_dest / ".v10_ok").exists():
+        _dest.mkdir(parents=True, exist_ok=True)
+        _r = v10_run_kaggle(["datasets", "download", V10_FILELIST_DATASET, "-p", str(_dest), "--unzip", "-q"], check=False)
+        if _r.returncode == 0:
+            (_dest / ".v10_ok").write_text("ok")
+            print(f"[v10-lab-setup] filelist từ DATASET {V10_FILELIST_DATASET} (0 listing call)")
+        else:
+            print(f"[v10-lab-setup] dataset filelist chưa có (hoặc lỗi) — sẽ listing trực tiếp (chậm hơn)")
+    if (_dest / ".v10_ok").exists():
+        _csvs = sorted(_dest.rglob("comp_files.csv"))
+        if _csvs:
+            with _csvs[0].open() as _f:
+                _rows = list(csv.DictReader(_f))
+            if _rows:
+                shutil.copyfile(_csvs[0], _cache)
+                print(f"[v10-lab-setup] filelist dataset: {len(_rows):,} dòng → đã lưu cache local")
+                return _rows
+    _rows = _v10_list_comp_files()
+    with _cache.open("w", newline="") as _f:
+        _w = csv.DictWriter(_f, fieldnames=["name", "size", "creationDate"])
+        _w.writeheader()
+        _w.writerows(_rows)
+    print(f"[v10-lab-setup] listing xong: {len(_rows):,} dòng → đã lưu cache local cho lần sau")
+    return _rows
 
 
 _t0 = time.time()
-_all_rows = _v10_list_comp_files()
+_all_rows = _v10_load_comp_rows()
 _wanted = [r for r in _all_rows if any(r["name"].startswith(f"train/{s}.") for s in V10_STEMS)]
 _wanted_names = [r["name"] for r in _wanted]
 _total_bytes = sum(int(r.get("totalBytes") or r.get("size") or 0) for r in _wanted)
@@ -628,6 +697,9 @@ print(f"[v10-lab-setup] cần tải {len(_wanted_names):,} file cho {len(V10_STE
 
 
 def _v10_fetch_comp_file(name):
+    dest = TRAIN_DEST / name
+    if dest.exists() and dest.stat().st_size > 0:  # [v10-lab-setup] resume — đã tải ở lần chạy trước
+        return name, dest.stat().st_size
     tmp = Path(tempfile.mkdtemp(prefix="v10dl_"))
     try:
         v10_run_kaggle(["competitions", "download", V10_COMPETITION, "-f", name, "-p", str(tmp), "-q"], timeout=1800)
@@ -994,7 +1066,9 @@ def static_checks(monolith_src: str, colab_nb: dict, cpu_nb: dict) -> None:
             sys.exit(f"[check] cell setup Colab thiếu stem {stem}")
     for token in ("--page-token", "ThreadPoolExecutor(max_workers=4)", "kaggle_dependency_install_command.txt", "biohub-hoct-020-wheels",
                   'os.environ["V10_INPUT_ROOT"]', 'os.environ["V10_WORKING_ROOT"]', "/content/kaggle/input", "_v10_writable",
-                  '%pip install -q --upgrade "kaggle>=2.2"', "V10_KAGGLE_CMD", "[*V10_KAGGLE_CMD, *args]", 'shutil.which("kaggle")'):
+                  '%pip install -q --upgrade "kaggle>=2.2"', "V10_KAGGLE_CMD", "[*V10_KAGGLE_CMD, *args]", 'shutil.which("kaggle")',
+                  "import threading", "_V10_PAUSE_UNTIL", "429 rate-limit", "V10_FILELIST_DATASET", "def _v10_load_comp_rows",
+                  "v10_comp_files_cache.csv", "time.sleep(2.0)", "đã tải ở lần chạy trước"):
         if token not in _setup:
             sys.exit(f"[check] cell setup Colab thiếu {token!r}")
     _cpu_lab = "".join(cpu_nb["cells"][1]["source"])

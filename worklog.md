@@ -918,3 +918,22 @@ Stage Summary:
 - ★ Cell 2 v3: token nhúng + root read-only picker + %pip --upgrade kaggle>=2.2 + preflight V10_KAGGLE_CMD (in rõ phiên bản kaggle CLI đang dùng) + fallback console script — tự chữa cả 3 lớp lỗi môi trường Colab gặp trong 2 lần chạy thật.
 - Cell 4 cũng được加固 fallback upload (cell 3 không dùng kaggle CLI — không đổi; monolith giữ nguyên 38 wrap _v10_p).
 - Notebook download/v10-lab-colab.ipynb đã rebuild; user paste lại cell 2 (hoặc upload notebook) là chạy tiếp; cell idempotent với phần đã tải (bỏ qua dataset đã có .v10_ok).
+
+---
+Task ID: V10-COLAB-429FIX
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: User chạy cell 2 gặp 429 Too Many Requests ở bước listing files competition — xử lý chống 429 + trả lời inventory công cụ.
+
+Work Log:
+- CHẨN ĐOÁN: API competitions files chặn page-size thực tế 200 dòng/page (yêu cầu 500 vẫn trả 200) → listing tốn ~125 pages gọi dồn dập ngay sau 9 lệnh datasets download → 429. Thí nghiệm sandbox: 4 pages đầu OK rồi ngắt để đo.
+- DỰNG FILELIST TỪ SANDBOX: listing toàn bộ 125 pages (24.886 file) bằng script chunk foreground (120 pages + 5 pages, state resume, sleep 1,2s/page, retry 429 backoff 30→300s). Lưu ý vận hành: background process (kể cả setsid+nohup+disown) bị sandbox reaper kill sau khi Bash command kết thúc → phải chạy chunk foreground nhiều lệnh.
+- ★ TẠO DATASET vietnguyen130593/biohub-v10-lab-filelist (comp_files.csv 1,86MB · 24.886 dòng name,size,creationDate · CC0-1.0) — verify download từ sandbox OK: 8 stems cần đúng 984 file (mỗi stem 102 zarr chunks + 21 geff) = 3,40 GB.
+- PATCH BUILDER cell 2 (3 cơ chế chống 429): (1) v10_run_kaggle retry 6 lần với backoff luỹ tiến 30/60/120/240/300s + _V10_PAUSE_UNTIL global dưới threading.Lock — MỌI luồng tải cùng tôn trọng khoảng pause chung khi có 429; (2) filelist 3 bậc: cache local WORKING_DIR/v10_comp_files_cache.csv → dataset biohub-v10-lab-filelist (1 API call, 0 listing) → fallback listing trực tiếp (sleep 2s/page + backoff) + luôn ghi cache local; (3) resume per-file: _v10_fetch_comp_file bỏ qua file dest đã tồn tại size>0 (re-run sau crash không tải lại).
+- static_checks + test T12 (4 string-check + 3 functional: 429×2 rồi OK với pause toàn cục / non-429 lỗi raise ngay / resume file tồn tại return không tải) — phát hiện + sửa 2 bug test harness (strip global gây UnboundLocalError; ns thiếu sys/_V10_429_LOCK).
+- REBUILD + TEST: colab 376KB · cpu 350KB · 113/113 PASS (107 cũ + 6 mới) · T9 sha256 ver-9 nguyên vẹn · ast.parse cell 2 PASS.
+
+Stage Summary:
+- ★ Cell 2 v4: 429 được xử lý ở 3 lớp (backoff phối hợp + filelist 0-listing-call qua dataset dựng sẵn + resume per-file). Re-run tốn tối đa 1 call filelist + chỉ tải các file còn thiếu.
+- Dataset mới vietnguyen130593/biohub-v10-lab-filelist là hạ tầng dùng lại được (có thể gắn làm input kernel CPU sau này thay listing).
+- Thang đo thật: 984 file · 3,40 GB cho 8 stems — tải ~10-30 phút trên Colab với 4 luồng + backoff.
+- 113/113 PASS · không push kernel · app không đổi (HTTP 200).
