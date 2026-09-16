@@ -584,6 +584,56 @@ for path, name in ((NOTEBOOK_COLAB, 'colab'), (NOTEBOOK_CPU, 'cpu')):
     check(f'{name}: chuỗi monolith trong cell == file cell-monolith-v10lab.py', ('_MONOLITH_V10LAB = r\'\'\'\n' + _mon_txt + '\n\'\'\'') in lab)
 
 # ============================================================================================
+print('T10 [v10-lab-roots] root override — Colab mount /kaggle/* read-only')
+import re as _re10
+_mon_txt10 = MONOLITH.read_text()
+check('monolith: header [v10-lab-roots] + _v10_p + V10_INPUT_ROOT/V10_WORKING_ROOT env', all(t in _mon_txt10 for t in ('# ==== [v10-lab-roots]', 'def _v10_p(', "V10_INPUT_ROOT = os.environ.get('V10_INPUT_ROOT', '/kaggle/input')", "V10_WORKING_ROOT = os.environ.get('V10_WORKING_ROOT', '/kaggle/working')")))
+_lit_re10 = _re10.compile(r"[fF]{0,2}['\"](/kaggle/(?:input|working)[^'\"]*)['\"]")
+_i0_10 = _mon_txt10.index('# ==== [v10-lab-roots]')
+_i1_10 = _mon_txt10.index("os.environ['BIOHUB_MODEL_ARTIFACTS']")
+_n_wrap10 = _mon_txt10.count('_v10_p(') - 1
+_n_out10 = len(_lit_re10.findall(_mon_txt10)) - len(_lit_re10.findall(_mon_txt10[_i0_10:_i1_10]))
+check(f'monolith: mọi literal /kaggle/* ngoài header roots đều đã wrap trong _v10_p ({_n_out10} literal)', _n_wrap10 == _n_out10 and _n_wrap10 >= 30, f'wrap={_n_wrap10} ngoài-header={_n_out10}')
+check("monolith: WORKING_DIR resolve qua _v10_p (không còn Path '/kaggle/working' trần)", "WORKING_DIR = Path(_v10_p('/kaggle/working')) if Path(_v10_p('/kaggle/working')).exists() else Path('.')" in _mon_txt10)
+check('monolith: COMP_DIR candidates + discovery input_root đều qua _v10_p', "Path(_v10_p(f'/kaggle/input/competitions/{COMPETITION}'))" in _mon_txt10 and "input_root = Path(_v10_p('/kaggle/input'))" in _mon_txt10)
+
+# functional: exec header block với env override rồi test _v10_p dịch path
+_header10 = _mon_txt10[_i0_10:_i1_10]
+import os as _os10
+_saved10 = {k: _os10.environ.get(k) for k in ('V10_INPUT_ROOT', 'V10_WORKING_ROOT')}
+try:
+    _os10.environ['V10_INPUT_ROOT'] = '/tmp/fake_in'
+    _os10.environ['V10_WORKING_ROOT'] = '/tmp/fake_wk'
+    _ns10 = {'os': _os10}
+    exec(compile(_header10, 'roots-header', 'exec'), _ns10)
+    _p10 = _ns10['_v10_p']
+    ok10 = (_p10('/kaggle/input/foo/bar') == '/tmp/fake_in/foo/bar'
+            and _p10('/kaggle/input') == '/tmp/fake_in'
+            and _p10('/kaggle/working/submission.csv') == '/tmp/fake_wk/submission.csv'
+            and _p10('/kaggle/inputx/other') == '/kaggle/inputx/other'
+            and _p10('relative/path') == 'relative/path'
+            and _p10(None) is None)
+    check('functional _v10_p: dịch đúng input/working, không dịch path gần đúng, pass-through non-str', ok10)
+finally:
+    for _k10, _v10 in _saved10.items():
+        if _v10 is None:
+            _os10.environ.pop(_k10, None)
+        else:
+            _os10.environ[_k10] = _v10
+_ns10b = {'os': _os10}
+exec(compile(_header10, 'roots-header', 'exec'), _ns10b)
+_p10b = _ns10b['_v10_p']
+check('functional _v10_p: KHÔNG override khi env thiếu (Kaggle: path nguyên vẹn)', _p10b('/kaggle/input/x') == '/kaggle/input/x' and _p10b('/kaggle/working/y') == '/kaggle/working/y')
+
+check('colab setup: dò root ghi được (_v10_writable + _v10_pick_roots) + export env V10_INPUT_ROOT/V10_WORKING_ROOT', all(t in setup_src for t in ('def _v10_writable', 'def _v10_pick_roots', 'os.environ["V10_INPUT_ROOT"] = str(INPUT_ROOT)', 'os.environ["V10_WORKING_ROOT"] = str(WORKING_DIR)', '/content/kaggle/input')))
+check('colab setup: skip dataset khi root read-only đã có sẵn (attached)', 'not _v10_writable(INPUT_ROOT) and _dest.exists()' in setup_src)
+check('colab setup: deps command rewrite theo INPUT_ROOT (cả 2 dạng path)', setup_src.count('str(INPUT_ROOT / _slug)') >= 2)
+check('colab lab: roots block dò lại khi restart runtime + mkdir + print roots', all(t in lab_colab for t in ('if "V10_INPUT_ROOT" not in os.environ', 'if "V10_WORKING_ROOT" not in os.environ', '/content/kaggle/input', '/content/kaggle/working')))
+check('colab results: WORKING_DIR từ env V10_WORKING_ROOT + fallback dò /content khi thiếu report', 'os.environ.get("V10_WORKING_ROOT")' in res_colab and '/content/kaggle/working' in res_colab)
+check('colab results: cảnh báo upload khi thiếu token (restart runtime)', 'thiếu KAGGLE_API_TOKEN' in res_colab)
+check('cpu lab: KHÔNG set V10_INPUT_ROOT/V10_WORKING_ROOT (Kaggle dùng mặc định ver-9)', 'os.environ["V10_INPUT_ROOT"]' not in lab_cpu and 'os.environ["V10_WORKING_ROOT"]' not in lab_cpu)
+
+# ============================================================================================
 print('T9 ver-9 gốc giữ nguyên byte (KHÔNG sửa file ngoài ver-10-lab + download)')
 ver9_sha = hashlib.sha256(VER9.read_bytes()).hexdigest()
 check('sha256 ver-9/cell-monolith.py không đổi', ver9_sha == VER9_SHA256, ver9_sha)

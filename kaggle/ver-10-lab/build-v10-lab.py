@@ -22,6 +22,7 @@ TUYỆT ĐỐI KHÔNG push gì lên Kaggle — script chỉ ghi file local.
 """
 import json
 import py_compile
+import re
 import sys
 from pathlib import Path
 
@@ -50,6 +51,7 @@ V10_STEMS = [
     "6bba_062c8d37", "6bba_07e24132", "6bba_085bf656", "6bba_09961292",
 ]
 V10_COMPETITION = "biohub-cell-tracking-during-development"
+V10_PATH_WRAP_COUNT = 0  # số literal /kaggle/* được wrap trong _v10_p — điền bởi build_monolith()
 
 
 def must_replace(text: str, old: str, new: str, what: str) -> str:
@@ -75,6 +77,25 @@ def fill(template: str, values: dict) -> str:
 # ---------------------------------------------------------------------------
 # 1. Dựng monolith v10lab từ ver-9 (bản COPY — file gốc giữ nguyên byte)
 # ---------------------------------------------------------------------------
+
+ROOTS_BLOCK_MONOLITH = '''# ==== [v10-lab-roots] root override — Google Colab: /kaggle/* mount READ-ONLY → V10_INPUT_ROOT/V10_WORKING_ROOT ====
+# Image Colab mới có sẵn /kaggle/input (đôi khi cả /kaggle/working) dạng mount read-only.
+# Cell setup Colab export V10_INPUT_ROOT + V10_WORKING_ROOT trỏ tới /content/kaggle/* (ghi được);
+# mọi path literal '/kaggle/input…' | '/kaggle/working…' trong monolith được _v10_p dịch sang root đó lúc runtime.
+# Trên Kaggle thật (kernel CPU replay): env không set → mặc định /kaggle/* → hành vi GIỐNG HỆT ver-9.
+V10_INPUT_ROOT = os.environ.get('V10_INPUT_ROOT', '/kaggle/input').rstrip('/') or '/kaggle/input'
+V10_WORKING_ROOT = os.environ.get('V10_WORKING_ROOT', '/kaggle/working').rstrip('/') or '/kaggle/working'
+
+
+def _v10_p(p):
+    # [v10-lab-roots] dịch path literal /kaggle/input… | /kaggle/working… sang root override (nếu có)
+    if isinstance(p, str):
+        if (p == '/kaggle/input' or p.startswith('/kaggle/input/')) and V10_INPUT_ROOT != '/kaggle/input':
+            return V10_INPUT_ROOT + p[len('/kaggle/input'):]
+        if (p == '/kaggle/working' or p.startswith('/kaggle/working/')) and V10_WORKING_ROOT != '/kaggle/working':
+            return V10_WORKING_ROOT + p[len('/kaggle/working'):]
+    return p
+'''
 
 ENV_BLOCK_TEMPLATE = """
 # ==== [v10-lab-env] V10 LAB — chế độ lab: validator + grid, KHÔNG predict test / submission ====
@@ -297,6 +318,26 @@ elif VALIDATOR_ENABLE and val_stems:
                     + "\nelse:\n    print('[v10-lab] LAB_MODE: bỏ qua audit cuối + retention guard — pipeline lab kết thúc tại [v10-lab-grid]')\n"
                     + "    print('[v10-lab] TOTAL LAB RUNTIME: %.0fs' % (time.time() - _V10_LAB_T0))\n")
     text = text[:i_audit] + tail_wrapped
+
+    # P16 — [v10-lab-roots] wrap mọi path literal '/kaggle/input…' | '/kaggle/working…' vào _v10_p(...)
+    _path_re = re.compile(r"(?P<pre>[fF]{0,2})(?P<q>['\"])(?P<path>/kaggle/(?:input|working)[^'\"]*)(?P=q)")
+    if re.search(r"[rRbBuU]{1,2}['\"](/kaggle/)", text):
+        sys.exit("[build] THẤT BẠI: monolith có literal /kaggle/ với prefix r/b/u — không wrap an toàn")
+    global V10_PATH_WRAP_COUNT
+    V10_PATH_WRAP_COUNT = len(_path_re.findall(text))
+
+    def _wrap_path(m):
+        return "_v10_p(" + m.group("pre") + m.group("q") + m.group("path") + m.group("q") + ")"
+
+    text = _path_re.sub(_wrap_path, text)
+
+    # P17 — [v10-lab-roots] inject header _v10_p + V10_*_ROOT ngay sau `import os` (TRƯỚC lần dùng đầu tiên)
+    text = must_replace(
+        text,
+        "from __future__ import annotations\nimport os\n\n",
+        "from __future__ import annotations\nimport os\n\n" + ROOTS_BLOCK_MONOLITH + "\n",
+        "block [v10-lab-roots]",
+    )
     return text
 
 
@@ -326,10 +367,10 @@ Kaggle dataset `vietnguyen130593/biohub-v10-lab-cache`** để lần sau replay 
 ## Cách chạy (5 bước)
 
 1. **Runtime → Change runtime type → T4 GPU** (bắt buộc; T4 là đủ, không cần A100).
-2. Mở **Secrets** (icon 🔑 thanh trái Colab) → Add new secret tên `KAGGLE_API_TOKEN`,
-   giá trị = token Kaggle (kaggle.com → Settings → API → *Generate New Token*, dạng `KGAT_...`).
-   Không muốn dùng Secrets thì dán token trực tiếp vào biến `KAGGLE_API_TOKEN` ở đầu Cell 2.
-3. **Runtime → Run all** (Ctrl+F9).
+2. Token Kaggle **đã nhúng sẵn trong Cell 2** (KGAT_...) — không cần cấu hình gì thêm.
+   (Tuỳ chọn: tạo Colab Secret tên `KAGGLE_API_TOKEN` thì Cell 2 sẽ ưu tiên secret đó.)
+3. **Runtime → Run all** (Ctrl+F9). Notebook tự nhận diện `/kaggle/input` read-only của Colab
+   và chuyển sang `/content/kaggle/input` (ghi được) — không cần sửa gì.
 4. Chờ **4–8 giờ** — giữ tab mở (Colab ngắt runtime khi idle; thỉnh thoảng bấm vào tab).
    Cell 2 tải 9 dataset + 8 video train (~10–30 GB, 30–90 phút); Cell 3 cài deps + chạy
    validator 8 stems (~1–1.5h) + grid 9 config (~1.5–2.5h); Cell 4 tổng hợp + upload.
@@ -419,8 +460,49 @@ os.environ["KAGGLE_API_TOKEN"] = KAGGLE_API_TOKEN
 V10_COMPETITION = "@@COMPETITION@@"
 V10_DATASETS = @@DATASETS@@
 V10_STEMS = @@STEMS@@
-INPUT_ROOT = Path("/kaggle/input")
-WORKING_DIR = Path("/kaggle/working")
+
+
+# --- chọn root GHI ĐƯỢC: image Colab mới mount /kaggle/input (đôi khi cả working) READ-ONLY --------
+def _v10_writable(p):
+    try:
+        _probe = p / ".v10_write_probe"
+        _probe.write_text("ok")
+        _probe.unlink()
+        return True
+    except OSError:
+        return False
+
+
+def _v10_pick_roots():
+    _inp = Path("/kaggle/input")
+    try:
+        _inp.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    if _v10_writable(_inp) or any((_inp / _full.split("/", 1)[1]).exists() for _full in V10_DATASETS):
+        _input_root, _note = _inp, "/kaggle/input ghi được hoặc đã có dataset gắn sẵn"
+    else:
+        _input_root = Path("/content/kaggle/input")
+        _input_root.mkdir(parents=True, exist_ok=True)
+        _note = "Colab: /kaggle/input là mount READ-ONLY → chuyển sang /content"
+    _wrk = Path("/kaggle/working")
+    try:
+        _wrk.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    if _v10_writable(_wrk):
+        _working_root = _wrk
+    else:
+        _working_root = Path("/content/kaggle/working")
+        _working_root.mkdir(parents=True, exist_ok=True)
+    return _input_root, _working_root, _note
+
+
+INPUT_ROOT, WORKING_DIR, _root_note = _v10_pick_roots()
+os.environ["V10_INPUT_ROOT"] = str(INPUT_ROOT)
+os.environ["V10_WORKING_ROOT"] = str(WORKING_DIR)
+print(f"[v10-lab-setup] INPUT_ROOT   = {INPUT_ROOT} ({_root_note})")
+print(f"[v10-lab-setup] WORKING_ROOT = {WORKING_DIR}")
 TRAIN_DEST = INPUT_ROOT / V10_COMPETITION / "train"
 
 
@@ -434,16 +516,19 @@ def v10_run_kaggle(args, check=True, timeout=3600):
     return r
 
 
-INPUT_ROOT.mkdir(parents=True, exist_ok=True)
-WORKING_DIR.mkdir(parents=True, exist_ok=True)
-print("[v10-lab-setup] /kaggle/input + /kaggle/working đã sẵn sàng (Colab)")
+for _p in (INPUT_ROOT, WORKING_DIR):
+    try:
+        _p.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+print(f"[v10-lab-setup] roots sẵn sàng: input={INPUT_ROOT} · working={WORKING_DIR} (Colab)")
 
 # --- 1) tải 9 dataset ver-9 -------------------------------------------------------------------
 _t0 = time.time()
 for _full in V10_DATASETS:
     _slug = _full.split("/", 1)[1]
     _dest = INPUT_ROOT / _slug
-    if (_dest / ".v10_ok").exists():
+    if (_dest / ".v10_ok").exists() or (not _v10_writable(INPUT_ROOT) and _dest.exists()):
         print(f"[v10-lab-setup] dataset {_slug} đã có — bỏ qua")
         continue
     _dest.mkdir(parents=True, exist_ok=True)
@@ -459,7 +544,8 @@ if _dep_file.is_file():
     _cmd_txt = _dep_file.read_text().strip()
     for _full in V10_DATASETS:  # path mount Kaggle dạng datasets/<owner>/<slug> → /kaggle/input/<slug>
         _owner, _slug = _full.split("/", 1)
-        _cmd_txt = _cmd_txt.replace(f"/kaggle/input/datasets/{_owner}/{_slug}", f"/kaggle/input/{_slug}")
+        _cmd_txt = _cmd_txt.replace(f"/kaggle/input/datasets/{_owner}/{_slug}", str(INPUT_ROOT / _slug))
+        _cmd_txt = _cmd_txt.replace(f"/kaggle/input/{_slug}", str(INPUT_ROOT / _slug))
     print("[v10-lab-setup] kaggle_dependency_install_command.txt:", _cmd_txt[:300])
     _r = subprocess.run(_cmd_txt, shell=True, capture_output=True, text=True)
     print(f"[v10-lab-setup] dependency install exit={_r.returncode} ({(_r.stdout or '')[-400:]})")
@@ -584,8 +670,10 @@ print(f"[v10-lab-setup] SETUP HOÀN TẤT ({time.time() - _t0:.0f}s) — chuyể
 LAB_CELL_TEMPLATE = r"""# @@CELL_TAG@@ — env + exec monolith v10lab (validator 8 stems + grid sweep)
 import os
 import json
+from pathlib import Path
 
 V10_DEFAULT_GRID_JSON = @@GRID_JSON_PY@@
+@@ROOTS_BLOCK@@
 @@ENV_LINES@@
 print("[v10-lab] env xong — grid:", [c["label"] for c in json.loads(V10_DEFAULT_GRID_JSON)])
 
@@ -614,6 +702,37 @@ os.environ["BIOHUB_HOCT_VETO"] = "2"               # hook armed nhưng lab khôn
 os.environ["BIOHUB_RLF_ENABLE"] = "1"
 os.environ["BIOHUB_V10_GRID"] = V10_DEFAULT_GRID_JSON"""
 
+COLAB_ROOTS_BLOCK = '''# --- [v10-lab-roots] roots: kế thừa env từ Cell 2 (INPUT_ROOT/WORKING_ROOT); restart runtime thì dò lại ---
+def _v10_writable(p):
+    try:
+        _probe = p / ".v10_write_probe"
+        _probe.write_text("ok")
+        _probe.unlink()
+        return True
+    except OSError:
+        return False
+
+
+if "V10_INPUT_ROOT" not in os.environ:
+    _inp = Path("/kaggle/input")
+    try:
+        _inp.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    os.environ["V10_INPUT_ROOT"] = str(_inp) if _v10_writable(_inp) else "/content/kaggle/input"
+if "V10_WORKING_ROOT" not in os.environ:
+    _wrk = Path("/kaggle/working")
+    try:
+        _wrk.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    os.environ["V10_WORKING_ROOT"] = str(_wrk) if _v10_writable(_wrk) else "/content/kaggle/working"
+for _p in (os.environ["V10_INPUT_ROOT"], os.environ["V10_WORKING_ROOT"]):
+    Path(_p).mkdir(parents=True, exist_ok=True)
+print("[v10-lab] roots:", os.environ["V10_INPUT_ROOT"], "·", os.environ["V10_WORKING_ROOT"])'''
+
+CPU_ROOTS_BLOCK = '''# [v10-lab-roots] kernel Kaggle CPU: /kaggle/input gắn sẵn dataset cache — KHÔNG override root (mặc định ver-9).'''
+
 RESULTS_TEMPLATE = r'''# @@CELL_TAG@@ — bảng + bootstrap CI 95% paired@@UPLOAD_SUFFIX@@
 import json
 import os
@@ -625,7 +744,19 @@ import numpy as np
 import pandas as pd
 from IPython.display import display
 
-WORKING_DIR = Path("/kaggle/working") if Path("/kaggle/working").exists() else Path(".")
+_v10_wrk_env = (os.environ.get("V10_WORKING_ROOT") or "").strip()
+if _v10_wrk_env and Path(_v10_wrk_env).is_dir():
+    WORKING_DIR = Path(_v10_wrk_env)
+elif Path("/kaggle/working").exists():
+    WORKING_DIR = Path("/kaggle/working")
+else:
+    WORKING_DIR = Path(".")
+if not (WORKING_DIR / "v10_lab_report.json").is_file():  # restart runtime giữa chừng → dò nơi có report
+    for _alt in (Path("/content/kaggle/working"), Path(".")):
+        if (_alt / "v10_lab_report.json").is_file():
+            print(f"[v10-lab-result] report tìm thấy tại {_alt} (khác root mặc định)")
+            WORKING_DIR = _alt
+            break
 REPORT_PATH = WORKING_DIR / "v10_lab_report.json"
 ROWS_PATH = WORKING_DIR / "v10_lab_rows.csv"
 assert REPORT_PATH.is_file(), f"thiếu {REPORT_PATH} — cell lab chưa chạy xong?"
@@ -691,6 +822,8 @@ UPLOAD_PART = '''
 # --- upload cache + kết quả về Kaggle dataset vietnguyen130593/biohub-v10-lab-cache ----------
 UPLOAD_RESULTS = True
 if UPLOAD_RESULTS:
+    if not (os.environ.get("KAGGLE_API_TOKEN") or "").startswith("KGAT_"):
+        print("[v10-lab-upload] CẢNH BÁO: thiếu KAGGLE_API_TOKEN (restart runtime?) — chạy lại Cell 2 để set token rồi upload")
     try:
         import subprocess as _sp
         import sys as _sys
@@ -767,6 +900,10 @@ def static_checks(monolith_src: str, colab_nb: dict, cpu_nb: dict) -> None:
         "if not LAB_MODE:",
         "EXPERIMENT_TAG = 'secondary_deepcenter_tta_0947_v10lab_grid'",
         "os.environ['BIOHUB_HOCT_DEADLINE_H'] = os.environ.get('BIOHUB_HOCT_DEADLINE_H') or '9'",
+        "[v10-lab-roots]",
+        "def _v10_p",
+        "V10_INPUT_ROOT = os.environ.get('V10_INPUT_ROOT', '/kaggle/input')",
+        "V10_WORKING_ROOT = os.environ.get('V10_WORKING_ROOT', '/kaggle/working')",
     ]
     for token in mon_required:
         if token not in monolith_src:
@@ -778,6 +915,19 @@ def static_checks(monolith_src: str, colab_nb: dict, cpu_nb: dict) -> None:
         if kept not in monolith_src:
             sys.exit(f"[check] THẤT BẠI: thiếu hàm production {kept!r}")
     print(f"[check] {len(mon_required)} mấu [v10-lab] đủ + block [ver9] submission-level đã bỏ + hàm production giữ nguyên")
+
+    # ---- [v10-lab-roots] — wrap count + không sót literal /kaggle/* ngoài header roots ----
+    _n_wrapped = monolith_src.count("_v10_p(") - 1  # trừ dòng `def _v10_p(`
+    if _n_wrapped != V10_PATH_WRAP_COUNT:
+        sys.exit(f"[check] THẤT BẠI: literal /kaggle/* đã wrap = {_n_wrapped} ≠ transform {V10_PATH_WRAP_COUNT}")
+    _roots_i0 = monolith_src.index("# ==== [v10-lab-roots]")
+    _roots_i1 = monolith_src.index("os.environ['BIOHUB_MODEL_ARTIFACTS']")
+    _literal_re = re.compile(r"[fF]{0,2}['\"](/kaggle/(?:input|working)[^'\"]*)['\"]")
+    _header_n = len(_literal_re.findall(monolith_src[_roots_i0:_roots_i1]))
+    _total_n = len(_literal_re.findall(monolith_src))
+    if _total_n - _header_n != V10_PATH_WRAP_COUNT:
+        sys.exit(f"[check] THẤT BẠI: literal /kaggle/* ngoài header roots = {_total_n - _header_n} ≠ wrap {V10_PATH_WRAP_COUNT} — có literal chưa wrap")
+    print(f"[check] [v10-lab-roots] {V10_PATH_WRAP_COUNT} literal /kaggle/* wrap trong _v10_p + header roots {_header_n} literal khóa mặc định")
 
     # ---- notebook checks
     for name, nb, n_cells in (("colab", colab_nb, 4), ("cpu", cpu_nb, 3)):
@@ -801,16 +951,26 @@ def static_checks(monolith_src: str, colab_nb: dict, cpu_nb: dict) -> None:
     for stem in V10_STEMS:
         if stem not in _setup:
             sys.exit(f"[check] cell setup Colab thiếu stem {stem}")
-    for token in ("--page-token", "ThreadPoolExecutor(max_workers=4)", "kaggle_dependency_install_command.txt", "biohub-hoct-020-wheels"):
+    for token in ("--page-token", "ThreadPoolExecutor(max_workers=4)", "kaggle_dependency_install_command.txt", "biohub-hoct-020-wheels",
+                  'os.environ["V10_INPUT_ROOT"]', 'os.environ["V10_WORKING_ROOT"]', "/content/kaggle/input", "_v10_writable"):
         if token not in _setup:
             sys.exit(f"[check] cell setup Colab thiếu {token!r}")
     _cpu_lab = "".join(cpu_nb["cells"][1]["source"])
     if "/kaggle/input/biohub-v10-lab-cache/v10_lab_cache" not in _cpu_lab or "BIOHUB_LAB_NO_CUDA" not in _cpu_lab:
         sys.exit("[check] cell lab CPU thiếu BIOHUB_VAL_CACHE_DIR / BIOHUB_LAB_NO_CUDA")
+    _colab_lab_src = "".join(colab_nb["cells"][2]["source"])
+    for token in ('os.environ["V10_INPUT_ROOT"]', "/content/kaggle/input", "_v10_writable"):
+        if token not in _colab_lab_src:
+            sys.exit(f"[check] cell lab Colab thiếu roots block {token!r}")
+    _cpu_lab_src2 = "".join(cpu_nb["cells"][1]["source"])
+    if 'os.environ["V10_INPUT_ROOT"]' in _cpu_lab_src2:
+        sys.exit("[check] THẤT BẠI: cell lab CPU KHÔNG được set V10_INPUT_ROOT (Kaggle dùng /kaggle/input mặc định)")
     _colab_res = "".join(colab_nb["cells"][3]["source"])
     for token in ("N_BOOT = 10_000", "default_rng", "percentile", "vietnguyen130593/biohub-v10-lab-cache", "datasets", "version"):
         if token not in _colab_res:
             sys.exit(f"[check] cell kết quả Colab thiếu {token!r}")
+    if 'os.environ.get("V10_WORKING_ROOT")' not in _colab_res or "/content/kaggle/working" not in _colab_res:
+        sys.exit("[check] cell kết quả Colab thiếu resolve WORKING_ROOT từ env + fallback /content")
     _cpu_res = "".join(cpu_nb["cells"][2]["source"])
     if "N_BOOT = 10_000" not in _cpu_res or "biohub-v10-lab-cache" in _cpu_res:
         sys.exit("[check] cell kết quả CPU: phải có bootstrap, KHÔNG có upload")
@@ -845,12 +1005,14 @@ def main() -> int:
     colab_lab_src = fill(LAB_CELL_TEMPLATE, {
         "CELL_TAG": "v10-lab-colab S3 LAB",
         "GRID_JSON_PY": json.dumps(V10_DEFAULT_GRID_JSON),
+        "ROOTS_BLOCK": COLAB_ROOTS_BLOCK,
         "ENV_LINES": COLAB_ENV_LINES,
         "MONOLITH": monolith_src,
     })
     cpu_lab_src = fill(LAB_CELL_TEMPLATE, {
         "CELL_TAG": "v10-lab-cpu S2 LAB CPU",
         "GRID_JSON_PY": json.dumps(V10_DEFAULT_GRID_JSON),
+        "ROOTS_BLOCK": CPU_ROOTS_BLOCK,
         "ENV_LINES": CPU_ENV_LINES,
         "MONOLITH": monolith_src,
     })

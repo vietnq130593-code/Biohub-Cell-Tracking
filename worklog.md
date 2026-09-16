@@ -879,3 +879,23 @@ Stage Summary:
 - Notebook download/v10-lab-colab.ipynb cũng đã rebuild với token tương tự (giữ nguyên 4 cell; monolith byte-for-byte giống ver-9 + patch v10-lab).
 - Bài học hạ tầng ghi nhận: output hiển thị của Bash tool có thể nuốt ký tự "[" trong chuỗi "[m for m ...]" → khi kiểm tra cú pháp code phải dùng ast.parse/py_compile + hexdump, không tin mắt thường vào output in ra.
 - 87/87 test PASS; không push Kaggle; không đụng app Next.js.
+
+---
+Task ID: V10-COLAB-ROOFIX
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: User chạy cell 2 trên Colab gặp `OSError: [Errno 30] Read-only file system: '/kaggle/input/biohub-tracking-support-pack-50ep-v1'` — xử lý lỗi + audit lại cell 3 + cell 4.
+
+Work Log:
+- CHẨN ĐOÁN: image Colab mới (Python 3.13) có sẵn /kaggle/input là mount READ-ONLY (mkdir cha thành công vì dir tồn tại + exist_ok; tạo thư mục con bị EROFS). Audit phát hiện monolith v10lab hardcode 24 dòng /kaggle/input + 7 dòng /kaggle/working → cell 3 (REPO_DIR/RESUME_DIR/cache dump) và cell 4 (đọc report) sẽ crash tương tự; /kaggle/working trên Colab cũng có thể read-only.
+- KIẾN TRÚC FIX — root override 3 tầng: (1) Cell 2 dò root ghi được bằng probe ghi file (_v10_writable, except OSError bắt cả EROFS) → root read-only thì chuyển /content/kaggle/{input,working} + export env V10_INPUT_ROOT/V10_WORKING_ROOT; giữ /kaggle/input nếu ghi được HOẶC đã có dataset gắn sẵn (phòng chạy trên Kaggle thật); (2) build-v10-lab.py P16: regex wrap 38 literal /kaggle/* trong monolith vào _v10_p(...) — hàm runtime dịch path theo env, env thiếu → path nguyên vẹn (Kaggle cpu notebook hành ver-9 y hệt); P17: inject header [v10-lab-roots] ngay sau `import os` (trước lần dùng đầu tiên); (3) Cell 3 thêm COLAB_ROOTS_BLOCK dò lại roots nếu restart runtime (env mất, file còn); Cell 4 resolve WORKING_DIR từ env + fallback dò /content/kaggle/working khi thiếu report + cảnh báo upload khi thiếu token.
+- Các chỉnh phụ: deps command rewrite theo INPUT_ROOT (cả 2 dạng path mount), skip dataset khi root read-only đã có sẵn thư mục (attached), static_checks thêm invariant wrap-count (38 literal ngoài header == số _v10_p gọi) + marker roots + cell checks mới, header md cập nhật (token nhúng + tự xử read-only).
+- REBUILD: monolith 5329 dòng (+18 header) · colab 370KB · cpu 350KB · 6/6 static checks PASS (38 literal wrap + 14 literal khóa mặc định trong header).
+- TEST: test-v10-lab.py thêm nhóm T10 (13 check mới: marker/invariant/functional _v10_p qua exec header với env override + không override khi env thiếu + cell checks 4 loại) → 100/100 PASS; T9 sha256 ver-9 không đổi.
+- VERIFY MÔI TRƯỜNG: ast.parse cả 3 cell colab + cpu lab cell PASS; kaggle CLI 2.x + KAGGLE_API_TOKEN KGAT verify từ sandbox (competitions files -v trả dữ liệu + Next Page Token đúng như parser cell 2); mô phỏng picker 4 kịch bản (Colab RO input / cả 2 RO / Kaggle attached / image cũ ghi được) — 4/4 đúng nhánh (lần đầu fail do artifact /tmp sót thư mục + chmod 555 với user thường, không phải lỗi logic).
+- README.md thêm mục "Cơ chế root override" (5 dấu đầu dòng).
+
+Stage Summary:
+- ★ Cell 2 mới: token nhúng + tự dò root ghi được + export V10_INPUT_ROOT/V10_WORKING_ROOT — paste thẳng Colab chạy được, in rõ INPUT_ROOT/WORKING_ROOT đã chọn.
+- ★ Cell 3 (monolith) và Cell 4 đã được audit + fix cùng cơ chế: 38 literal path wrap trong _v10_p; KHÔNG paste cell 3/4 cũ — phải lấy từ notebook rebuild (download/v10-lab-colab.ipynb 370KB) vì monolith thay đổi.
+- 100/100 test PASS · ver-9 sha256 nguyên vẹn · kaggle CLI + token verify OK · không push Kaggle.
+- Lưu ý vận hành Colab: cell idempotent (chạy lại để retry); nếu restart runtime giữa chừng, chạy lại Cell 2 (bỏ qua phần đã tải) rồi Cell 3.

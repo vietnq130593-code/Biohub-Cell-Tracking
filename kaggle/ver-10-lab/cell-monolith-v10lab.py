@@ -7,11 +7,29 @@
 from __future__ import annotations
 import os
 
-os.environ['BIOHUB_MODEL_ARTIFACTS'] = '/kaggle/input/datasets/pilkwang/biohub-tracking-support-pack-50ep-v1'
+# ==== [v10-lab-roots] root override — Google Colab: /kaggle/* mount READ-ONLY → V10_INPUT_ROOT/V10_WORKING_ROOT ====
+# Image Colab mới có sẵn /kaggle/input (đôi khi cả /kaggle/working) dạng mount read-only.
+# Cell setup Colab export V10_INPUT_ROOT + V10_WORKING_ROOT trỏ tới /content/kaggle/* (ghi được);
+# mọi path literal '/kaggle/input…' | '/kaggle/working…' trong monolith được _v10_p dịch sang root đó lúc runtime.
+# Trên Kaggle thật (kernel CPU replay): env không set → mặc định /kaggle/* → hành vi GIỐNG HỆT ver-9.
+V10_INPUT_ROOT = os.environ.get('V10_INPUT_ROOT', '/kaggle/input').rstrip('/') or '/kaggle/input'
+V10_WORKING_ROOT = os.environ.get('V10_WORKING_ROOT', '/kaggle/working').rstrip('/') or '/kaggle/working'
+
+
+def _v10_p(p):
+    # [v10-lab-roots] dịch path literal /kaggle/input… | /kaggle/working… sang root override (nếu có)
+    if isinstance(p, str):
+        if (p == '/kaggle/input' or p.startswith('/kaggle/input/')) and V10_INPUT_ROOT != '/kaggle/input':
+            return V10_INPUT_ROOT + p[len('/kaggle/input'):]
+        if (p == '/kaggle/working' or p.startswith('/kaggle/working/')) and V10_WORKING_ROOT != '/kaggle/working':
+            return V10_WORKING_ROOT + p[len('/kaggle/working'):]
+    return p
+
+os.environ['BIOHUB_MODEL_ARTIFACTS'] = _v10_p('/kaggle/input/datasets/pilkwang/biohub-tracking-support-pack-50ep-v1')
 os.environ['BIOHUB_TARGET_ARTIFACT_SLUG'] = 'biohub-tracking-support-pack-50ep-v1'
 os.environ['BIOHUB_ALLOW_ARTIFACT_FALLBACK'] = '1'
-os.environ['BIOHUB_DEEPCENTER_CHECKPOINT'] = '/kaggle/input/datasets/pilkwang/biohub-deepcenter-unet3d-center-prior-v1/weights/full_frame_center/best.pt'
-os.environ['BIOHUB_SECONDARY_ARTIFACT_MANIFEST'] = '/kaggle/input/datasets/pilkwang/biohub-temporalunet3d-seed314159-v1/ARTIFACT_MANIFEST.json'
+os.environ['BIOHUB_DEEPCENTER_CHECKPOINT'] = _v10_p('/kaggle/input/datasets/pilkwang/biohub-deepcenter-unet3d-center-prior-v1/weights/full_frame_center/best.pt')
+os.environ['BIOHUB_SECONDARY_ARTIFACT_MANIFEST'] = _v10_p('/kaggle/input/datasets/pilkwang/biohub-temporalunet3d-seed314159-v1/ARTIFACT_MANIFEST.json')
 
 # Decode hexadecimal text into the exact utf-8 source string
 def _exact_text(hex_text):
@@ -123,7 +141,7 @@ os.environ['BIOHUB_USE_DEEPCENTER_VETO'] = '1'
 os.environ['BIOHUB_REQUIRE_DEEPCENTER_VETO'] = '1'
 os.environ['BIOHUB_DEEPCENTER_EXPECTED_EPOCH'] = '2'
 os.environ['BIOHUB_DEEPCENTER_GAP_CONFIRM_MIN_SPAN_UM'] = '8.5'
-os.environ['BIOHUB_DEEPCENTER_CHECKPOINT'] = '/kaggle/input/datasets/pilkwang/biohub-deepcenter-unet3d-center-prior-v1/weights/full_frame_center/best.pt'
+os.environ['BIOHUB_DEEPCENTER_CHECKPOINT'] = _v10_p('/kaggle/input/datasets/pilkwang/biohub-deepcenter-unet3d-center-prior-v1/weights/full_frame_center/best.pt')
 os.environ['BIOHUB_DEEPCENTER_GAP_VETO'] = '1'
 os.environ['BIOHUB_DEEPCENTER_GAP_THRESHOLD'] = '0.25'
 os.environ['BIOHUB_DEEPCENTER_SAFE_DIV_VETO'] = '1'
@@ -201,10 +219,10 @@ from IPython.display import display
 
 # Resolve kaggle competition paths and initialize output locations
 COMPETITION = 'biohub-cell-tracking-during-development'
-COMP_DIR_CANDIDATES = [Path(f'/kaggle/input/competitions/{COMPETITION}'), Path(f'/kaggle/input/{COMPETITION}')]
+COMP_DIR_CANDIDATES = [Path(_v10_p(f'/kaggle/input/competitions/{COMPETITION}')), Path(_v10_p(f'/kaggle/input/{COMPETITION}'))]
 COMP_DIR = next((path for path in COMP_DIR_CANDIDATES if path.exists()), COMP_DIR_CANDIDATES[0])
 TEST_DIR = COMP_DIR / 'test'
-WORKING_DIR = Path('/kaggle/working') if Path('/kaggle/working').exists() else Path('.')
+WORKING_DIR = Path(_v10_p('/kaggle/working')) if Path(_v10_p('/kaggle/working')).exists() else Path('.')
 REPO_DIR = WORKING_DIR / 'tracking_repo'
 SUBMISSION_PATH = WORKING_DIR / 'submission.csv'
 RUN_STATS_PATH = WORKING_DIR / 'run_stats.csv'
@@ -468,7 +486,7 @@ def _run_subprocess_streamed(command: list[str], cwd: Path, env: dict[str, str])
         raise subprocess.CalledProcessError(return_code, command)
         
 TARGET_ARTIFACT_SLUG = os.environ.get('BIOHUB_TARGET_ARTIFACT_SLUG', 'biohub-tracking-support-pack-50ep-v1')
-PRIMARY_ARTIFACT_MANIFEST = Path(os.environ.get('BIOHUB_PRIMARY_ARTIFACT_MANIFEST', '/kaggle/input/datasets/pilkwang/biohub-tracking-support-pack-50ep-v1/ARTIFACT_MANIFEST.json'))
+PRIMARY_ARTIFACT_MANIFEST = Path(os.environ.get('BIOHUB_PRIMARY_ARTIFACT_MANIFEST', _v10_p('/kaggle/input/datasets/pilkwang/biohub-tracking-support-pack-50ep-v1/ARTIFACT_MANIFEST.json')))
 ALLOW_ARTIFACT_FALLBACK = os.environ.get('BIOHUB_ALLOW_ARTIFACT_FALLBACK', '0') != '0'
 DET_THRESHOLD = float(os.environ.get('BIOHUB_DET_THRESHOLD', '0.99'))
 UNET_BATCH_SIZE = int(os.environ.get('BIOHUB_UNET_BATCH_SIZE', '4'))
@@ -568,8 +586,8 @@ DIVNET_CHECKPOINT_EXPLICIT = os.environ.get('BIOHUB_DIVNET_CHECKPOINT', '').stri
 DIVNET_MANIFEST_EXPLICIT = os.environ.get('BIOHUB_DIVNET_MANIFEST', '').strip()
 USE_DEEPCENTER_VETO = os.environ.get('BIOHUB_USE_DEEPCENTER_VETO', '1') != '0'
 REQUIRE_DEEPCENTER_VETO = os.environ.get('BIOHUB_REQUIRE_DEEPCENTER_VETO', '1') != '0'
-DEEPCENTER_MANIFEST_DEFAULT = os.environ.get('BIOHUB_DEEPCENTER_MANIFEST_DEFAULT', '/kaggle/input/datasets/pilkwang/biohub-deepcenter-unet3d-center-prior-v1/ARTIFACT_MANIFEST.json')
-DEEPCENTER_CHECKPOINT_DEFAULT = os.environ.get('BIOHUB_DEEPCENTER_CHECKPOINT_DEFAULT', '/kaggle/input/biohub-deepcenter-unet3d-center-prior-v1/weights/full_frame_center/best.pt')
+DEEPCENTER_MANIFEST_DEFAULT = os.environ.get('BIOHUB_DEEPCENTER_MANIFEST_DEFAULT', _v10_p('/kaggle/input/datasets/pilkwang/biohub-deepcenter-unet3d-center-prior-v1/ARTIFACT_MANIFEST.json'))
+DEEPCENTER_CHECKPOINT_DEFAULT = os.environ.get('BIOHUB_DEEPCENTER_CHECKPOINT_DEFAULT', _v10_p('/kaggle/input/biohub-deepcenter-unet3d-center-prior-v1/weights/full_frame_center/best.pt'))
 DEEPCENTER_RELATIVE = os.environ.get('BIOHUB_DEEPCENTER_RELATIVE', 'weights/full_frame_center/best.pt')
 DEEPCENTER_GAP_VETO = os.environ.get('BIOHUB_DEEPCENTER_GAP_VETO', '1') != '0'
 DEEPCENTER_SAFE_DIV_VETO = os.environ.get('BIOHUB_DEEPCENTER_SAFE_DIV_VETO', '1') != '0'
@@ -633,7 +651,7 @@ def artifact_matches_target(path: Path) -> bool:
 
 # Build the candidate artifact locations for a dataset slug
 def candidate_roots_for_slug(slug: str) -> list[Path]:
-    return [Path(f'/kaggle/input/datasets/pilkwang/{slug}'), Path(f'/kaggle/input/{slug}'), Path(f'/kaggle/input/{slug}/{slug}'), Path(f'PublicNotebook/{slug}')]
+    return [Path(_v10_p(f'/kaggle/input/datasets/pilkwang/{slug}')), Path(_v10_p(f'/kaggle/input/{slug}')), Path(_v10_p(f'/kaggle/input/{slug}/{slug}')), Path(f'PublicNotebook/{slug}')]
 
 # Locate the primary biohub model artifact across supported kaggle paths
 def find_artifacts_root() -> Path:
@@ -650,7 +668,7 @@ def find_artifacts_root() -> Path:
     if ALLOW_ARTIFACT_FALLBACK:
         for slug in FALLBACK_ARTIFACT_SLUGS:
             candidates.extend(candidate_roots_for_slug(slug))
-    input_root = Path('/kaggle/input')
+    input_root = Path(_v10_p('/kaggle/input'))
 
     if input_root.exists():
         for child in input_root.iterdir():
@@ -688,8 +706,8 @@ def _has_package_file(path: Path) -> bool:
 
 # Collect directories that contain offline dependency packages
 def find_offline_package_dirs(artifacts: Path) -> list[Path]:
-    candidates: list[Path] = [artifacts / 'wheels', artifacts, Path('/kaggle/working'), Path('/kaggle/working/wheels')]
-    input_root = Path('/kaggle/input')
+    candidates: list[Path] = [artifacts / 'wheels', artifacts, Path(_v10_p('/kaggle/working')), Path(_v10_p('/kaggle/working/wheels'))]
+    input_root = Path(_v10_p('/kaggle/input'))
 
     if input_root.exists():
         for child in input_root.iterdir():
@@ -959,7 +977,7 @@ def materialize_inference_repo(artifacts: Path) -> None:
     print('Inference repo:', REPO_DIR)
     print('Weights:', REPO_DIR / WEIGHTS_RELATIVE)
 
-os.environ['BIOHUB_DEEPCENTER_CHECKPOINT'] = '/kaggle/input/datasets/pilkwang/biohub-deepcenter-unet3d-center-prior-v1/weights/full_frame_center/best.pt'
+os.environ['BIOHUB_DEEPCENTER_CHECKPOINT'] = _v10_p('/kaggle/input/datasets/pilkwang/biohub-deepcenter-unet3d-center-prior-v1/weights/full_frame_center/best.pt')
 
 # Locate the primary artifact and materialize all required runtime dependencies
 ARTIFACTS = find_artifacts_root()
@@ -1021,7 +1039,7 @@ _primary_actual_sha256 = _integrity_sha256_file(_primary_materialized_path)
 if _primary_actual_sha256 != _primary_expected_sha256:
     raise RuntimeError(f'Materialized primary model checksum mismatch: expected {_primary_expected_sha256}, got {_primary_actual_sha256}')
 
-_deepcenter_candidate_strings = [os.environ.get('BIOHUB_DEEPCENTER_CHECKPOINT', '').strip(), '/kaggle/input/biohub-deepcenter-unet3d-center-prior-v1/weights/full_frame_center/best.pt', '/kaggle/input/datasets/pilkwang/biohub-deepcenter-unet3d-center-prior-v1/weights/full_frame_center/best.pt']
+_deepcenter_candidate_strings = [os.environ.get('BIOHUB_DEEPCENTER_CHECKPOINT', '').strip(), _v10_p('/kaggle/input/biohub-deepcenter-unet3d-center-prior-v1/weights/full_frame_center/best.pt'), _v10_p('/kaggle/input/datasets/pilkwang/biohub-deepcenter-unet3d-center-prior-v1/weights/full_frame_center/best.pt')]
 _deepcenter_candidates = []
 
 for _candidate_string in _deepcenter_candidate_strings:
@@ -1050,14 +1068,14 @@ print('DeepCenter materialized SHA256:', _deepcenter_actual_sha256)
 import hashlib as _hashlib
 
 # Locate and verify the independent secondary model used for dual-seed inference
-_secondary_manifest_explicit = Path(os.environ.get('BIOHUB_SECONDARY_ARTIFACT_MANIFEST', '/kaggle/input/datasets/pilkwang/biohub-temporal-unet3d-seed314159-v1/ARTIFACT_MANIFEST.json'))
+_secondary_manifest_explicit = Path(os.environ.get('BIOHUB_SECONDARY_ARTIFACT_MANIFEST', _v10_p('/kaggle/input/datasets/pilkwang/biohub-temporal-unet3d-seed314159-v1/ARTIFACT_MANIFEST.json')))
 _secondary_expected_sha256 = '9bac2fa0dadc4a6fc1899e0caf187f4b553e0a7cd90ba1261a68b35ffe9e305f'
 _secondary_slug = 'biohub-temporal-unet3d-seed314159-v1'
 
 # Locate the independent secondary model artifact by its expected checksum
 def _find_secondary_artifact_root() -> tuple[Path, dict]:
-    candidates = [_secondary_manifest_explicit, Path(f'/kaggle/input/{_secondary_slug}/ARTIFACT_MANIFEST.json'), Path(f'/kaggle/input/datasets/pilkwang/{_secondary_slug}/ARTIFACT_MANIFEST.json')]
-    input_root = Path('/kaggle/input')
+    candidates = [_secondary_manifest_explicit, Path(_v10_p(f'/kaggle/input/{_secondary_slug}/ARTIFACT_MANIFEST.json')), Path(_v10_p(f'/kaggle/input/datasets/pilkwang/{_secondary_slug}/ARTIFACT_MANIFEST.json'))]
+    input_root = Path(_v10_p('/kaggle/input'))
 
     if input_root.exists():
         candidates.extend(input_root.rglob('ARTIFACT_MANIFEST.json'))
@@ -1424,7 +1442,7 @@ det_logits[f] = primary_det if use_primary_detection else blended_det
 
 if int(frame_indices[f]) not in seen_frames:
     shard = os.environ.get('BIOHUB_GPU_SHARD', 'single').replace('/', '_')
-    guard_log = Path('/kaggle/working') / f'retention_guard_{shard}.jsonl'
+    guard_log = Path(_v10_p('/kaggle/working')) / f'retention_guard_{shard}.jsonl'
     guard_record = {'dataset': ds_path.stem, 'frame': int(frame_indices[f]), 'primary_candidates': int(primary_candidates), 'blended_candidates': int(blended_candidates), 'retention': float(candidate_retention), 'minimum_retention': float(minimum_retention), 'use_primary': bool(use_primary_detection)}
 
     with guard_log.open('a') as guard_handle:
@@ -1498,7 +1516,7 @@ if _coordinate_manifest_arm:
     _coordinate_array = np.ascontiguousarray(coords.astype('<i2', copy = False))
     _coordinate_frame_counts = [[int(_coordinate_t), int((_coordinate_array[:, 0] == _coordinate_t).sum())] for _coordinate_t in np.unique(_coordinate_array[:, 0])]
     _coordinate_record = {'columns': ['t', 'z', 'y', 'x'], 'coordinate_sha256': _coordinate_hashlib.sha256(_coordinate_array.tobytes(order = 'C')).hexdigest(), 'dataset': ds_path.stem, 'dtype': '<i2', 'frame_counts': _coordinate_frame_counts, 'rows': int(len(_coordinate_array)), 'stage': 'post_detection_pre_graph_pre_ilp'}
-    _coordinate_manifest_path = Path('/kaggle/working') / f'detector_coordinates_{_coordinate_manifest_arm}_{_coordinate_shard}.jsonl'
+    _coordinate_manifest_path = Path(_v10_p('/kaggle/working')) / f'detector_coordinates_{_coordinate_manifest_arm}_{_coordinate_shard}.jsonl'
 
     with _coordinate_manifest_path.open('a') as _coordinate_handle:
         _coordinate_handle.write(json.dumps(_coordinate_record, sort_keys = True) + '\\n')
@@ -2033,8 +2051,8 @@ def _dc_checkpoint_candidates() -> list[Path]:
 
     if manifest_explicit:
         candidates.extend(_dc_manifest_weight_paths(Path(manifest_explicit)))
-    input_root = Path('/kaggle/input')
-    preferred_dirs = [Path('/kaggle/input/biohub-deepcenter-unet3d-center-prior-v1'), Path('/kaggle/input/datasets/pilkwang/biohub-deepcenter-unet3d-center-prior-v1')]
+    input_root = Path(_v10_p('/kaggle/input'))
+    preferred_dirs = [Path(_v10_p('/kaggle/input/biohub-deepcenter-unet3d-center-prior-v1')), Path(_v10_p('/kaggle/input/datasets/pilkwang/biohub-deepcenter-unet3d-center-prior-v1'))]
 
     for directory in preferred_dirs:
         candidates.extend(_dc_manifest_weight_paths(directory / 'ARTIFACT_MANIFEST.json'))
@@ -2805,7 +2823,7 @@ def _divnet_checkpoint_candidates() -> list[Path]:
     if DIVNET_CHECKPOINT_EXPLICIT:
         candidates.append(Path(DIVNET_CHECKPOINT_EXPLICIT))
 
-    input_root = Path("/kaggle/input")
+    input_root = Path(_v10_p("/kaggle/input"))
     # Kaggle gắn dataset hoặc ngay dưới /kaggle/input hoặc /kaggle/input/datasets/<owner>/<slug>.
     dataset_dirs: list[Path] = []
     for canonical in (input_root / "biohub-divnet-v2", input_root / "biohub-divnet-v1"):
@@ -3926,8 +3944,8 @@ def _hv_budget_decision(n_nodes: int, elapsed_s: float, deadline_s: float, max_v
 # ---------------------------------------------------------------- HOCT plumbing (Kaggle only)
 
 def _hv_find(pattern: str) -> str:
-    hits = sorted(set(_hv_glob.glob(f"/kaggle/input/{pattern}") + _hv_glob.glob(f"/kaggle/input/*/{pattern}")
-                      + _hv_glob.glob(f"/kaggle/input/*/*/{pattern}") + _hv_glob.glob(f"/kaggle/input/*/*/*/{pattern}")))
+    hits = sorted(set(_hv_glob.glob(_v10_p(f"/kaggle/input/{pattern}")) + _hv_glob.glob(_v10_p(f"/kaggle/input/*/{pattern}"))
+                      + _hv_glob.glob(_v10_p(f"/kaggle/input/*/*/{pattern}")) + _hv_glob.glob(_v10_p(f"/kaggle/input/*/*/*/{pattern}"))))
     if not hits:
         raise FileNotFoundError(f"HOCT veto: nothing matches /kaggle/input/**/{pattern}")
     return hits[0]
@@ -5209,7 +5227,7 @@ if not LAB_MODE:
     if _dc_loaded:
         pass
 
-    _guard_submission = Path('/kaggle/working/submission.csv')
+    _guard_submission = Path(_v10_p('/kaggle/working/submission.csv'))
     _guard_columns = ['id', 'dataset', 'row_type', 'node_id', 't', 'z', 'y', 'x', 'source_id', 'target_id']
 
     if not _guard_submission.is_file():
@@ -5235,7 +5253,7 @@ if not LAB_MODE:
     _guard_records = []
     _guard_expected_set = set(_guard_expected)
 
-    for _guard_path in sorted(Path('/kaggle/working').glob('retention_guard_*.jsonl')):
+    for _guard_path in sorted(Path(_v10_p('/kaggle/working')).glob('retention_guard_*.jsonl')):
         for _guard_line in _guard_path.read_text().splitlines():
             if _guard_line.strip():
                 _guard_record = json.loads(_guard_line)
@@ -5300,7 +5318,7 @@ if not LAB_MODE:
 
     _guard_digest = hashlib.sha256(_guard_submission.read_bytes()).hexdigest()
     _guard_report = {'experiment': 'secondary_deepcenter_tta_0947_reparent_hoct_v9', 'status': 'phase_e_hoct_veto_rlf_v9', 'phase_e': {'hoct_veto_mode': int(os.environ.get('BIOHUB_HOCT_VETO', '0')), 'rlf_enabled': os.environ.get('BIOHUB_RLF_ENABLE', '0') != '0', 'tight_hardcode': {'44b6': 5.5, '6bba': 6.5, 'fallback_um': 5.5}}, 'phase_d': {'reparent_enable': REPARENT_ENABLE, 'reparent_max_um': REPARENT_MAX_UM, 'reparent_sister_um': REPARENT_SISTER_UM, 'reparent_tau': REPARENT_TAU, 'reparent_edge_prob': REPARENT_EDGE_PROB, 'reparent_current_far_um': REPARENT_CURRENT_FAR_UM, 'reparent_min_pdiv': REPARENT_MIN_PDIV, 'reparent_w_um': REPARENT_W_UM, 'reparent_diverge_um': REPARENT_DIVERGE_UM, 'reparent_frame_frac_cap': REPARENT_FRAME_FRAC_CAP, 'reparent_global_frac_cap': REPARENT_GLOBAL_FRAC_CAP}, 'phase_c': {'divnet_rank': DIVNET_RANK, 'divnet_rank_w_um': DIVNET_RANK_W_UM, 'divnet_mode': 'RANK-ONLY (gate production giữ nguyên tau 0.6 / diverge 2.25)'}, 'parent_experiment': 'edge_feature_tta_0946_v1', 'method_attribution': '0.933 fixed-90 dual-seed baseline -> 0.934 harmonic mutual-support fusion -> 0.939 wider divisions and calmer fusion -> 0.941 repair-threshold adaptation -> 0.946 primary edge-feature TTA + held-out post-process selection -> 0.947 secondary feature TTA + DeepCenter TTA', 'source_kernel': 'raykkretzschmar/biohub-bidirectional-primary-union13-diagnostic-v1', 'source_notebook_sha256': '3e65ca691941949196bf417030ea84fccafe16baaec174b2a63540451bb937e8', 'public_output_used': False, 'metric_hack_used': False, 'organizer_labels_used_for_configuration': False, 'leaderboard_feedback_used_for_configuration': True, 'configuration': {'minimum_candidate_retention': 0.9, 'fallback_scope': 'individual_frame', 'detector_threshold': DET_THRESHOLD, 'secondary_detection_weight': float(os.environ.get('BIOHUB_SECONDARY_DETECTION_WEIGHT', '0.80')), 'secondary_edge_weight': float(os.environ.get('BIOHUB_SECONDARY_EDGE_WEIGHT', '0.15')), 'bidirectional_primary_weight': float(os.environ.get('BIOHUB_BIDIRECTIONAL_EDGE_WEIGHT', '0.15')), 'secondary_link_mode': 'low_margin_consensus', 'secondary_low_margin_max': 0.35, 'edge_candidate_threshold': 0.48, 'ilp_appearance_weight': ILP_APPEARANCE_WEIGHT, 'ilp_disappearance_weight': ILP_DISAPPEARANCE_WEIGHT, 'gap_close_um': GAP_CLOSE_UM, 'safe_div_max_um': SAFE_DIV_MAX_UM, 'safe_div_sister_max_um': SAFE_DIV_SISTER_MAX_UM, 'safe_div_sister_symmetry_tau': SAFE_DIV_SISTER_SYMMETRY_TAU, 'deepcenter_safe_div_threshold': DEEPCENTER_SAFE_DIV_THRESHOLD, 'deepcenter_tta': os.environ.get('BIOHUB_DEEPCENTER_TTA', '0') != '0', 'secondary_edge_feature_tta': os.environ.get('BIOHUB_SECONDARY_EDGE_FEATURE_TTA', '0') != '0', 'secondary_edge_feature_tta_weight': float(os.environ.get('BIOHUB_SECONDARY_EDGE_FEATURE_TTA_WEIGHT', '0.75')), 'deepcenter_gap_threshold': DEEPCENTER_GAP_THRESHOLD, 'deepcenter_gap_confirm_min_span_um': DEEPCENTER_GAP_CONFIRM_MIN_SPAN_UM, 'reparent': {'max_um': REPARENT_MAX_UM, 'edge_prob': REPARENT_EDGE_PROB, 'min_pdiv': REPARENT_MIN_PDIV, 'tau': REPARENT_TAU}}, 'hardware': {'visible_gpu_count': int(torch.cuda.device_count())}, 'diagnostics': {'rows': int(len(_guard_records)), 'fallback_frames': int(sum((bool(row['use_primary']) for row in _guard_records))), 'by_movie': _guard_by_movie}, 'submission': {'sha256': _guard_digest, 'rows': int(len(_guard_frame)), 'datasets': _guard_datasets}, 'topology': _guard_topology, 'quality_promotion': {'status': 'verified_public_lb_0947', 'required_condition': 'none', 'validated_receipt_sha256': None}}
-    Path('/kaggle/working/dual_seed_frame_retention_guard_report.json').write_text(json.dumps(_guard_report, indent = 2, sort_keys = True) + '\n')
+    Path(_v10_p('/kaggle/working/dual_seed_frame_retention_guard_report.json')).write_text(json.dumps(_guard_report, indent = 2, sort_keys = True) + '\n')
     print(json.dumps(_guard_report, indent = 2, sort_keys = True))
 
     print('PRODUCTION SUBMISSION PIPELINE: COMPLETE')

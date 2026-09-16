@@ -14,6 +14,25 @@
 | `download/v10-lab-colab.ipynb` | ★ Notebook chạy trên **Google Colab T4** — do USER upload + Run all |
 | `download/v10-lab-cpu.ipynb` | Notebook cho **Kaggle CPU kernel** (tôi push sau khi có cache dataset) — replay không veto |
 
+## Cơ chế root override (Colab mount /kaggle/* READ-ONLY) — cập nhật 16/9 chiều
+
+Image Google Colab mới (Python 3.13) có sẵn `/kaggle/input` (đôi khi cả `/kaggle/working`) là
+**mount READ-ONLY** → lỗi `OSError: [Errno 30] Read-only file system`. Cơ chế xử lý 3 tầng:
+
+- **Cell 2** dò root ghi được bằng probe ghi file (`_v10_writable`, `except OSError` bắt cả EROFS)
+  → root read-only thì chuyển sang `/content/kaggle/{input,working}` + export env
+  `V10_INPUT_ROOT` / `V10_WORKING_ROOT`. Giữ `/kaggle/input` nếu ghi được HOẶC đã có dataset
+  gắn sẵn (phònghypothetical chạy trên Kaggle thật).
+- **Monolith v10lab** (Cell 3): 38 path literal `/kaggle/input…` | `/kaggle/working…` được wrap
+  trong `_v10_p(...)` — dịch path theo env lúc runtime; env không set (Kaggle cpu kernel) →
+  path nguyên vẹn, hành vi **giống hệt ver-9**.
+- **Cell 3** tự dò lại roots nếu restart runtime giữa chừng (env mất nhưng file còn);
+  **Cell 4** đọc report từ `V10_WORKING_ROOT` env + fallback dò `/content/kaggle/working`.
+- Token KGAT đã nhúng sẵn Cell 2 (Colab Secret `KAGGLE_API_TOKEN` nếu có sẽ được ưu tiên);
+  kaggle CLI + token đã verify từ sandbox (competitions files API OK).
+- Sau khi sửa build-v10-lab.py: chạy lại `python3 build-v10-lab.py` rồi `python3 test-v10-lab.py`
+  (100/100 PASS) — cell 3/4 trong notebook cũ KHÔNG tương thích ngược, phải lấy bản rebuild.
+
 ## User chạy Colab — 5 bước
 
 1. `colab.research.google.com` → File → Upload notebook → chọn `download/v10-lab-colab.ipynb`.
