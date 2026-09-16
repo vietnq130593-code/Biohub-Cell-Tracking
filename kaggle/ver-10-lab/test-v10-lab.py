@@ -561,7 +561,7 @@ check('colab setup: đủ 8 stems validator', all(stem in setup_src for stem in 
 check('colab setup: phân trang files (--page-token) + 4 luồng (ThreadPoolExecutor max_workers=4)', '--page-token' in setup_src and 'ThreadPoolExecutor(max_workers=4)' in setup_src)
 check('colab setup: đọc + thực thi kaggle_dependency_install_command.txt', 'kaggle_dependency_install_command.txt' in setup_src)
 check('colab setup: cài wheel HOCT từ biohub-hoct-020-wheels', 'biohub-hoct-020-wheels' in setup_src and '.whl' in setup_src)
-check('colab setup: token KGAT + fallback Colab Secrets', 'KAGGLE_API_TOKEN = "KGAT_DAN_TOKEN_VAO_DAY"' in setup_src and 'userdata.get' in setup_src)
+check('colab setup: token KGAT nhúng sẵn + ưu tiên Colab Secrets', 'KAGGLE_API_TOKEN = "KGAT_' in setup_src and 'KGAT_DAN_TOKEN_VAO_DAY' not in setup_src and 'userdata.get' in setup_src)
 lab_colab = ''.join(nb_colab['cells'][2]['source'])
 check('colab lab cell: env LAB_MODE + DEADLINE 9h + MAX_VIDEO_S 900 + VALIDATOR + HOCT_VETO 2 + RLF 1 + GRID default', all(t in lab_colab for t in ('os.environ["BIOHUB_LAB_MODE"] = "1"', 'os.environ["BIOHUB_HOCT_DEADLINE_H"] = "9"', 'os.environ["BIOHUB_HOCT_MAX_VIDEO_S"] = "900"', 'os.environ["BIOHUB_VALIDATOR_ENABLE"] = "1"', 'os.environ["BIOHUB_HOCT_VETO"] = "2"', 'os.environ["BIOHUB_RLF_ENABLE"] = "1"', 'os.environ["BIOHUB_V10_GRID"]')))
 res_colab = ''.join(nb_colab['cells'][3]['source'])

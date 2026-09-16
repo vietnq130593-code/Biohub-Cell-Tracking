@@ -859,3 +859,23 @@ Stage Summary:
 - ★ Trả lời chiến lược 4 câu hỏi: (1) KHÔNG cần GPU để đánh giá ver-8 vs ver-9 — toàn bộ delta nằm ở post-processing CPU + cache raw graphs; (2) GPU chỉ cần 1 lần dump (Colab T4) + kernel production (quota 19/9); (3) Colab T4 khả thi nhưng tôi KHÔNG tự chạy được như Kaggle (Google không có headless API) — notebook tự chứa + tự upload kết quả về Kaggle dataset = vòng lặp "user 30 giây, tôi phần còn lại"; (4) lab 3 môi trường: Colab T4 (full-fidelity + veto) / Kaggle CPU kernel (tôi tự động, quota tách GPU) / sandbox (stats + unit test).
 - ★ V10-LAB hoàn chỉnh 87/87 PASS: notebook Colab sẵn sàng cho user chạy NGAY HÔM NAY (predict + dump + grid + upload), kernel CPU replay chờ cache, plan D1-D5 + lộ trình 16→29/9.
 - Bước tiếp theo: user upload v10-lab-colab.ipynb lên Colab T4 + dán token + Run all (~4-8h) → tôi đọc dataset biohub-v10-lab-cache → phân tích + push CPU kernel sweep mở rộng → chốt cấu hình v10 → 19/9 quota GPU về thì push kernel production v10 minimal (bài học TLE) → submit.
+
+---
+Task ID: V10-CELL2-TOKEN
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: User cung cấp Kaggle token KGAT_14164511bf6b0ba6b14ed9050ffdea66 — viết lại cell 2 (S2 SETUP) của v10-lab-colab.ipynb để copy-paste thẳng vào Google Colab không cần cấu hình gì thêm.
+
+Work Log:
+- Inspect download/v10-lab-colab.ipynb: 4 cell (markdown + S2 SETUP + S3 LAB + S4 RESULTS); "cell 2" user nhắc = cell index 1 (S2 SETUP) chứa placeholder KAGGLE_API_TOKEN = "KGAT_DAN_TOKEN_VAO_DAY".
+- NGHIÊN CỨU "LỖI CÚ PHÁP" GIẢ: output terminal hiện 2 list comprehension thiếu dấu "[" (members = / _cand =) → hexdump bytes chứng minh file LUÔN chứa "[" (0x5b) đầy đủ; ast.parse cell S2 PASS. Kết luận: pipeline hiển thị output Bash ăn mất chuỗi "[m ...]" khi in — notebook KHÔNG hỏng; T9 sha256 ver-9 nguyên vẹn; KHÔNG đụng monolith.
+- Vá builder kaggle/ver-10-lab/build-v10-lab.py phần token: nhúng token thật + logic mới ưu tiên Colab Secret KAGGLE_API_TOKEN (tuỳ chọn, nếu có) → fallback token nhúng sẵn; assert KGAT_ hợp lệ giữ nguyên.
+- Cập nhật test-v10-lab.py dòng 564: assertion "token KGAT nhúng sẵn + ưu tiên Colab Secrets" (token thật có mặt, placeholder cũ KHÔNG còn, userdata.get vẫn có).
+- Rebuild: python3 build-v10-lab.py → cell-monolith 5311 dòng + 2 notebook ghi lại (colab 364KB · cpu 347KB), static checks 6/6 PASS.
+- Verify: token baked trong S2 ✓ · ast.parse cell S2 PASS ✓ · test suite 87/87 PASS ✓ · token auth Kaggle API HTTP 200 ✓.
+- Xuất cell 2 hoàn chỉnh (9.416 ký tự) cho user copy-paste vào Colab (nguồn: /tmp/v10-cell2-final.txt + đã dán trong trả lời chat).
+
+Stage Summary:
+- Cell 2 (S2 SETUP) v10-lab-colab đã SẴN SÀNG copy-paste: token KGAT_14164511bf6b0ba6b14ed9050ffdea66 nhúng sẵn — user chỉ cần dán vào 1 cell code Colab (runtime T4 GPU) rồi Run; không cần tạo Secret (Secret vẫn được ưu tiên nếu đặt sau này).
+- Notebook download/v10-lab-colab.ipynb cũng đã rebuild với token tương tự (giữ nguyên 4 cell; monolith byte-for-byte giống ver-9 + patch v10-lab).
+- Bài học hạ tầng ghi nhận: output hiển thị của Bash tool có thể nuốt ký tự "[" trong chuỗi "[m for m ...]" → khi kiểm tra cú pháp code phải dùng ast.parse/py_compile + hexdump, không tin mắt thường vào output in ra.
+- 87/87 test PASS; không push Kaggle; không đụng app Next.js.

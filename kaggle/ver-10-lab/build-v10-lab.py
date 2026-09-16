@@ -398,19 +398,21 @@ import subprocess
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# --- token Kaggle (KGAT_...) — dán vào đây HOẶC để nguyên rồi dùng Colab Secrets ------------
-KAGGLE_API_TOKEN = "KGAT_DAN_TOKEN_VAO_DAY"
+# --- token Kaggle KGAT_... — đã nhúng sẵn; nếu có Colab Secret KAGGLE_API_TOKEN thì ưu tiên secret ---
+KAGGLE_API_TOKEN = "KGAT_14164511bf6b0ba6b14ed9050ffdea66"
 try:
-    if KAGGLE_API_TOKEN.startswith("KGAT_"):
-        from google.colab import userdata  # noqa: E402
-        KAGGLE_API_TOKEN = userdata.get("KAGGLE_API_TOKEN")
-        print("[v10-lab-setup] token lấy từ Colab Secrets (userdata KAGGLE_API_TOKEN)")
-except Exception as _e:
-    print(f"[v10-lab-setup] (không dùng được Colab Secrets: {type(_e).__name__}: {_e})")
+    from google.colab import userdata  # noqa: E402
+    _sec = (userdata.get("KAGGLE_API_TOKEN") or "").strip()
+    if _sec.startswith("KGAT_"):
+        KAGGLE_API_TOKEN = _sec
+        print("[v10-lab-setup] token lấy từ Colab Secrets (ưu tiên secret)")
+    else:
+        print("[v10-lab-setup] dùng token nhúng sẵn trong cell")
+except Exception:
+    print("[v10-lab-setup] dùng token nhúng sẵn trong cell (không dùng Colab Secrets)")
 assert KAGGLE_API_TOKEN and KAGGLE_API_TOKEN.startswith("KGAT_"), (
-    "Chưa có token Kaggle! Bấm icon 🔑 (Secrets) bên trái Colab → Add new secret "
-    "tên KAGGLE_API_TOKEN, giá trị token KGAT_... từ kaggle.com → Settings → API. "
-    "Hoặc dán token trực tiếp vào biến KAGGLE_API_TOKEN ở đầu cell này rồi chạy lại.")
+    "Chưa có token Kaggle hợp lệ! Dán token KGAT_... vào biến KAGGLE_API_TOKEN "
+    "ở đầu cell này, hoặc tạo Colab Secret tên KAGGLE_API_TOKEN rồi chạy lại.")
 os.environ["KAGGLE_API_TOKEN"] = KAGGLE_API_TOKEN
 %pip install -q kaggle
 
