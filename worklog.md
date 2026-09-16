@@ -822,3 +822,40 @@ Stage Summary:
 - ⚠️ CẢNH BÁO UỐNG: 56276434 (user gửi lại 10:29) = cùng kernel v1 scriptVersionId 350108883 → gần như chắc chắn fail lần nữa; cần kernel v2 (strip validator replay + bỏ HOCT) nhưng GPU quota ~0,4h/30h còn (refresh 19/9 Saturday) → không push kernel GPU mới được trước 19/9.
 - Huy chương BẠC xác nhận độc lập: hạng 165/3602, top 5% cắt 180, dư 15 chỗ, vị trí 22/525 cụm 0.947.
 - Sẵn sàng thảo luận next steps: v10 = v3-fast + RLF + strip overhead (chờ quota 19/9); mục tiêu cụm 0.948 (55 đội); deadline 29/9.
+
+---
+Task ID: V10-LAB-1
+Agent: subagent (V10 lab builder — hoàn tất bởi agent chính sau timeout)
+Task: Dựng bộ công cụ V10 LAB: monolith LAB-mode + notebook Colab T4 + kernel CPU replay + unit tests (kaggle/ver-10-lab/ + download/v10-lab-*.ipynb)
+
+Work Log:
+- (subagent) Đọc worklog + ver-9 monolith + build/make/test patterns + ver8-wave1 precedent; dựng cell-monolith-v10lab.py (patch LAB_MODE bỏ predict-test/submission/audit, LAB_NO_CUDA bypass, LAB_VAL_CACHE_DIR load-cache, [v10-lab-dump] 3 file, [v10-lab-grid] v10_score_config theo pattern ver9_score_final), lab-grid-block.py, build-v10-lab.py (dựng 2 notebook + static checks, offline), test-v10-lab.py 9 nhóm test, 2 notebook colab 4 cell + cpu 3 cell — hết context deadline trước khi hoàn thiện worklog/README.
+- (agent chính) Chạy test lần 1: 85/87 tương đương nhưng 6 FAIL hành vi + crash rows_0_1.csv — chẩn đoán gốc: harness test dùng _CUR snapshot (mock đọc giá trị cũ sau khi v10_score_config override globals) + grid block ghi đè V10_LAB_ROWS_PATH inject. Code monolith ĐÚNG.
+- (agent chính) Vá 2 chỗ: lab-grid-block.py tôn trọng path inject (globals().get(...) or default); test-v10-lab.py _CUR = ns live-view (rebind, global trong run_grid).
+- (agent chính) python3 build-v10-lab.py tái dựng (5311 dòng monolith + colab 364KB + cpu 347KB, static checks 6/6 PASS).
+- (agent chính) Vá 2 chuỗi kỳ vọng env trong test (builder dùng os.environ["K"] = "v" — deterministic, đúng cho notebook) → test lại.
+- (agent chính) Viết README.md (5 bước chạy Colab + env bảng + cơ chế + giả định/rủi ro + quy trình tái build).
+
+Stage Summary:
+- ★ 87/87 unit test PASS (T1 py_compile → T9 sha256 ver-9 gốc không đổi). Artifacts: kaggle/ver-10-lab/{cell-monolith-v10lab.py, lab-grid-block.py, build-v10-lab.py, test-v10-lab.py, README.md, V10-LAB-PLAN.md} + download/{v10-lab-colab.ipynb, v10-lab-cpu.ipynb}.
+- KHÔNG push gì lên Kaggle (GPU quota ~0.4h còn). Notebook Colab: token KGAT + Colab Secrets fallback + assert hướng dẫn tiếng Việt; tải 9 dataset + 8 stems train (phân trang + 4 luồng); LAB_MODE predict + dump cache + grid 9 config + bootstrap CI 95% paired + upload dataset biohub-v10-lab-cache (fallback version, không crash).
+- Rủi ro ghi nhận: chưa verify trên GPU/data thật (lần chạy Colab đầu = verify thật); ước 4-8h/session; cổng kiểm chứng ref phải tái lập adjEJ 0.9287/proxy 0.9594/div 4/1/8 của gate report.
+
+---
+Task ID: V10-STRATEGY-16
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: Trả lời chiến lược của user 16/9: tấn công 0.948+ bằng v10, đánh giá ver-8 vs ver-9 KHÔNG dùng GPU Kaggle, GPU có cần thiết không, phương án Colab T4, tôi có tự chạy Colab được không.
+
+Work Log:
+- Kiểm chứng hiện trạng qua Kaggle API: 56276434 (user resubmit 10:29 16/9) vẫn pending — cùng scriptVersionId 350108883 với 56261328 đã fail TLE → deterministic fail, không cần đợi; 56261360 (v3-fast) 0.947 COMPLETE; ver-9 chưa từng có điểm vì TLE (không phải chờ chấm).
+- Đào dữ kiện kỹ thuật: ver9_gate_report.json (adjEJ veto2rlf +0.0017, proxy −0.006, div_tp −1, verdict FALLBACK_V3FAST), validator_results.csv 8 stems (per-stem adjEJ 0.815-0.995, σ≈0.07 → phải paired), ppsweep base 1049.6s/config, RLF no-op validator + 2/118k cạnh submission.
+- Phân tích GPU-dependence từ monolith: CUDA hard-check dòng ~1094 (predict); post-processing CPU (filter_output_graph ~17.5'/config); HOCT ~35'/8 stems GPU / 4-8h CPU; official scoring numpy. Kết luận: đánh giá KHÔNG cần GPU — chỉ cần 1 phiên dump raw graphs (Colab T4 được) + kernel production (19/9 quota về).
+- Phát hiện tiền lệ: ver8-wave1 CPU kernel + dataset v7-heldout-preds (GEFF 12MB) đã từng chạy lab 0 GPU; VAL_RAW_GRAPHS (dòng 4716-4742 monolith) chính là điểm replay; 8 stems: 44b6_12dfb391/267148e4/2a2eff9f/341df25f, 6bba_062c8d37/07e24132/085bf656/09961292; 9 dataset VER9_DATASETS liệt kê đủ để cell setup Colab tự tải.
+- Viết kaggle/ver-10-lab/V10-LAB-PLAN.md (~260 dòng): TL;DR, bảng sự thật, bảng phân tích GPU, kiến trúc 1-dump-nhiều-replay, 3 môi trường (Colab T4/Kaggle CPU/sandbox), grid tách biến ver-8 vs ver-9, cổng quyết định D1-D5, lộ trình 16→29/9, rủi ro, 5 bước chạy Colab.
+- Launch subagent V10-LAB-1 (opus) dựng bộ công cụ; subagent hết deadline sau khi sinh artifacts chính → agent chính hoàn tất: vá 2 lỗi (grid path inject + test _CUR live-view), rebuild, sửa 2 chuỗi kỳ vọng env test, KẾT QUẢ 87/87 PASS; viết README + worklog này.
+- Kiểm tra an toàn: git status chỉ file mới (ver-10-lab/ + 2 notebook untracked, ver-9 nguyên vẹn — T9 sha256 PASS); dev server HTTP 200, dev.log sạch.
+
+Stage Summary:
+- ★ Trả lời chiến lược 4 câu hỏi: (1) KHÔNG cần GPU để đánh giá ver-8 vs ver-9 — toàn bộ delta nằm ở post-processing CPU + cache raw graphs; (2) GPU chỉ cần 1 lần dump (Colab T4) + kernel production (quota 19/9); (3) Colab T4 khả thi nhưng tôi KHÔNG tự chạy được như Kaggle (Google không có headless API) — notebook tự chứa + tự upload kết quả về Kaggle dataset = vòng lặp "user 30 giây, tôi phần còn lại"; (4) lab 3 môi trường: Colab T4 (full-fidelity + veto) / Kaggle CPU kernel (tôi tự động, quota tách GPU) / sandbox (stats + unit test).
+- ★ V10-LAB hoàn chỉnh 87/87 PASS: notebook Colab sẵn sàng cho user chạy NGAY HÔM NAY (predict + dump + grid + upload), kernel CPU replay chờ cache, plan D1-D5 + lộ trình 16→29/9.
+- Bước tiếp theo: user upload v10-lab-colab.ipynb lên Colab T4 + dán token + Run all (~4-8h) → tôi đọc dataset biohub-v10-lab-cache → phân tích + push CPU kernel sweep mở rộng → chốt cấu hình v10 → 19/9 quota GPU về thì push kernel production v10 minimal (bài học TLE) → submit.
