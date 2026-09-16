@@ -1,0 +1,354 @@
+# [v10-lab-colab S2] SETUP — token Kaggle + 9 dataset + 8 stems train competition
+import os
+import sys
+import io
+import csv
+import json
+import time
+import shutil
+import zipfile
+import tempfile
+import subprocess
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# --- token Kaggle KGAT_... — đã nhúng sẵn; nếu có Colab Secret KAGGLE_API_TOKEN thì ưu tiên secret ---
+KAGGLE_API_TOKEN = "KGAT_14164511bf6b0ba6b14ed9050ffdea66"
+try:
+    from google.colab import userdata  # noqa: E402
+    _sec = (userdata.get("KAGGLE_API_TOKEN") or "").strip()
+    if _sec.startswith("KGAT_"):
+        KAGGLE_API_TOKEN = _sec
+        print("[v10-lab-setup] token lấy từ Colab Secrets (ưu tiên secret)")
+    else:
+        print("[v10-lab-setup] dùng token nhúng sẵn trong cell")
+except Exception:
+    print("[v10-lab-setup] dùng token nhúng sẵn trong cell (không dùng Colab Secrets)")
+assert KAGGLE_API_TOKEN and KAGGLE_API_TOKEN.startswith("KGAT_"), (
+    "Chưa có token Kaggle hợp lệ! Dán token KGAT_... vào biến KAGGLE_API_TOKEN "
+    "ở đầu cell này, hoặc tạo Colab Secret tên KAGGLE_API_TOKEN rồi chạy lại.")
+os.environ["KAGGLE_API_TOKEN"] = KAGGLE_API_TOKEN
+# [v10-lab-setup] Colab preinstall kaggle 2.0.x THIẾU __main__.py (lỗi "No module named kaggle.__main__")
+# → phải --upgrade lên >=2.2 (pip thường thì thấy 2.0.2 "đã thoả" và bỏ qua — KHÔNG nâng cấp).
+%pip install -q --upgrade "kaggle>=2.2"
+
+V10_COMPETITION = "biohub-cell-tracking-during-development"
+V10_DATASETS = [
+    "pilkwang/biohub-tracking-support-pack-50ep-v1",
+    "pilkwang/biohub-deepcenter-unet3d-center-prior-v1",
+    "pilkwang/biohub-temporal-unet3d-seed314159-v1",
+    "dalloliogm/biohub-official-scorer-patched",
+    "dariushafshar/biohub-local-cv-pack",
+    "vietnguyen130593/biohub-v6-heldout-preds",
+    "giorgosi/biohub-divnet-v2",
+    "sjlee101/biohub-hoct-020-wheels",
+    "musculer/biohub-hoct-general-v0-official"
+]
+V10_STEMS = ["44b6_12dfb391", "44b6_267148e4", "44b6_2a2eff9f", "44b6_341df25f", "6bba_062c8d37", "6bba_07e24132", "6bba_085bf656", "6bba_09961292"]
+
+
+# --- chọn root GHI ĐƯỢC: image Colab mới mount /kaggle/input (đôi khi cả working) READ-ONLY --------
+def _v10_writable(p):
+    try:
+        _probe = p / ".v10_write_probe"
+        _probe.write_text("ok")
+        _probe.unlink()
+        return True
+    except OSError:
+        return False
+
+
+def _v10_pick_roots():
+    _inp = Path("/kaggle/input")
+    try:
+        _inp.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    if _v10_writable(_inp) or any((_inp / _full.split("/", 1)[1]).exists() for _full in V10_DATASETS):
+        _input_root, _note = _inp, "/kaggle/input ghi được hoặc đã có dataset gắn sẵn"
+    else:
+        _input_root = Path("/content/kaggle/input")
+        _input_root.mkdir(parents=True, exist_ok=True)
+        _note = "Colab: /kaggle/input là mount READ-ONLY → chuyển sang /content"
+    _wrk = Path("/kaggle/working")
+    try:
+        _wrk.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    if _v10_writable(_wrk):
+        _working_root = _wrk
+    else:
+        _working_root = Path("/content/kaggle/working")
+        _working_root.mkdir(parents=True, exist_ok=True)
+    return _input_root, _working_root, _note
+
+
+INPUT_ROOT, WORKING_DIR, _root_note = _v10_pick_roots()
+os.environ["V10_INPUT_ROOT"] = str(INPUT_ROOT)
+os.environ["V10_WORKING_ROOT"] = str(WORKING_DIR)
+print(f"[v10-lab-setup] INPUT_ROOT   = {INPUT_ROOT} ({_root_note})")
+print(f"[v10-lab-setup] WORKING_ROOT = {WORKING_DIR}")
+TRAIN_DEST = INPUT_ROOT / V10_COMPETITION / "train"
+
+
+def _v10_kaggle_base_cmd():
+    # [v10-lab-setup] preflight: `python -m kaggle` cần bản >=2.2 (có __main__.py); Colab 2.0.x thiếu →
+    # fallback console script `kaggle` (which). Nếu cả hai không chạy được thì báo lỗi rõ ràng.
+    try:
+        _r = subprocess.run([sys.executable, "-m", "kaggle", "--version"], capture_output=True, text=True, timeout=180)
+    except Exception as _e:
+        _r = None
+        print(f"[v10-lab-setup] preflight python -m kaggle lỗi ({type(_e).__name__}: {_e})")
+    if _r is not None and _r.returncode == 0:
+        _v = [ln for ln in (_r.stdout or "").splitlines() if ln.strip().startswith("Kaggle CLI")]
+        print(f"[v10-lab-setup] kaggle CLI OK qua python -m kaggle ({_v[-1] if _v else 'version ?'})")
+        return [sys.executable, "-m", "kaggle"]
+    _bin = shutil.which("kaggle")
+    if _bin:
+        try:
+            _r2 = subprocess.run([_bin, "--version"], capture_output=True, text=True, timeout=180)
+        except Exception as _e:
+            _r2 = None
+        if _r2 is not None and _r2.returncode == 0:
+            print(f"[v10-lab-setup] python -m kaggle không chạy được — dùng console script: {_bin}")
+            return [_bin]
+    raise RuntimeError(
+        "Không tìm thấy kaggle CLI chạy được (python -m kaggle lỗi + console script thiếu). "
+        "Restart runtime rồi chạy lại Cell 2 (cell tự %pip install --upgrade kaggle>=2.2), "
+        "hoặc chạy thủ công: !pip install --upgrade 'kaggle>=2.2' rồi chạy lại Cell 2.")
+
+
+V10_KAGGLE_CMD = _v10_kaggle_base_cmd()
+
+
+import threading  # [v10-lab-setup] 429: backoff phối hợp giữa các luồng tải
+
+_V10_429_LOCK = threading.Lock()
+_V10_PAUSE_UNTIL = 0.0
+
+
+def v10_run_kaggle(args, check=True, timeout=3600, tries=6):
+    # [v10-lab-setup] 429 Too Many Requests → backoff luỹ tiến 30→60→120→240→300s, MỌI luồng cùng
+    # tôn trọng khoảng pause chung (tránh dồn API Kaggle khi tải hàng nghìn file nhỏ).
+    global _V10_PAUSE_UNTIL
+    cmd = [*V10_KAGGLE_CMD, *args]
+    last = None
+    for attempt in range(tries):
+        with _V10_429_LOCK:
+            _wait = _V10_PAUSE_UNTIL - time.time()
+        if _wait > 0:
+            time.sleep(_wait)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        if r.returncode == 0:
+            return r
+        _blob = (r.stdout or "") + (r.stderr or "")
+        if "429" in _blob or "Too Many Requests" in _blob:
+            _backoff = min(30 * (2 ** attempt), 300)
+            with _V10_429_LOCK:
+                _V10_PAUSE_UNTIL = max(_V10_PAUSE_UNTIL, time.time() + _backoff)
+            print(f"[v10-lab-setup] 429 rate-limit — mọi luồng pause {_backoff}s (lần {attempt + 1}/{tries})")
+            last = r
+            continue
+        last = r
+        break
+    if check:
+        print((last.stdout or "")[-2000:])
+        print((last.stderr or "")[-2000:], file=sys.stderr)
+        raise RuntimeError(f"kaggle {' '.join(args[:3])} thất bại (exit {last.returncode})")
+    return last
+
+
+for _p in (INPUT_ROOT, WORKING_DIR):
+    try:
+        _p.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+print(f"[v10-lab-setup] roots sẵn sàng: input={INPUT_ROOT} · working={WORKING_DIR} (Colab)")
+
+# --- 1) tải 9 dataset ver-9 -------------------------------------------------------------------
+_t0 = time.time()
+for _full in V10_DATASETS:
+    _slug = _full.split("/", 1)[1]
+    _dest = INPUT_ROOT / _slug
+    if (_dest / ".v10_ok").exists() or (not _v10_writable(INPUT_ROOT) and _dest.exists()):
+        print(f"[v10-lab-setup] dataset {_slug} đã có — bỏ qua")
+        continue
+    _dest.mkdir(parents=True, exist_ok=True)
+    v10_run_kaggle(["datasets", "download", _full, "-p", str(_dest), "--unzip", "-q"])
+    (_dest / ".v10_ok").write_text("ok")
+    _mb = sum(f.stat().st_size for f in _dest.rglob("*") if f.is_file()) / 1e6
+    print(f"[v10-lab-setup] dataset {_slug} OK ({_mb:.0f} MB)")
+print(f"[v10-lab-setup] 9 dataset xong trong {time.time() - _t0:.0f}s")
+
+# --- 2) dependency install command từ support pack --------------------------------------------
+_dep_file = INPUT_ROOT / "biohub-tracking-support-pack-50ep-v1" / "kaggle_dependency_install_command.txt"
+if _dep_file.is_file():
+    _cmd_txt = _dep_file.read_text().strip()
+    for _full in V10_DATASETS:  # path mount Kaggle dạng datasets/<owner>/<slug> → /kaggle/input/<slug>
+        _owner, _slug = _full.split("/", 1)
+        _cmd_txt = _cmd_txt.replace(f"/kaggle/input/datasets/{_owner}/{_slug}", str(INPUT_ROOT / _slug))
+        _cmd_txt = _cmd_txt.replace(f"/kaggle/input/{_slug}", str(INPUT_ROOT / _slug))
+    print("[v10-lab-setup] kaggle_dependency_install_command.txt:", _cmd_txt[:300])
+    _r = subprocess.run(_cmd_txt, shell=True, capture_output=True, text=True)
+    print(f"[v10-lab-setup] dependency install exit={_r.returncode} ({(_r.stdout or '')[-400:]})")
+    if _r.returncode != 0:
+        print("[v10-lab-setup] CẢNH BÁO: lệnh cài deps trả exit != 0 — monolith sẽ tự cài từ wheels (Cell 3)")
+else:
+    print("[v10-lab-setup] (không có kaggle_dependency_install_command.txt — monolith sẽ tự cài từ wheels)")
+
+# --- 3) HOCT wheels (dataset sjlee101) ---------------------------------------------------------
+_hoct_wheels = sorted((INPUT_ROOT / "biohub-hoct-020-wheels").rglob("*.whl"))
+if _hoct_wheels:
+    _r = subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--no-index", "--no-deps",
+                         *[str(w) for w in _hoct_wheels]], capture_output=True, text=True)
+    print(f"[v10-lab-setup] HOCT wheels {[w.name for w in _hoct_wheels]} → exit {_r.returncode}")
+else:
+    print("[v10-lab-setup] CẢNH BÁO: không tìm thấy .whl HOCT trong biohub-hoct-020-wheels")
+
+
+# --- 4) tải competition train files CHO 8 STEMS validator --------------------------------------
+# [v10-lab-setup] API files bị rate-limit 429 khi phân trang — nên filelist lấy theo bậc:
+# (a) cache local từ lần chạy trước → (b) dataset filelist dựng sẵn (0 listing call) →
+# (c) listing trực tiếp (sleep 2s/page, có 429-backoff trong v10_run_kaggle) + ghi cache.
+V10_FILELIST_DATASET = "vietnguyen130593/biohub-v10-lab-filelist"
+
+
+def _v10_list_comp_files():
+    rows = []
+    token = None
+    while True:
+        args = ["competitions", "files", V10_COMPETITION, "-v", "--page-size", "500"]
+        if token:
+            args += ["--page-token", token]
+        r = v10_run_kaggle(args, timeout=300)
+        next_token = None
+        body = []
+        for ln in r.stdout.splitlines():
+            if ln.startswith("Next Page Token ="):
+                next_token = ln.split("=", 1)[1].strip()
+            else:
+                body.append(ln)
+        rows.extend(list(csv.DictReader(io.StringIO("\n".join(body)))))
+        print(f"[v10-lab-setup] competitions files: tổng {len(rows):,} dòng{' · next page...' if next_token else ' · HẾT'}")
+        if not next_token:
+            return rows
+        token = next_token
+        time.sleep(2.0)  # [v10-lab-setup] giảm tốc phân trang — tránh 429
+
+
+def _v10_load_comp_rows():
+    _cache = WORKING_DIR / "v10_comp_files_cache.csv"
+    if _cache.is_file():
+        with _cache.open() as _f:
+            _rows = list(csv.DictReader(_f))
+        if _rows:
+            print(f"[v10-lab-setup] filelist từ CACHE LOCAL: {len(_rows):,} dòng (0 API call)")
+            return _rows
+    _dest = INPUT_ROOT / "biohub-v10-lab-filelist"
+    if not (_dest / ".v10_ok").exists():
+        _dest.mkdir(parents=True, exist_ok=True)
+        _r = v10_run_kaggle(["datasets", "download", V10_FILELIST_DATASET, "-p", str(_dest), "--unzip", "-q"], check=False)
+        if _r.returncode == 0:
+            (_dest / ".v10_ok").write_text("ok")
+            print(f"[v10-lab-setup] filelist từ DATASET {V10_FILELIST_DATASET} (0 listing call)")
+        else:
+            print(f"[v10-lab-setup] dataset filelist chưa có (hoặc lỗi) — sẽ listing trực tiếp (chậm hơn)")
+    if (_dest / ".v10_ok").exists():
+        _csvs = sorted(_dest.rglob("comp_files.csv"))
+        if _csvs:
+            with _csvs[0].open() as _f:
+                _rows = list(csv.DictReader(_f))
+            if _rows:
+                shutil.copyfile(_csvs[0], _cache)
+                print(f"[v10-lab-setup] filelist dataset: {len(_rows):,} dòng → đã lưu cache local")
+                return _rows
+    _rows = _v10_list_comp_files()
+    with _cache.open("w", newline="") as _f:
+        _w = csv.DictWriter(_f, fieldnames=["name", "size", "creationDate"])
+        _w.writeheader()
+        _w.writerows(_rows)
+    print(f"[v10-lab-setup] listing xong: {len(_rows):,} dòng → đã lưu cache local cho lần sau")
+    return _rows
+
+
+_t0 = time.time()
+_all_rows = _v10_load_comp_rows()
+_wanted = [r for r in _all_rows if any(r["name"].startswith(f"train/{s}.") for s in V10_STEMS)]
+_wanted_names = [r["name"] for r in _wanted]
+_total_bytes = sum(int(r.get("totalBytes") or r.get("size") or 0) for r in _wanted)
+print(f"[v10-lab-setup] cần tải {len(_wanted_names):,} file cho {len(V10_STEMS)} stems — tổng {_total_bytes / 1e9:.2f} GB")
+
+
+def _v10_fetch_comp_file(name):
+    dest = TRAIN_DEST / name
+    if dest.exists() and dest.stat().st_size > 0:  # [v10-lab-setup] resume — đã tải ở lần chạy trước
+        return name, dest.stat().st_size
+    tmp = Path(tempfile.mkdtemp(prefix="v10dl_"))
+    try:
+        v10_run_kaggle(["competitions", "download", V10_COMPETITION, "-f", name, "-p", str(tmp), "-q"], timeout=1800)
+        _arts = [p for p in tmp.rglob("*") if p.is_file()]
+        if not _arts:
+            raise RuntimeError(f"không tải được file nào cho {name}")
+        _zips = [p for p in _arts if p.suffix == ".zip"]
+        _art = _zips[0] if _zips else _arts[0]
+        dest = TRAIN_DEST / name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if zipfile.is_zipfile(_art):
+            with zipfile.ZipFile(_art) as zf:
+                members = [m for m in zf.namelist() if not m.endswith("/")]
+                target = None
+                if name in members:
+                    target = name
+                elif len(members) == 1:
+                    target = members[0]
+                else:
+                    _cand = [m for m in members if m.endswith("/" + name)]
+                    if len(_cand) == 1:
+                        target = _cand[0]
+                if target is None:
+                    raise RuntimeError(f"zip cho {name} không chứa file mong đợi: {members[:5]}")
+                dest.write_bytes(zf.read(target))
+        else:
+            shutil.copyfile(_art, dest)
+        return name, dest.stat().st_size
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+_done = 0
+_done_bytes = 0
+_errors = []
+with ThreadPoolExecutor(max_workers=4) as _pool:
+    _futures = {_pool.submit(_v10_fetch_comp_file, n): n for n in _wanted_names}
+    for _fut in as_completed(_futures):
+        _n = _futures[_fut]
+        try:
+            _name, _sz = _fut.result()
+            _done += 1
+            _done_bytes += _sz
+        except Exception as _e:
+            _errors.append((_n, f"{type(_e).__name__}: {_e}"))
+        if _done % 200 == 0 or _done == len(_wanted_names):
+            print(f"[v10-lab-setup] tiến độ {_done}/{len(_wanted_names)} file · {_done_bytes / 1e9:.2f} GB · {time.time() - _t0:.0f}s")
+if _errors:
+    print(f"[v10-lab-setup] {len(_errors)} file LỖI:")
+    for _n, _e in _errors[:10]:
+        print("   ", _n, "→", _e)
+    raise RuntimeError(f"tải competition files thất bại {len(_errors)}/{len(_wanted_names)} — xem log trên (chạy lại cell để retry)")
+
+# --- 5) verify 8 stems mỗi stem có .zarr + .geff ------------------------------------------------
+_bad = []
+for _s in V10_STEMS:
+    _zarr = TRAIN_DEST / f"{_s}.zarr"
+    _geff = TRAIN_DEST / f"{_s}.geff"
+    _zarr_ok = _zarr.is_dir() and ((_zarr / "0" / "zarr.json").is_file() or (_zarr / "zarr.json").is_file() or any(_zarr.rglob("zarr.json")))
+    _geff_ok = _geff.exists()
+    if not (_zarr_ok and _geff_ok):
+        _bad.append((_s, f"zarr={_zarr_ok} geff={_geff_ok}"))
+    else:
+        print(f"[v10-lab-setup] stem {_s} OK (.zarr {sum(1 for _ in _zarr.rglob('*') if _.is_file()):,} file · .geff {'dir' if _geff.is_dir() else 'file'})")
+if _bad:
+    for _s, _why in _bad:
+        print(f"[v10-lab-setup] LỖI stem {_s}: {_why}")
+    raise RuntimeError(f"verify 8 stems thất bại: {[s for s, _ in _bad]} — chạy lại Cell 2 để retry")
+print(f"[v10-lab-setup] SETUP HOÀN TẤT ({time.time() - _t0:.0f}s) — chuyển Cell 3")

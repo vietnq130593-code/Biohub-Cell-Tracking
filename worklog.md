@@ -956,3 +956,22 @@ Stage Summary:
 - Quy trình đánh giá ver-8 vs ver-10 vs tương lai = V10-LAB 3 tầng + bootstrap paired CI; grid 9 config mặc định chính là phép so ver-8 (ref) vs từng thành phần ver-9 (tight/rlf/veto).
 - Kaggle CLI nguyên vẹn sau cài; LB hiện 3616 đội hạng 169 (trôi tự nhiên).
 - Không push Kaggle; không đụng app (HTTP 200).
+
+---
+Task ID: 2
+Agent: general-purpose
+Task: Push source backup lên Kaggle private dataset (repo từ xa)
+
+Work Log:
+- Đọc ktool.py: auth = token KGAT_*** (trích từ kaggle/ver-10-lab/build-v10-lab.py, chuỗi KGAT_***) → ghi ~/.kaggle/access_token (chmod 600) + export KAGGLE_API_TOKEN khi chạy CLI — đúng cơ chế run_kaggle của ktool.py; network OK (kaggle.com HTTP 200).
+- Xác định owner THẬT qua API (datasets list --mine): **vietnguyen130593** (không phải pilkwang — pilkwang/* chỉ là dataset input của người khác). state.json cũng ghi ref vietnguyen130593/biohub-ver8.
+- Dựng /tmp/repo-stage: 168 file, 6,81 MB — kaggle/** toàn bộ .py+.md (88 file, loại __pycache__ + api/output/**), comp_files.csv 1,86MB, state.json (check redact KGAT: không có token trong file), download/ 6 notebook chính + README.md, worklog.md, package.json, prisma/schema.prisma, src/** 68 file text (.ts/.tsx/.css). Không có README.md ở root repo (không tồn tại → bỏ qua). Không file nào > 5MB.
+- Create v1: `kaggle datasets create -p /tmp/repo-stage` → tạo dataset PRIVATE nhưng CLI mặc định BỎ QUA folder ("Skipping folder: src/download/kaggle/prisma; use --dir-mode") → v1 chỉ có package.json + worklog.md.
+- FIX (1 lần, đúng vấn đề): push v2 bằng `kaggle datasets version -p /tmp/repo-stage --dir-mode zip -m "backup 2026-09-16T18:52:05Z"` → upload src.zip 150KB + download.zip 431KB + kaggle.zip 1,01MB + prisma.zip 510B + package.json + worklog.md (~1,75MB nén). Kaggle tự giải nén zip → dataset chứa ĐÚNG cấu trúc thư mục gốc 168 file.
+- VERIFY end-to-end: status = ready; datasets files hiện đúng tree kaggle/api/ktool.py, download/v10-lab-colab.ipynb...; download ngược về /tmp/repo-verify → 168 file, 9/9 sha256 spot-check MATCH (build-v10-lab.py, ktool.py, comp_files.csv, v10-lab-colab.ipynb, ver9, worklog.md, package.json, schema.prisma, page.tsx).
+- PRIVACY verified: (1) output create ghi rõ "Your private Dataset is being created"; (2) có trong `datasets list --mine`; (3) KHÔNG xuất hiện trong search public (`datasets list -s biohub-source-repo` chỉ trả dataset người khác). Dataset chứa token KGAT gốc trong build-v10-lab.py + notebook → private là bắt buộc, đã thoả.
+- Push sau này: `kaggle datasets version -p /tmp/repo-stage --dir-mode zip -m "backup <UTC>"` (NHỚ --dir-mode zip nếu không folder bị bỏ qua).
+
+Stage Summary:
+- ★ Repo từ xa = dataset PRIVATE vietnguyen130593/biohub-source-repo — https://www.kaggle.com/datasets/vietnguyen130593/biohub-source-repo (v1 partial 2 file, v2 đầy đủ 168 file / 6,81MB nguồn, ~1,75MB nén) — privacy verified YES bằng 3 cách; sha256 nguyên vẹn sau round-trip.
+- Không đổi file nào trong project (staging /tmp, git tree sạch); auth token lưu ~/.kaggle/access_token tái dùng được.
