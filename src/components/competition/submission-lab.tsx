@@ -21,6 +21,7 @@ import {
   Lightbulb,
   ListChecks,
   Loader2,
+  Medal,
   OctagonAlert,
   Play,
   Ruler,
@@ -1001,37 +1002,34 @@ function VersionsTab() {
     <div className="space-y-6">
       {/* Registry phiên bản */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {/* ver 9 — đã nộp A/B, đang chấm */}
-        <Card className="border-emerald-500/40 bg-emerald-500/[0.03] md:col-span-2">
+        {/* ver 9 — FAIL runtime hidden, user gửi lại */}
+        <Card className="border-rose-500/40 bg-rose-500/[0.03] md:col-span-2">
           <CardHeader>
             <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
               <span className="flex items-center gap-2">
-                <ScanSearch className="h-4 w-4 text-emerald-600 dark:text-emerald-300" aria-hidden />
+                <ScanSearch className="h-4 w-4 text-rose-600 dark:text-rose-300" aria-hidden />
                 ver 9 · HOCT consensus veto + RLF
               </span>
-              <Badge className="gap-1 bg-emerald-500 text-[10px] leading-4 text-emerald-950 hover:bg-emerald-500 sm:text-xs">
+              <Badge className="gap-1 bg-rose-500 text-[10px] leading-4 text-rose-50 hover:bg-rose-500 sm:text-xs">
                 <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                ĐÃ NỘP A/B · ĐANG CHẤM HIDDEN TEST
+                FAIL RUNTIME HIDDEN · gửi lại 56276434 đang chấm
               </Badge>
             </CardTitle>
             <CardDescription>
               <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
                 56261328
               </code>{" "}
-              (ver-9, kernel{" "}
+              (nộp 19:07 UTC 15/9, kernel{" "}
               <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
                 biohub-ver9 v1
               </code>
-              , nộp 19:07 UTC 15/9) + đối chứng{" "}
+              ) FAIL rerun hidden test — "exceeded the allowed runtime", không
+              có điểm. User đã gửi lại 10:29 UTC 16/9 ({" "}
               <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
-                56261360
-              </code>{" "}
-              (v3-fast, kernel{" "}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
-                biohub-ver8 v3
+                56276434
               </code>
-              , nộp 19:09 UTC) — Kaggle rerun trên hidden test ~4,8h → điểm dự
-              kiến ~00:00–01:00 UTC.
+              , cùng kernel v1 — scriptVersionId 350108883 trùng khớp bản fail →
+              dự báo fail lần nữa (cùng code + cùng data + cùng limit 12h).
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -1062,29 +1060,32 @@ function VersionsTab() {
                   musculer/biohub-hoct-general-v0-official
                 </li>
               </ul>
-              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
+              <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm">
                 <p className="font-mono font-semibold">
-                  KẾT QUẢ KERNEL + [ver9-gate] trên 8 stems
+                  PHÂN TÍCH FAIL (56261328) — hidden ≈ 5-7× public
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  adjEJ 0,9287 → 0,9303 (<span className="font-semibold text-emerald-700 dark:text-emerald-300">+0,0017 dương ổn định ~71k cạnh</span>) · div_tp 4→3
-                  (−1/4 mẫu — nhiễu nhỏ) · proxy −0,0060 → verdict{" "}
-                  <span className="font-mono font-semibold">FALLBACK_V3FAST</span>{" "}
-                  theo cổng §6 rev-2. Tín hiệu trái chiều (adjEJ dương + sjlee
-                  field +0,0040 CI-dương vs proxy âm do divJ thưa 10×) → nộp
-                  field A/B CẢ HAI để tách dứt điểm hiệu ứng veto trên LB thật.
+                  v3-fast 1,74h public PASS ≠ ver-9 2,4h public FAIL → hidden
+                  test lớn hơn public ~5-7× (không phải ~2× ước tính cũ). Ba
+                  nhân tố cộng dồn: (1) HOCT transformer chi phí ~bậc 2 theo
+                  node/frame — hidden là embryo-3 dày nhất (124 forks/video,
+                  mật độ 12× train); (2) notebook còn ~2h [ver9-gate] validator
+                  replay + HOCT 8 stems — overhead thuần trên rerun; (3) budget
+                  max_video_s=900 × nhiều video tích lũy. Cổng §6 rev-2 đã cảnh
+                  báo (verdict FALLBACK_V3FAST) — bài học: notebook production
+                  phải TỐI THIỂU, bỏ hết validator/gate replay.
                 </p>
               </div>
               <div className="rounded-lg border bg-muted/40 p-3 text-sm">
                 <p className="flex items-start gap-2">
-                  <ListChecks className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" aria-hidden />
+                  <ListChecks className="mt-0.5 h-4 w-4 shrink-0 text-rose-600 dark:text-rose-300" aria-hidden />
                   <span>
                     <span className="font-mono font-semibold">[ver9-run]</span>{" "}
-                    kernel COMPLETE 2,4h: test 4 video → 240.873 dòng → HOCT veto
-                    áp trong lần ghi (mode 2, 4 cạnh, 949s) → RLF bỏ 2 cạnh →{" "}
-                    <span className="font-mono font-semibold">240.871 dòng</span>{" "}
-                    cuối · topology 0 lỗi (0 cạnh dt≠±1 · max_out 2 · max_in 1) ·
-                    76 division parents · RLF 0,0017% cạnh
+                    kernel public COMPLETE 2,4h: 240.871 dòng (veto 4 cạnh + RLF
+                    bỏ 2) · topology 0 lỗi · [ver9-gate] 8 stems: adjEJ
+                    +0,0017 nhưng div_tp 4→3 → verdict FALLBACK_V3FAST · HOCT
+                    veto mode 2 kết luận KHÔNG đáng giá trên hidden dày — hướng
+                    v10: v3-fast + RLF (chi phí ~0) + bỏ HOCT
                   </span>
                 </p>
               </div>
@@ -1138,33 +1139,36 @@ function VersionsTab() {
                 <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
                   biohub-ver8 v3
                 </code>{" "}
-                (push 13:57 UTC 15/9) COMPLETE 15:35 UTC — <span className="font-semibold text-foreground">tất cả cổng PASS</span> · đã nộp làm ĐỐI CHỨNG A/B (56261360, 19:09 UTC) cùng batch chấm với ver-9.
+                (push 13:57 UTC 15/9) COMPLETE 15:35 UTC — <span className="font-semibold text-foreground">tất cả cổng PASS</span> · nộp 19:09 UTC (56261360) — CHẤM XONG: <span className="font-semibold text-emerald-700 dark:text-emerald-300">LB 0.947 · HẠNG 165/3602 · HUY CHƯƠNG BẠC</span>.
               </p>
             </div>
           </CardContent>
         </Card>
 
-        {/* ver 8 — v3-fast COMPLETE (fallback ver-9) */}
-        <Card className="border-amber-500/40 bg-amber-500/[0.03] md:col-span-2">
+        {/* ver 8 — v3-fast LB 0.947 HẠNG 165 HUY CHƯƠNG BẠC */}
+        <Card className="border-emerald-500/50 bg-emerald-500/[0.04] md:col-span-2">
           <CardHeader>
             <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
               <span className="flex items-center gap-2">
-                <GitFork className="h-4 w-4 text-amber-600 dark:text-amber-300" aria-hidden />
+                <GitFork className="h-4 w-4 text-emerald-600 dark:text-emerald-300" aria-hidden />
                 ver 8 · Phase D re-parenting
               </span>
-              <Badge className="bg-amber-500 text-[10px] leading-4 text-amber-950 hover:bg-amber-500 sm:text-xs">
-                v3-fast COMPLETE — cổng PASS (fallback ver-9)
+              <Badge className="gap-1 bg-emerald-600 text-[10px] leading-4 text-emerald-50 hover:bg-emerald-600 sm:text-xs">
+                <Medal className="h-3 w-3" aria-hidden />
+                ★ LB 0.947 · HẠNG 165/3602 · HUY CHƯƠNG BẠC
               </Badge>
             </CardTitle>
             <CardDescription>
               Kernel{" "}
               <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
-                vietnguyen130593/biohub-ver8 v1+v2
+                vietnguyen130593/biohub-ver8
               </code>{" "}
-              — v1 nộp 01:09 UTC 15/9 (56242181) FAIL sau ~12h: rerun trên hidden
-              test (lớn hơn public ~2×) vượt runtime limit; v2 COMPLETE 09:13
-              nhưng cùng lỗi chậm; v3-fast push 13:57 → COMPLETE 1,74h — cổng
-              PASS.
+              — v1 (56242181) FAIL runtime; v2 chậm; v3-fast push 13:57 →
+              COMPLETE 1,74h → nộp 19:09 UTC (56261360) →{" "}
+              <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                LB 0.947 — HẠNG 165/3602 — HUY CHƯƠNG BẠC (16/9)
+              </span>
+              : vị trí 22/525 đầu cụm 0.947 (ver-7 xưa ~500+ đáy cụm).
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -1188,16 +1192,17 @@ function VersionsTab() {
                   mới — validator held-out tự chọn theo gate ±0.0005 adjEJ
                 </li>
               </ul>
-              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
-                <p className="font-mono font-semibold">
-                  KẾT QUẢ v1 (held-out internal, cùng rule ver-7): Δproxy +0.0080
-                  — đạt ngưỡng ELEVEN +0.005 → submit tự tin
+              <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm">
+                <p className="flex items-center gap-2 font-mono font-semibold text-emerald-800 dark:text-emerald-200">
+                  <Medal className="h-4 w-4 shrink-0" aria-hidden />
+                  KẾT QUẢ LB 16/9: 0.947 — HẠNG 165/3602 — HUY CHƯƠNG BẠC
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  Re-parent thu hồi +1 sự kiện thật (div 3/1/9 → 4/1/8, 0 FP thêm,
-                  adjEJ +0.0004) · PPSWEEP chọn tight55 (adjEJ 0.9261 → 0.9284) ·
-                  topology 4 video · 122.792 nodes · 188 division parents · guards
-                  5/5.
+                  Top 5% (cắt hạng 180, dư 15 chỗ) · cùng hiển thị 0.947 nhưng
+                  full-precision ≈ 0,9475-0,9479 đầu cụm 525 đội (vị trí 22,
+                  vượt 503/525) — ver-7 xưa ~500+ đáy cụm → re-parent + DivNet
+                  rank + tight hardcode = +~0,0005-0,0009 full-precision THẬT
+                  trên hidden test. Cụm 0.948 kế tiếp: 55 đội (hạng 89-143).
                 </p>
               </div>
               <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm">

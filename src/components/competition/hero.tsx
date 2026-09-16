@@ -6,9 +6,9 @@ import { motion } from "framer-motion";
 import {
   ArrowDown,
   ExternalLink,
-  FileText,
   Globe2,
   Loader2,
+  Medal,
   Timer,
   Trophy,
   Users,
@@ -51,8 +51,8 @@ function StatItem({
 
 export function Hero() {
   const fmt = new Intl.NumberFormat("vi-VN");
-  const ver7 = KAGGLE_RESULTS.find((v) => v.id === "ver7");
-  const runMinutes = Math.round((ver7?.runSeconds ?? 7020) / 60);
+  const ver8 = KAGGLE_RESULTS.find((v) => v.id === "ver8");
+  const runMinutes = Math.round((ver8?.runSeconds ?? 6264) / 60);
 
   return (
     <section className="relative isolate overflow-hidden bg-[#04120c] text-white">
@@ -87,10 +87,17 @@ export function Hero() {
           </Badge>
           <Badge
             variant="outline"
-            className="border-emerald-400/40 bg-emerald-400/10 text-emerald-200 backdrop-blur-sm"
+            className="border-amber-300/60 bg-amber-400/10 text-amber-200 backdrop-blur-sm"
+          >
+            <Medal className="mr-1 h-3 w-3" aria-hidden />
+            Ver 8 v3-fast · 0.947 — HẠNG 165/3602 · HUY CHƯƠNG BẠC (16/9)
+          </Badge>
+          <Badge
+            variant="outline"
+            className="border-rose-400/40 bg-rose-400/10 text-rose-200 backdrop-blur-sm"
           >
             <Loader2 className="mr-1 h-3 w-3 animate-spin" aria-hidden />
-            Ver 9 · ĐÃ NỘP A/B (56261328 + 56261360) — đang chấm trên hidden test
+            Ver 9 FAIL runtime hidden (56261328) — đang gửi lại (56276434)
           </Badge>
         </motion.div>
 
@@ -159,25 +166,25 @@ export function Hero() {
             <StatItem
               icon={Trophy}
               value={LB_CONTEXT.ourScore.toFixed(3)}
-              label="Public LB · ver-7 (ver-6: 0.945 ×2)"
+              label="Public LB · ver-8 v3-fast (ver-7: 0.947 · ver-6: 0.945)"
               delay={0.4}
             />
             <StatItem
-              icon={FileText}
-              value={fmt.format(ver7?.submissionRows ?? 241356)}
-              label="dòng submission ver-7"
+              icon={Medal}
+              value={`Hạng ${LB_CONTEXT.ourRank}`}
+              label={`HUY CHƯƠNG BẠC · top 5% · ${fmt.format(LB_CONTEXT.totalTeams)} đội`}
               delay={0.46}
             />
             <StatItem
               icon={Timer}
               value={`${runMinutes} phút`}
-              label="run T4×2 · COMPLETE"
+              label="run T4×2 v3-fast · COMPLETE — pass hidden"
               delay={0.52}
             />
             <StatItem
               icon={Users}
               value={`${fmt.format(LB_CONTEXT.wallTeams)} đội`}
-              label={`bức tường ${LB_CONTEXT.wallScore.toFixed(3)} trên LB`}
+              label={`cụm 0.947 — ta vị trí ${LB_CONTEXT.ourPositionInCluster}/cụm`}
               delay={0.58}
             />
           </div>

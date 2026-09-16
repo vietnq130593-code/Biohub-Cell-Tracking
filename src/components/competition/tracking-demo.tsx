@@ -5,15 +5,15 @@
  * Kaggle: "Biohub - Cell Tracking During Development"
  *
  * Môi trường mô phỏng nội bộ các phiên bản pipeline ver-6 / ver-7 / ver-8 / ver-9:
- *  - ver 9 · HOCT consensus veto mode 2 + repeat-lineage filter (ĐÃ NỘP
- *    A/B 19:07 UTC 15/9 — 56261328 ver-9 + 56261360 v3-fast đối chứng,
- *    đang chấm trên hidden test): nền v3-fast của ver-8 +
+ *  - ver 9 · HOCT consensus veto mode 2 + repeat-lineage filter (56261328
+ *    FAIL runtime hidden test 15/9 — user gửi lại 16/9 56276434 cùng kernel
+ *    v1, dự báo fail lần nữa): nền v3-fast của ver-8 +
  *    linker HOCT thứ hai độc lập (royerlab general_v0, 6,25M params) veto
  *    mọi cạnh nó không đề xuất trên node set FINAL + RLF bỏ cạnh con xa của
  *    fork lặp lineage + hardcode tight 5,5/6,5 bỏ PPSWEEP + [ver9-gate]
  *    replay 8 stems: adjEJ +0,0017 nhưng div_tp −1 → verdict FALLBACK_V3FAST
- *    → nộp field test cả hai để tách hiệu ứng veto trên LB thật — phần
- *    mô phỏng chạy trên nền ensemble ver-7
+ *    → hidden ≈ 5-7× public làm HOCT (bậc 2 theo node) + 2h validator
+ *    replay overhead vượt limit 12h — phần mô phỏng chạy trên nền ver-7
  *  - ver 8 · Phase D re-parenting (v3-fast COMPLETE 1,74h — cổng PASS, là
  *    fallback của ver-9): nền ver-7 + DivNet RANK-ONLY W=15 µm (giữ NGUYÊN
  *    gate production tau 0.6 / diverge 2.25 — khác ver-7b đã thất bại vì nới
@@ -396,8 +396,8 @@ interface RuntimeState {
 type Mode = 'ver9' | 'ver8' | 'ver6' | 'ver7' | 'custom'
 
 const MODE_LABEL: Record<Mode, string> = {
-  ver9: 'Ver 9 · đã nộp A/B',
-  ver8: 'Ver 8 · v3-fast COMPLETE',
+  ver9: 'Ver 9 · FAIL runtime',
+  ver8: 'Ver 8 · 0.947 · Hạng 165 · BẠC',
   ver7: 'Ver 7 · Kaggle 0.947',
   ver6: 'Ver 6 · Kaggle 0.945',
   custom: 'Tùy chỉnh',
@@ -462,6 +462,10 @@ const STATUS_BADGE: Record<KaggleRunStatus, { label: string; cls: string }> = {
     label: 'ĐÃ NỘP · ĐANG CHẤM',
     cls: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300',
   },
+  FAILED: {
+    label: 'FAIL RUNTIME HIDDEN',
+    cls: 'border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300',
+  },
 }
 
 /** Cache ensemble theo seed — module scope, dữ liệu deterministic */
@@ -471,7 +475,7 @@ export default function TrackingDemo() {
   const [seed, setSeed] = useState(20260911)
   const sim = useMemo(() => buildSimulation(seed), [seed])
 
-  const [mode, setMode] = useState<Mode>('ver9')
+  const [mode, setMode] = useState<Mode>('ver8')
   const [params, setParams] = useState<Params>({ ...DEFAULT_PARAMS })
   const [sparseMode, setSparseMode] = useState(true)
 
@@ -999,12 +1003,11 @@ export default function TrackingDemo() {
               Chạy <span className="font-semibold text-emerald-700 dark:text-emerald-300">thật</span>{' '}
               thuật toán từng phiên bản nộp bài (port JS từ notebook Kaggle) trên
               thể tích 3D tổng hợp của phôi zebrafish, rồi chấm điểm đúng metric
-              cuộc thi. Ver 9 (HOCT consensus veto mode 2 + repeat-lineage
-              filter) ĐÃ NỘP A/B 19:07 UTC 15/9 (56261328 ver-9 + 56261360
-              v3-fast đối chứng) — đang chấm trên hidden test, điểm dự kiến
-              ~00:00-01:00 UTC. Ver 8 (v3-fast COMPLETE
-              1,74h — cổng PASS, đối chứng A/B của ver-9), Ver 7 (port notebook
-              Reyhan — public LB 0.947, hạng 342/3523) và Ver 6 (Kaggle 0.945
+              cuộc thi. Ver 8 v3-fast CHẤM XONG 16/9: 0.947 — HẠNG 165/3602
+              — HUY CHƯƠNG BẠC (top 5%, vị trí 22/525 đầu cụm 0.947).
+              Ver 9 (HOCT veto) FAIL runtime hidden test (56261328) — user
+              gửi lại 56276434 cùng kernel v1 (dự báo fail lần nữa). Ver 7
+              (port notebook Reyhan — public LB 0.947) và Ver 6 (Kaggle 0.945
               deterministic) cho số GẦN NHAU trên cùng dữ liệu — đúng bằng
               chứng paired A/B thật: ΔadjEJ +0.0000. Đổi phiên bản để so sánh,
               hoặc dùng chế độ{' '}
@@ -1203,11 +1206,11 @@ export default function TrackingDemo() {
                 aria-label="Chọn phiên bản thuật toán"
                 className="flex-wrap"
               >
-                <ToggleGroupItem value="ver9" aria-label="Ver 9, HOCT consensus veto mode 2 + repeat-lineage filter — đã nộp A/B 56261328 + 56261360, đang chấm trên hidden test">
-                  Ver 9 · đã nộp A/B
+                <ToggleGroupItem value="ver9" aria-label="Ver 9, HOCT consensus veto mode 2 + repeat-lineage filter — submission 56261328 FAIL runtime hidden test, user gửi lại 56276434 cùng kernel v1">
+                  Ver 9 · FAIL runtime
                 </ToggleGroupItem>
-                <ToggleGroupItem value="ver8" aria-label="Ver 8, Phase D re-parenting division recovery — v3-fast COMPLETE cổng PASS, fallback của ver-9">
-                  Ver 8 · v3-fast COMPLETE
+                <ToggleGroupItem value="ver8" aria-label="Ver 8, Phase D re-parenting division recovery — v3-fast PUBLIC LB 0.947 hạng 165/3602 huy chương bạc">
+                  Ver 8 · 0.947 · Hạng 165 · BẠC
                 </ToggleGroupItem>
                 <ToggleGroupItem value="ver7" aria-label="Ver 7, port notebook Reyhan — public LB 0.947">
                   Ver 7 · 0.947
@@ -1329,7 +1332,10 @@ export default function TrackingDemo() {
                       `[ver9·tight] hardcode per-prefix 44b6→5,5 / 6bba→6,5 µm · BỎ PPSWEEP hoàn toàn — cứu runtime hidden test (v1 fail vì sweep 86% runtime)`,
                       `[ver9-gate] replay 8 stems: adjEJ 0,9287→0,9303 (+0,0017 ✓) · div_tp 4→3 (−1/4 nhiễu) · proxy −0,0060 → verdict FALLBACK_V3FAST theo cổng §6 rev-2`,
                       `[ver9-run] T4×2 · 2,4 h COMPLETE · 240.871 dòng (veto 4 cạnh + RLF bỏ 2) · topology 0 lỗi · 76 forks`,
-                      `[submit] ★ ĐÃ NỘP A/B 19:07 UTC 15/9 — 56261328 (ver-9, kernel v1) + 56261360 (v3-fast đối chứng, kernel v3) — chấm hidden ~4,8h → điểm ~00:00-01:00 UTC`,
+                      `[submit] 56261328 (19:07 UTC 15/9) → FAIL runtime hidden: 'exceeded the allowed runtime' — không có điểm`,
+                      `[fail-analysis] hidden ≈ 5-7× public (không phải ~2×): HOCT transformer ~bậc 2 theo node/frame trên embryo-3 dày (124 forks/video) + ~2h validator replay overhead trong notebook + budget 900s/video × nhiều video`,
+                      `[resubmit] user gửi lại 10:29 UTC 16/9 — 56276434 — CÙNG kernel v1 (scriptVersionId 350108883) → dự báo fail lần nữa (cùng code + cùng data + cùng limit)`,
+                      `[lesson] v10 = v3-fast + RLF (chi phí ~0) + BỎ HOCT + strip validator replay — notebook production phải TỐI THIỂU`,
                     ].join('\n')
                   }
                   if (mode === 'ver8') {
@@ -1340,8 +1346,11 @@ export default function TrackingDemo() {
                       `[ppsweep] 16 candidates → chọn tight55 · adjEJ held-out 0.9261 → 0.9284 · proxy 0.9547 → 0.9591 (Δ+0.0080 vs ver-7 — đạt ngưỡng ELEVEN +0.005)`,
                       `[v1-run] T4×2 · 6,2 h COMPLETE · 241.330 dòng · 122.792 node · 118.538 cạnh · 188 division parents · guards 5/5`,
                       `[submit] 56242181 · nộp 01:09 UTC 15/9 → FAIL runtime (không có điểm)`,
-                      `[v1-fail] 56242181 FAIL ~12h: rerun hidden test (~2× public) vượt runtime — sweep 86% runtime là nguyên nhân`,
-                      `[v3-fast] COMPLETE 1,74h (15:35 UTC) — CỔNG PASS · proxy 0,9594 · adjEJ +0,0025 · div 4/1/8 · 241.355 dòng · là fallback của ver-9`,
+                      `[v1-fail] 56242181 FAIL ~12h: rerun hidden test vượt runtime — sweep 86% runtime là nguyên nhân`,
+                      `[v3-fast] COMPLETE 1,74h (15:35 UTC) — CỔNG PASS · proxy 0,9594 · adjEJ +0,0025 · div 4/1/8 · 241.355 dòng`,
+                      `[submit] 56261360 (19:09 UTC 15/9, kernel v3) → CHẤM XONG 16/9`,
+                      `[lb-result] ★ PUBLIC LB 0.947 — HẠNG 165/3602 — HUY CHƯƠNG BẠC (top 5% = hạng 180, dư 15 chỗ)`,
+                      `[why-165] LB sắp theo full-precision: v3-fast ≈ 0,9475-0,9479 đầu cụm 525 đội (vị trí 22) — ver-7 xưa ~500+ đáy cụm → re-parent + DivNet + tight hardcode = +~0,0005-0,0009 THẬT`,
                     ].join('\n')
                   }
                   if (mode === 'ver7') {
@@ -1649,16 +1658,16 @@ export default function TrackingDemo() {
                       <li className="flex items-center justify-between gap-2">
                         <span className="text-muted-foreground">
                           <span className="mr-1.5 inline-block size-2 rounded-full bg-emerald-500" aria-hidden />
-                          Team ta — ver-6 0.945
+                          Team ta — ver-8 v3-fast · HUY CHƯƠNG BẠC
                         </span>
                         <span className="font-mono font-semibold tabular-nums">
-                          hạng ≈ {LB_CONTEXT.ourRank}
+                          hạng {LB_CONTEXT.ourRank}/{LB_CONTEXT.totalTeams}
                         </span>
                       </li>
                       <li className="flex items-center justify-between gap-2">
                         <span className="text-muted-foreground">
                           <span className="mr-1.5 inline-block size-2 rounded-full bg-amber-500" aria-hidden />
-                          Bức tường {LB_CONTEXT.wallScore.toFixed(3)} — 360 đội copy notebook Reyhan
+                          Cụm {LB_CONTEXT.wallScore.toFixed(3)} — ta vị trí {LB_CONTEXT.ourPositionInCluster} (full-precision đầu cụm)
                         </span>
                         <span className="font-mono font-semibold tabular-nums">
                           {LB_CONTEXT.wallTeams} đội
@@ -1675,9 +1684,11 @@ export default function TrackingDemo() {
                       </li>
                     </ul>
                     <p className="mt-2.5 text-[11px] leading-snug text-muted-foreground">
-                      Ver-7 (port nguyên văn notebook Reyhan) đang được chấm —
-                      kỳ vọng rơi vào đúng bức tường 0.947; ver-7b đang chạy
-                      nhắm điểm yếu phân bào để vượt tường.
+                      Ver-8 v3-fast chấm xong 16/9: 0.947 full-precision đầu cụm
+                      → hạng 165 — huy chương BẠC (top 5% = 180). Ver-9 (HOCT
+                      veto) FAIL runtime hidden test — user gửi lại 56276434
+                      (cùng kernel v1, dự báo fail lần nữa). Mục tiêu kế: cụm
+                      0.948 ({LB_CONTEXT.nextClusterTeams} đội, hạng 89–143).
                     </p>
                   </div>
                 )

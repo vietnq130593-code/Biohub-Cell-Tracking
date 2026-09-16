@@ -181,7 +181,12 @@ export const roadmap = [
  * (số liệu đo được — không suy đoán)
  * ========================================================================= */
 
-export type KaggleRunStatus = "COMPLETE" | "PENDING" | "RUNNING" | "SUBMITTED";
+export type KaggleRunStatus =
+  | "COMPLETE"
+  | "PENDING"
+  | "RUNNING"
+  | "SUBMITTED"
+  | "FAILED";
 
 export interface KaggleVersionResult {
   id: string;
@@ -286,23 +291,22 @@ export const KAGGLE_RESULTS: KaggleVersionResult[] = [
     id: "ver8",
     label: "Ver 8 · Phase D re-parenting",
     kaggleRef: "vietnguyen130593/biohub-ver8 v1+v2+v3fast · GPU T4×2",
-    lbScore: null,
-    submittedAt: "2026-09-15 01:09 · v1 nộp nhưng FAIL runtime (56242181) — v3-fast COMPLETE",
+    lbScore: 0.947,
+    submittedAt:
+      "2026-09-15 19:09 UTC · v3-fast (56261360) CHẤM XONG — LB 0.947 · HẠNG 165/3602",
     status: "COMPLETE",
-    runSeconds: 22380,
-    submissionRows: 241330,
-    proxy: 0.9591,
-    adjEJ: 0.9284,
+    runSeconds: 6264,
+    submissionRows: 241355,
+    proxy: 0.9594,
+    adjEJ: 0.9287,
     divJ: 0.3077,
     notes: [
-      "★ v1 (56242181) nộp 01:09 UTC 15/9 → FAIL sau ~12h: rerun notebook trên HIDDEN TEST (lớn hơn public ~2×) vượt runtime limit — errorDescription + totalBytes=0, không có điểm",
-      "Nguyên nhân gốc: PPSWEEP 16-19 candidates chiếm 86% runtime kernel (6,87/7,95h) — kernel public 6,2h × hidden ~2× ≈ 12,4h > hạn 12h. ver-7 (117 phút) pass vì đủ nhanh",
-      "Bài học hạ tầng: mọi submission đều rerun trên hidden test lớn hơn — ngân sách runtime là ràng buộc CỨNG (public ≤ 2h an toàn)",
-      "Giữ nguyên giá trị thuật toán (đo trên held-out, không đổi): re-parent +1 sự kiện thật (div 3/1/9 → 4/1/8) · Δproxy +0,0080 vs ver-7 — đạt ELEVEN",
-      "v2 COMPLETE 09:13 (7,9h): chọn ppTight5565 (proxy 0,9594) nhưng KHÔNG nộp — cả v1/v2 đều quá chậm cho hidden test",
-      "Bài học v2: rp-ep50 no-op · rp-ep75 làm div_fp 2→4 mà div_tp đứng ở 4 → REPARENT_EDGE_PROB giữ 0,25",
-      "★ v3-fast PUSH 13:57 UTC (kernel version 3): sweep rút còn 1 candidate ppTight5565fb (per-prefix + fallback global 5.5) → public ~1,3-1,8h → hidden ~2,5-3,6h — an toàn trong hạn · py_compile + 7/7 unit test PASS",
-      "★ v3-fast COMPLETE 15:35 UTC chỉ sau 1,74h — CỔNG PASS (runtime ≤ 2h · adjEJ +0,0025 · div 4/1/8 · proxy 0,9594 · 241.355 dòng) — là fallback của ver-9",
+      "★★ 16/9 KẾT QUẢ LB: v3-fast (56261360) = 0.947 → HẠNG 165/3602 — HUY CHƯƠNG BẠC (top 5%, cắt hạng 180, dư 15 chỗ) — THÀNH TỰU LỚN NHẤT: từ đáy cụm 0.947 (ver-7 ~500+) lên vị trí 22/525 đầu cụm",
+      "Vì sao cùng hiển thị 0.947 mà hạng nhảy 500+ → 165: LB sắp theo điểm full-precision — v3-fast ≈ 0,9475-0,9479 (re-parent + DivNet rank + tight hardcode cho +~0,0005-0,0009 THẬT trên hidden test) vượt 503/525 đội cùng điểm hiển thị",
+      "v1 (56242181) nộp 01:09 UTC 15/9 → FAIL runtime hidden test; v2 (7,9h) cũng chậm; v3-fast (kernel v3, push 13:57) COMPLETE 1,74h — single-candidate ppTight5565fb — duy nhất pass runtime",
+      "Giữ nguyên giá trị thuật toán (đo trên held-out): re-parent +1 sự kiện thật (div 3/1/9 → 4/1/8) · Δproxy +0,0080 vs ver-7 — đạt ELEVEN · proxy 0,9594 · adjEJ +0,0025",
+      "Bài học hạ tầng: submission rerun trên hidden test lớn hơn public NHIỀU lần (v3-fast 1,74h pass nhưng ver-9 2,4h fail → hidden ≈ 5-7× public) — ngân sách runtime là ràng buộc CỨNG",
+      "Lộ trình tiếp: cụm 0.948 (55 đội, hạng 89-143) cần +~0,0003-0,0008 full-precision — RLF + tight tinh chỉnh là ứng viên; vàng cần 0.957+",
     ],
   },
   {
@@ -310,37 +314,42 @@ export const KAGGLE_RESULTS: KaggleVersionResult[] = [
     label: "Ver 9 · HOCT veto + RLF",
     kaggleRef: "vietnguyen130593/biohub-ver9 v1 · GPU T4×2 · 9 input",
     lbScore: null,
-    submittedAt: "2026-09-15 19:07 UTC · ĐÃ NỘP A/B — 56261328 (ver-9) + 56261360 (v3-fast đối chứng)",
-    status: "SUBMITTED",
+    submittedAt:
+      "2026-09-15 19:07 · 56261328 FAIL runtime · user gửi lại 16/9 10:29 (56276434) — PENDING",
+    status: "FAILED",
     runSeconds: 8663,
     submissionRows: 240871,
     proxy: 0.9534,
     adjEJ: 0.9303,
     divJ: 0.2308,
     notes: [
-      "★ VER-9 ĐÃ NỘP 19:07 UTC 15/9 (ref 56261328, code submission từ kernel biohub-ver9 v1) — Kaggle rerun trên hidden test ~4,8h (public 2,4h × ~2) → điểm dự kiến ~00:00-01:00 UTC",
-      "A/B field test: nộp thêm v3-fast đối chứng 19:09 (ref 56261360, kernel biohub-ver8 v3) — cùng batch chấm → sáng mai so 2 điểm tách riêng hiệu ứng HOCT veto + RLF trên LB thật",
-      "Kernel COMPLETE 2,4h: test 4 video → submission 240.873 dòng → HOCT veto áp trong lần ghi (mode 2, veto 4 cạnh, 949s) → RLF bỏ 2 cạnh → 240.871 dòng cuối · kiểm định topology: 0 cạnh dt≠±1, max_out 2, max_in 1 ✓ · 76 division parents",
-      "[ver9-gate] replay 8 stems validator: adjEJ 0,9287 → 0,9303 (+0,0017 ✓ tín hiệu dương ổn định ~71k cạnh) nhưng div_tp 4→3 (−1/4 mẫu, nhiễu) → proxy −0,0060 → verdict FALLBACK_V3FAST theo cổng §6 rev-2",
-      "Vì sao vẫn nộp ver-9: tín hiệu trái chiều — adjEJ validator dương + sjlee field +0,0040 CI-dương, còn proxy âm bị kéo bởi divJ chỉ 4 divisions (validator thưa 10× so hidden 124 forks/video) → field test là cách duy nhất giải dứt điểm",
-      "RLF trên validator = no-op (0,0017% cạnh) · trên test bỏ 2/118.061 cạnh — an toàn tuyệt đối đúng thiết kế guard ≤ 0,5%",
-      "Còn 1 lượt submit hôm nay (4/5 đã dùng) · GPU quota còn ~0,4h/30h (refresh 19/9) · 56255523 (13:33, không phải tool ta) vẫn PENDING — nghi là kernel v2 sẽ fail runtime",
+      "★ 56261328 (nộp 19:07 UTC 15/9) FAIL rerun hidden test: 'Your submission notebook exceeded the allowed runtime' — không có điểm, cùng lỗi với ver-8 v1/v2",
+      "★ User đã gửi lại 10:29 UTC 16/9 (56276434) — CÙNG kernel biohub-ver9 v1 (scriptVersionId 350108883 trùng khớp bản fail) → cùng code + cùng hidden test + cùng limit 12h = gần như chắc chắn fail lần nữa; cần kernel v2 sửa runtime mới hy vọng pass",
+      "Phân tích nguyên nhân (v3-fast 1,74h public PASS ≠ ver-9 2,4h public FAIL → hidden ≈ 5-7× public, không phải ~2× ước tính cũ): (1) HOCT veto transformer chi phí ~bậc 2 theo node/frame — hidden test là embryo-3 DÀY nhất (124 forks/video, mật độ 12× train) → mỗi video tốn nhiều hơn mức 237s trung bình public; (2) notebook còn ~2h [ver9-gate] validator replay + HOCT 8 stems — overhead thuần trên rerun (chỉ có giá trị validate public); (3) budget max_video_s=900 × nhiều video hidden có thể tích lũy vượt deadline",
+      "Kernel public COMPLETE 2,4h: 240.871 dòng (veto 4 cạnh + RLF bỏ 2) · topology 0 lỗi · [ver9-gate] trên 8 stems: adjEJ +0,0017 nhưng div_tp 4→3 → verdict FALLBACK_V3FAST — cổng đã đúng khi cảnh báo rủi ro",
+      "Kết luận field: HOCT veto mode 2 KHÔNG đáng giá trên hidden test dày — chi phí runtime vượt ngưỡng trong khi lợi ích validator chỉ +0,0017 (không đủ CI); hướng đi v10: v3-fast + RLF (chi phí ~0) + bỏ HOCT + strip validator replay khỏi notebook production",
+      "Bài học cho mọi version sau: notebook submission phải TỐI THIỂU (không validator replay, không gate report, không sweep) — mọi giây public nhân ~5-7× trên hidden",
     ],
   },
 ];
 
-/** Bối cảnh leaderboard cập nhật 15/9 13:15 UTC — 3569 đội */
+/** Bối cảnh leaderboard cập nhật 16/9 10:39 UTC — 3602 đội */
 export const LB_CONTEXT = {
-  ourTeam: "daoviet",
+  ourTeam: "Mr. Architect",
   ourScore: 0.947,
-  ourRank: 183,
-  /** Cụm 479 đội fork notebook Reyhan Ksatria cùng 0.947 */
+  ourRank: 165,
+  /** huy chương bạc: top 5% = 180 hạng (dư 15 chỗ) */
+  medal: "SILVER",
+  silverCutoffRank: 180,
+  /** Cụm 525 đội cùng 0.947 (hạng 144–668) — ta vị trí 22 nhờ full-precision cao */
   wallScore: 0.947,
-  wallTeams: 479,
-  /** Cụm kế tiếp cần vượt: 46 đội 0.948 (hạng 79–124) */
+  wallTeams: 525,
+  ourPositionInCluster: 22,
+  /** Cụm kế tiếp cần vượt: 55 đội 0.948 (hạng 89–143) */
   nextClusterScore: 0.948,
-  nextClusterTeams: 46,
+  nextClusterTeams: 55,
   topScore: 0.97,
+  totalTeams: 3602,
 } as const;
 
 export interface HeldoutVideo {
