@@ -171,6 +171,29 @@ if LAB_MODE and not _V10_LAB_CACHE_LOADED and VAL_RAW_GRAPHS:
 """
 
 
+# ==== [v10-lab-subproc] helper _v10_p cho script con (subprocess riêng — không có _v10_p của monolith)
+SUBPROC_HELPER_BLOCK = r'''# [v10-lab-subproc] script con chạy SUBPROCESS riêng không có _v10_p của monolith —
+# các chuỗi patch (P16) đã wrap literal /kaggle/* bên trong code tiêm vào script con →
+# tiêm def _v10_p tự-chứa (đọc env V10_INPUT_ROOT/V10_WORKING_ROOT) SAU khi mọi patch áp xong.
+_s = _ps.read_text()
+if '_v10_p(' in _s and 'def _v10_p(' not in _s:
+    _s = (
+        "import os as _v10_sp_os\n"
+        "def _v10_p(p):\n"
+        "    _inp = _v10_sp_os.environ.get('V10_INPUT_ROOT', '/kaggle/input').rstrip('/') or '/kaggle/input'\n"
+        "    _wrk = _v10_sp_os.environ.get('V10_WORKING_ROOT', '/kaggle/working').rstrip('/') or '/kaggle/working'\n"
+        "    if p.startswith('/kaggle/input'):\n"
+        "        return _inp + p[len('/kaggle/input'):]\n"
+        "    if p.startswith('/kaggle/working'):\n"
+        "        return _wrk + p[len('/kaggle/working'):]\n"
+        "    return p\n"
+    ) + _s
+    _ps.write_text(_s)
+    print('[v10-lab-subproc] tiêm helper _v10_p vào predict_unet_transformer.py (subprocess tự dịch path theo env)')
+_s = _ps.read_text()
+'''
+
+
 def build_monolith() -> str:
     text = VER9_MONOLITH.read_text()
     if "@@" in text:
@@ -331,6 +354,19 @@ elif VALIDATOR_ENABLE and val_stems:
 
     text = _path_re.sub(_wrap_path, text)
 
+    # P16.5 — [v10-lab-subproc] tiêm def _v10_p tự-chứa vào predict_unet_transformer.py SAU KHI
+    # mọi chuỗi patch đã áp (bug lộ trên Colab thật: NameError _v10_p ở retention-guard patch —
+    # tiêm ở điểm đọc ĐẦU là vô ích vì _v10_p chỉ xuất hiện SAU khi patch chèn vào). Chạy SAU wrap
+    # để literal '/kaggle/*' trong block helper không bị wrap lần nữa.
+    subproc_anchor = "print('Edge-feature TTA patch installed and enabled')"
+    if text.count(subproc_anchor) != 1:
+        sys.exit(f"[build] THẤT BẠI: anchor patch-cuối predict không duy nhất ({text.count(subproc_anchor)})")
+    text = text.replace(
+        subproc_anchor,
+        subproc_anchor + "\n" + SUBPROC_HELPER_BLOCK.rstrip("\n"),
+        1,
+    )
+
     # P17 — [v10-lab-roots] inject header _v10_p + V10_*_ROOT ngay sau `import os` (TRƯỚC lần dùng đầu tiên)
     text = must_replace(
         text,
@@ -397,9 +433,11 @@ Override: sửa `V10_DEFAULT_GRID_JSON` trong Cell 3 (JSON list, mỗi phần t�
 - 8 stems validator thực tế của ver-9: @@STEMS@@.
 - Kết quả: `/kaggle/working/v10_lab_cache/` (cache raw graphs + GT), `v10_lab_rows.csv`
   (per-stem per-config), `v10_lab_report.json` (summary + deltas vs ref + skip_reason).
-- Cell 2 tải đúng các file `train/<stem>.*` của competition (cả .zarr chunk + .geff GT) bằng
-  competitions files API phân trang + 4 luồng tải song song `-f` (mỗi file zip được giải nén
-  về đúng path con).
+- Cell 2 tải 8 stems theo 3 nếp dự phòng: **(A)** zip cache trên Google Drive của anh (0 API
+call Kaggle — mount Drive 1 lần; lần chạy đầu tự lưu `stems8.zip` 3.4GB + 9 dataset zip
+~0.9GB lên Drive, tổng ~4.3GB); **(B)** dataset riêng `vietnguyen130593/biohub-v10-stems8`
+(1 API call tải cả 3.4GB — thay 984 call per-file từng gây 429); **(C)** fallback per-file
+429-armor (filelist 3 bậc + 4 luồng + resume).
 """
 
 CPU_HEADER_MD = """# V10 LAB (CPU replay) — grid từ cache, không cần GPU Kaggle
@@ -582,17 +620,209 @@ for _p in (INPUT_ROOT, WORKING_DIR):
         pass
 print(f"[v10-lab-setup] roots sẵn sàng: input={INPUT_ROOT} · working={WORKING_DIR} (Colab)")
 
-# --- 1) tải 9 dataset ver-9 -------------------------------------------------------------------
+# --- [v10-drive] Google Drive cache (tuỳ chọn): zip stems8 + 9 dataset zip lưu trên Drive -------
+# Mục tiêu: sau lần đầu thành công, các session Colab sau KHÔNG cần API Kaggle cho dữ liệu nữa
+# (copy Drive→local qua mạng nội bộ Google nhanh); VM chết (VM#1 đã mất 2.2GB) không mất dữ liệu.
+# V10_DRIVE: auto = mount khi chạy tương tác trong browser notebook (1 lần auth);
+#            on = luôn thử mount; off = không dùng Drive (chạy headless qua bridge/CLI).
+V10_DRIVE = os.environ.get("V10_DRIVE", "auto").strip().lower()
+V10_DRIVE_CACHE = Path(os.environ.get("V10_DRIVE_CACHE_DIR", "/content/drive/MyDrive/biohub-v10-cache"))
+V10_DRIVE_MOUNTED = False
+
+
+def _v10_drive_try_mount(timeout_s=240):
+    global V10_DRIVE_MOUNTED
+    if V10_DRIVE == "off":
+        print("[v10-drive] V10_DRIVE=off — không dùng Google Drive cache")
+        return False
+    _my = Path("/content/drive/MyDrive")
+    if _my.is_dir():
+        V10_DRIVE_MOUNTED = True
+        print("[v10-drive] Drive đã mount sẵn — cache bền vững qua reset VM")
+        return True
+    if V10_DRIVE == "auto" and os.environ.get("V10_HEADLESS", "") == "1":
+        print("[v10-drive] auto + V10_HEADLESS=1 — bỏ qua mount (không chờ popup auth)")
+        return False
+    try:
+        from google.colab import drive  # noqa: E402
+    except Exception as _e:
+        print(f"[v10-drive] không import được google.colab ({type(_e).__name__}) — chạy không Drive")
+        return False
+    _box = {}
+
+    def _m():
+        try:
+            drive.mount("/content/drive")
+            _box["ok"] = True
+        except Exception as _e:
+            _box["err"] = f"{type(_e).__name__}: {_e}"
+
+    _t = threading.Thread(target=_m, daemon=True)
+    _t.start()
+    _t.join(timeout_s)
+    if _box.get("ok") and _my.is_dir():
+        V10_DRIVE_MOUNTED = True
+        print("[v10-drive] Drive mount OK — dữ liệu sống sót qua các lần reset VM")
+        return True
+    print(f"[v10-drive] mount chưa xong sau {timeout_s}s (hoặc lỗi {_box.get('err')}) — chạy không Drive")
+    return False
+
+
+_v10_drive_try_mount()
+
+
+def _v10_drive_dir():
+    if not V10_DRIVE_MOUNTED:
+        return None
+    try:
+        (V10_DRIVE_CACHE / "zips").mkdir(parents=True, exist_ok=True)
+        return V10_DRIVE_CACHE
+    except OSError as _e:
+        print(f"[v10-drive] không tạo được cache dir trên Drive ({_e}) — bỏ qua Drive")
+        return None
+
+
+def _v10_drive_load_manifest():
+    _d = _v10_drive_dir()
+    if _d is None:
+        return None
+    _f = _d / "drive_manifest.json"
+    try:
+        if _f.is_file():
+            _m = json.loads(_f.read_text())
+            if isinstance(_m.get("zips"), dict):
+                return _m
+    except Exception as _e:
+        print(f"[v10-drive] drive_manifest.json lỗi ({_e}) — coi như chưa có cache")
+    return {"zips": {}}
+
+
+def _v10_drive_save_manifest(m):
+    _d = _v10_drive_dir()
+    if _d is None:
+        return
+    try:
+        (_d / "drive_manifest.json").write_text(json.dumps(m, indent=1))
+    except OSError as _e:
+        print(f"[v10-drive] ghi drive_manifest.json lỗi ({_e}) — bỏ qua")
+
+
+def _v10_drive_save_zip(local_zip, name):
+    # lưu 1 zip lớn lên Drive: ghi .part xong mới rename (rename = marker "ghi xong")
+    _d = _v10_drive_dir()
+    if _d is None:
+        return False
+    _target = _d / "zips" / f"{name}.zip"
+    try:
+        _part = _d / "zips" / f"{name}.zip.part"
+        _t0 = time.time()
+        shutil.copyfile(local_zip, _part)
+        _part.replace(_target)
+        _m = _v10_drive_load_manifest()
+        if _m is not None:
+            _m["zips"][name] = {"size": _target.stat().st_size}
+            _v10_drive_save_manifest(_m)
+        print(f"[v10-drive] ĐÃ LƯU {name}.zip lên Drive ({_target.stat().st_size / 1e9:.2f} GB · {time.time() - _t0:.0f}s)")
+        return True
+    except OSError as _e:
+        print(f"[v10-drive] lưu {name}.zip lên Drive LỖI ({_e}) — tiếp tục không cache")
+        return False
+
+
+def _v10_drive_load_zip(name, manifest):
+    # trả Path zip LOCAL (copy từ Drive) nếu cache hợp lệ (size khớp manifest), ngược lại None
+    if manifest is None:
+        return None
+    _d = _v10_drive_dir()
+    if _d is None:
+        return None
+    _src = _d / "zips" / f"{name}.zip"
+    _meta = (manifest.get("zips") or {}).get(name)
+    if not (_src.is_file() and _meta):
+        return None
+    try:
+        if _src.stat().st_size != int(_meta.get("size") or -1):
+            print(f"[v10-drive] cache {name}.zip sai size ({_src.stat().st_size} ≠ manifest {_meta.get('size')}) — bỏ cache")
+            return None
+        _local = Path(tempfile.mkdtemp(prefix="v10drv_")) / f"{name}.zip"
+        _t0 = time.time()
+        shutil.copyfile(_src, _local)
+        print(f"[v10-drive] copy {name}.zip từ Drive: {_local.stat().st_size / 1e9:.2f} GB · {time.time() - _t0:.0f}s")
+        return _local
+    except OSError as _e:
+        print(f"[v10-drive] đọc cache {name}.zip lỗi ({_e})")
+        return None
+
+
+def _v10_drive_has_zip(name, manifest):
+    # kiểm tra NHANH cache Drive có zip hợp lệ (không copy) — dùng cho backfill/skip
+    if manifest is None:
+        return False
+    _d = _v10_drive_dir()
+    if _d is None:
+        return False
+    _meta = (manifest.get("zips") or {}).get(name)
+    _src = _d / "zips" / f"{name}.zip"
+    try:
+        return bool(_meta and _src.is_file() and _src.stat().st_size == int(_meta.get("size") or -1))
+    except OSError:
+        return False
+
+
+def _v10_extract_dataset_zip(zip_path, dest):
+    # 9 dataset ver-9: zip download chứa path trực tiếp (kiểm chứng VM#2: 0 zip lồng),
+    # vẫn phòng hờ 1 tầng zip lồng (dataset tạo bằng --dir-mode zip).
+    with zipfile.ZipFile(zip_path) as zf:
+        zf.extractall(dest)
+    for _z in list(dest.rglob("*.zip")):
+        if _z.relative_to(dest).as_posix().count("/") > 2:
+            continue  # zip nằm sâu trong cây — artifact thật của dataset, không đụng
+        try:
+            with zipfile.ZipFile(_z) as _zin:
+                _zin.extractall(_z.parent)
+            _z.unlink()
+            print(f"[v10-lab-setup] (đã tự giải zip lồng {_z.relative_to(dest)})")
+        except zipfile.BadZipFile:
+            pass
+
+
+# --- 1) tải 9 dataset ver-9 (Drive cache ưu tiên — 0 API call khi có cache) ----------------------
 _t0 = time.time()
+_V10_DRIVE_MANIFEST = _v10_drive_load_manifest()
 for _full in V10_DATASETS:
     _slug = _full.split("/", 1)[1]
     _dest = INPUT_ROOT / _slug
     if (_dest / ".v10_ok").exists() or (not _v10_writable(INPUT_ROOT) and _dest.exists()):
         print(f"[v10-lab-setup] dataset {_slug} đã có — bỏ qua")
+        # [v10-drive] backfill: đã có trên đĩa nhưng Drive chưa có cache → đóng gói lưu lên (1 lần)
+        if V10_DRIVE_MOUNTED and not _v10_drive_has_zip("ds_" + _slug, _V10_DRIVE_MANIFEST):
+            _bakd = Path(tempfile.mkdtemp(prefix="v10bf_"))
+            _bakz = _bakd / f"ds_{_slug}.zip"
+            with zipfile.ZipFile(_bakz, "w", zipfile.ZIP_STORED) as _zbf:
+                for _fp in _dest.rglob("*"):
+                    if _fp.is_file():
+                        _zbf.write(_fp, _fp.relative_to(_dest).as_posix())
+            _v10_drive_save_zip(_bakz, "ds_" + _slug)
+            shutil.rmtree(_bakd, ignore_errors=True)
         continue
     _dest.mkdir(parents=True, exist_ok=True)
-    v10_run_kaggle(["datasets", "download", _full, "-p", str(_dest), "--unzip", "-q"])
+    _dz = _v10_drive_load_zip("ds_" + _slug, _V10_DRIVE_MANIFEST)
+    if _dz is not None:
+        _v10_extract_dataset_zip(_dz, _dest)
+        (_dest / ".v10_ok").write_text("ok")
+        shutil.rmtree(_dz.parent, ignore_errors=True)
+        _mb = sum(f.stat().st_size for f in _dest.rglob("*") if f.is_file()) / 1e6
+        print(f"[v10-lab-setup] dataset {_slug} từ GOOGLE DRIVE ({_mb:.0f} MB · 0 API call)")
+        continue
+    _tmpds = Path(tempfile.mkdtemp(prefix="v10ds_"))
+    v10_run_kaggle(["datasets", "download", _full, "-p", str(_tmpds), "-q"])
+    _dzs = sorted(_tmpds.glob("*.zip"))
+    if not _dzs:
+        raise RuntimeError(f"datasets download {_full} không trả file zip nào trong {_tmpds}")
+    _v10_extract_dataset_zip(_dzs[0], _dest)
     (_dest / ".v10_ok").write_text("ok")
+    _v10_drive_save_zip(_dzs[0], "ds_" + _slug)
+    shutil.rmtree(_tmpds, ignore_errors=True)
     _mb = sum(f.stat().st_size for f in _dest.rglob("*") if f.is_file()) / 1e6
     print(f"[v10-lab-setup] dataset {_slug} OK ({_mb:.0f} MB)")
 print(f"[v10-lab-setup] 9 dataset xong trong {time.time() - _t0:.0f}s")
@@ -623,10 +853,12 @@ else:
     print("[v10-lab-setup] CẢNH BÁO: không tìm thấy .whl HOCT trong biohub-hoct-020-wheels")
 
 
-# --- 4) tải competition train files CHO 8 STEMS validator --------------------------------------
-# [v10-lab-setup] API files bị rate-limit 429 khi phân trang — nên filelist lấy theo bậc:
-# (a) cache local từ lần chạy trước → (b) dataset filelist dựng sẵn (0 listing call) →
-# (c) listing trực tiếp (sleep 2s/page, có 429-backoff trong v10_run_kaggle) + ghi cache.
+# --- 4) 8 stems validator — 3 NẾP: (A) Drive cache → (B) dataset stems8 (1 call) → (C) per-file ---
+# [v10-lab-setup] 429 gốc rễ: 984 file = 984 API call DownloadDataFile ≈ ngưỡng ~1000 req/ngày.
+# Nếp B tải cả 3.4GB bằng đúng 1 call (dataset do kernel CPU Kaggle đóng gói từ input gắn sẵn);
+# nếp A sau lần đầu thành công không cần Kaggle nữa (zip nằm trên Google Drive của anh).
+# Nếp C (fallback cuối) dùng filelist 3 bậc: (a) cache local → (a2) Drive → (b) dataset filelist
+# dựng sẵn (0 listing call) → (c) listing trực tiếp (sleep 2s/page + 429-backoff) + ghi cache.
 V10_FILELIST_DATASET = "vietnguyen130593/biohub-v10-lab-filelist"
 
 
@@ -661,6 +893,14 @@ def _v10_load_comp_rows():
         if _rows:
             print(f"[v10-lab-setup] filelist từ CACHE LOCAL: {len(_rows):,} dòng (0 API call)")
             return _rows
+    _dd = _v10_drive_dir()
+    if _dd is not None and (_dd / "comp_files.csv").is_file():
+        with (_dd / "comp_files.csv").open() as _f:
+            _rows = list(csv.DictReader(_f))
+        if _rows:
+            shutil.copyfile(_dd / "comp_files.csv", _cache)
+            print(f"[v10-lab-setup] filelist từ GOOGLE DRIVE: {len(_rows):,} dòng (0 API call)")
+            return _rows
     _dest = INPUT_ROOT / "biohub-v10-lab-filelist"
     if not (_dest / ".v10_ok").exists():
         _dest.mkdir(parents=True, exist_ok=True)
@@ -684,16 +924,97 @@ def _v10_load_comp_rows():
         _w = csv.DictWriter(_f, fieldnames=["name", "size", "creationDate"])
         _w.writeheader()
         _w.writerows(_rows)
+    _dd = _v10_drive_dir()
+    if _dd is not None:
+        try:
+            shutil.copyfile(_cache, _dd / "comp_files.csv")
+        except OSError:
+            pass
     print(f"[v10-lab-setup] listing xong: {len(_rows):,} dòng → đã lưu cache local cho lần sau")
     return _rows
 
 
-_t0 = time.time()
-_all_rows = _v10_load_comp_rows()
-_wanted = [r for r in _all_rows if any(r["name"].startswith(f"train/{s}.") for s in V10_STEMS)]
-_wanted_names = [r["name"] for r in _wanted]
-_total_bytes = sum(int(r.get("totalBytes") or r.get("size") or 0) for r in _wanted)
-print(f"[v10-lab-setup] cần tải {len(_wanted_names):,} file cho {len(V10_STEMS)} stems — tổng {_total_bytes / 1e9:.2f} GB")
+V10_STEMS8_DATASET = os.environ.get("V10_STEMS8_DATASET", "vietnguyen130593/biohub-v10-stems8")
+
+
+def _v10_stems_complete():
+    _bad = []
+    for _s in V10_STEMS:
+        _zarr = TRAIN_DEST / f"{_s}.zarr"
+        _geff = TRAIN_DEST / f"{_s}.geff"
+        _zarr_ok = _zarr.is_dir() and any(_zarr.rglob("zarr.json"))
+        if not (_zarr_ok and _geff.exists()):
+            _bad.append(_s)
+    return _bad == [], _bad
+
+
+def _v10_extract_stems_zip(zip_path, comp_dest):
+    # Giải archive stems8 vào comp_dest (= INPUT_ROOT/<competition>). Chấp nhận 2 dạng:
+    # (1) zip ngoài (datasets download không --unzip) chứa zip lồng ở GỐC (train.zip dir-mode
+    #     hay stems8_payload.zip) + có thể MANIFEST.json ở gốc hoặc bên trong zip lồng;
+    # (2) zip phẳng train/... + MANIFEST.json (dạng nếp C tự đóng gói). Trả manifest dict|None.
+    _manifest = None
+    _tmp = Path(tempfile.mkdtemp(prefix="v10stems_"))
+
+    def _walk(zf):
+        nonlocal _manifest
+        for _m in zf.namelist():
+            if _m.endswith("/"):
+                continue
+            _base = _m.split("/")[-1]
+            if _base == "MANIFEST.json" and _manifest is None:
+                _manifest = json.loads(zf.read(_m).decode("utf-8"))
+            elif _base.endswith(".zip") and "/" not in _m:
+                _inner = _tmp / f"inner{len(list(_tmp.iterdir()))}.zip"
+                _inner.write_bytes(zf.read(_m))
+                with zipfile.ZipFile(_inner) as _zin:
+                    _walk(_zin)
+            elif _m.startswith("train/"):
+                zf.extract(_m, comp_dest)
+
+    try:
+        with zipfile.ZipFile(zip_path) as zf:
+            _walk(zf)
+        return _manifest
+    finally:
+        shutil.rmtree(_tmp, ignore_errors=True)
+
+
+def _v10_verify_manifest(manifest, comp_dest):
+    _files = (manifest or {}).get("files") or {}
+    if not _files:
+        return False, "manifest rỗng / thiếu danh sách file"
+    _missing, _size_bad = [], []
+    for _rel, _sz in _files.items():
+        _fp = comp_dest / _rel
+        if not _fp.is_file():
+            _missing.append(_rel)
+        elif _sz and _fp.stat().st_size != _sz:
+            _size_bad.append(_rel)
+    if _missing or _size_bad:
+        return False, f"{len(_missing)} file thiếu · {len(_size_bad)} sai size (vd {(_missing + _size_bad)[:2]})"
+    return True, f"{len(_files):,} file khớp tên+size hoàn toàn"
+
+
+def _v10_pack_stems_zip():
+    # Nếp C thành công → đóng gói train/8 stems + MANIFEST.json (STORED — zarr đã nén sẵn)
+    _out = Path(tempfile.mkdtemp(prefix="v10pack_")) / "stems8.zip"
+    _mani = {"stems": V10_STEMS, "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "files": {}}
+    with zipfile.ZipFile(_out, "w", zipfile.ZIP_STORED) as zf:
+        for _s in V10_STEMS:
+            for _suf in (".zarr", ".geff"):
+                _root = TRAIN_DEST / (_s + _suf)
+                for _dp, _dn, _fn in os.walk(_root):
+                    for _f in _fn:
+                        _fp = Path(_dp) / _f
+                        _rel = f"train/{_s}{_suf}/{_fp.relative_to(_root).as_posix()}"
+                        zf.write(_fp, _rel)
+                        _mani["files"][_rel] = _fp.stat().st_size
+        _mani["n_files"] = len(_mani["files"])
+        _mani["total_bytes"] = sum(_mani["files"].values())
+        zf.writestr("MANIFEST.json", json.dumps(_mani, indent=1))
+    print(f"[v10-lab-setup] đóng gói stems8.zip: {_mani['n_files']} file · {_mani['total_bytes'] / 1e9:.2f} GB (để lưu Drive)")
+    return _out
 
 
 def _v10_fetch_comp_file(name):
@@ -732,26 +1053,84 @@ def _v10_fetch_comp_file(name):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-_done = 0
-_done_bytes = 0
-_errors = []
-with ThreadPoolExecutor(max_workers=4) as _pool:
-    _futures = {_pool.submit(_v10_fetch_comp_file, n): n for n in _wanted_names}
-    for _fut in as_completed(_futures):
-        _n = _futures[_fut]
+_t0 = time.time()
+_stems_zip_local = None
+_stems_ok, _stems_bad = _v10_stems_complete()
+if _stems_ok:
+    print(f"[v10-lab-setup] 8 stems đã có sẵn trên đĩa — bỏ qua toàn bộ tải ({time.time() - _t0:.0f}s dò)")
+    # [v10-drive] backfill: đã có trên đĩa nhưng Drive chưa có cache → đóng gói lưu lên (1 lần)
+    if V10_DRIVE_MOUNTED and not _v10_drive_has_zip("stems8", _V10_DRIVE_MANIFEST):
+        _stems_zip_local = _v10_pack_stems_zip()
+else:
+    print(f"[v10-lab-setup] thiếu stems {_stems_bad} — nếp tải A(Drive) → B(dataset stems8) → C(per-file)")
+    _got = False
+
+    # --- nếp A: GOOGLE DRIVE cache (0 API call Kaggle) -------------------------------------------
+    _dz = _v10_drive_load_zip("stems8", _V10_DRIVE_MANIFEST)
+    if _dz is not None:
+        _mani_a = _v10_extract_stems_zip(_dz, INPUT_ROOT / V10_COMPETITION)
+        _ok_a, _why_a = _v10_verify_manifest(_mani_a, INPUT_ROOT / V10_COMPETITION)
+        shutil.rmtree(_dz.parent, ignore_errors=True)
+        if _ok_a:
+            _got = True
+            print(f"[v10-lab-setup] [A] stems8 từ GOOGLE DRIVE — {_why_a} · 0 API call Kaggle")
+        else:
+            print(f"[v10-lab-setup] [A] Drive cache verify LỖI ({_why_a}) — chuyển nếp B")
+
+    # --- nếp B: dataset stems8 — 1 API call tải cả 3.4GB ------------------------------------------
+    if not _got:
+        _tmpb = Path(tempfile.mkdtemp(prefix="v10stems8_"))
         try:
-            _name, _sz = _fut.result()
-            _done += 1
-            _done_bytes += _sz
+            v10_run_kaggle(["datasets", "download", V10_STEMS8_DATASET, "-p", str(_tmpb), "-q"], timeout=7200)
+            _zb = sorted(_tmpb.glob("*.zip"))
+            if not _zb:
+                raise RuntimeError(f"datasets download {V10_STEMS8_DATASET} không trả file zip nào")
+            _mani_b = _v10_extract_stems_zip(_zb[0], INPUT_ROOT / V10_COMPETITION)
+            _ok_b, _why_b = _v10_verify_manifest(_mani_b, INPUT_ROOT / V10_COMPETITION)
+            if not _ok_b:
+                raise RuntimeError(f"verify MANIFEST stems8 thất bại: {_why_b}")
+            _got = True
+            _stems_zip_local = _zb[0]
+            print(f"[v10-lab-setup] [B] stems8 từ DATASET {V10_STEMS8_DATASET} — {_why_b} · 1 API call")
         except Exception as _e:
-            _errors.append((_n, f"{type(_e).__name__}: {_e}"))
-        if _done % 200 == 0 or _done == len(_wanted_names):
-            print(f"[v10-lab-setup] tiến độ {_done}/{len(_wanted_names)} file · {_done_bytes / 1e9:.2f} GB · {time.time() - _t0:.0f}s")
-if _errors:
-    print(f"[v10-lab-setup] {len(_errors)} file LỖI:")
-    for _n, _e in _errors[:10]:
-        print("   ", _n, "→", _e)
-    raise RuntimeError(f"tải competition files thất bại {len(_errors)}/{len(_wanted_names)} — xem log trên (chạy lại cell để retry)")
+            print(f"[v10-lab-setup] [B] dataset stems8 LỖI ({type(_e).__name__}: {_e}) → fallback nếp C per-file")
+            shutil.rmtree(_tmpb, ignore_errors=True)
+
+    # --- nếp C: filelist 3 bậc + per-file 429-armor (v4 giữ nguyên) -------------------------------
+    if not _got:
+        _all_rows = _v10_load_comp_rows()
+        _wanted = [r for r in _all_rows if any(r["name"].startswith(f"train/{s}.") for s in V10_STEMS)]
+        _wanted_names = [r["name"] for r in _wanted]
+        _total_bytes = sum(int(r.get("totalBytes") or r.get("size") or 0) for r in _wanted)
+        print(f"[v10-lab-setup] [C] cần tải {len(_wanted_names):,} file cho {len(V10_STEMS)} stems — tổng {_total_bytes / 1e9:.2f} GB")
+
+
+        _done = 0
+        _done_bytes = 0
+        _errors = []
+        with ThreadPoolExecutor(max_workers=4) as _pool:
+            _futures = {_pool.submit(_v10_fetch_comp_file, n): n for n in _wanted_names}
+            for _fut in as_completed(_futures):
+                _n = _futures[_fut]
+                try:
+                    _name, _sz = _fut.result()
+                    _done += 1
+                    _done_bytes += _sz
+                except Exception as _e:
+                    _errors.append((_n, f"{type(_e).__name__}: {_e}"))
+                if _done % 200 == 0 or _done == len(_wanted_names):
+                    print(f"[v10-lab-setup] [C] tiến độ {_done}/{len(_wanted_names)} file · {_done_bytes / 1e9:.2f} GB · {time.time() - _t0:.0f}s")
+        if _errors:
+            print(f"[v10-lab-setup] {len(_errors)} file LỖI:")
+            for _n, _e in _errors[:10]:
+                print("   ", _n, "→", _e)
+            raise RuntimeError(f"tải competition files thất bại {len(_errors)}/{len(_wanted_names)} — xem log trên (chạy lại cell để retry)")
+        _stems_zip_local = _v10_pack_stems_zip()
+
+# lưu zip stems8 lên Drive (nếu Drive mounted) — các session sau đi thẳng nếp A (0 API call)
+if _stems_zip_local is not None:
+    _v10_drive_save_zip(_stems_zip_local, "stems8")
+    shutil.rmtree(_stems_zip_local.parent, ignore_errors=True)
 
 # --- 5) verify 8 stems mỗi stem có .zarr + .geff ------------------------------------------------
 _bad = []
@@ -1014,6 +1393,7 @@ def static_checks(monolith_src: str, colab_nb: dict, cpu_nb: dict) -> None:
         "EXPERIMENT_TAG = 'secondary_deepcenter_tta_0947_v10lab_grid'",
         "os.environ['BIOHUB_HOCT_DEADLINE_H'] = os.environ.get('BIOHUB_HOCT_DEADLINE_H') or '9'",
         "[v10-lab-roots]",
+        "[v10-lab-subproc]",
         "def _v10_p",
         "V10_INPUT_ROOT = os.environ.get('V10_INPUT_ROOT', '/kaggle/input')",
         "V10_WORKING_ROOT = os.environ.get('V10_WORKING_ROOT', '/kaggle/working')",
@@ -1029,8 +1409,9 @@ def static_checks(monolith_src: str, colab_nb: dict, cpu_nb: dict) -> None:
             sys.exit(f"[check] THẤT BẠI: thiếu hàm production {kept!r}")
     print(f"[check] {len(mon_required)} mấu [v10-lab] đủ + block [ver9] submission-level đã bỏ + hàm production giữ nguyên")
 
-    # ---- [v10-lab-roots] — wrap count + không sót literal /kaggle/* ngoài header roots ----
-    _n_wrapped = monolith_src.count("_v10_p(") - 1  # trừ dòng `def _v10_p(`
+    # ---- [v10-lab-roots] — wrap count + không sót literal /kaggle/* ngoài header roots + block subproc ----
+    _sub_extra = SUBPROC_HELPER_BLOCK.count("_v10_p(")
+    _n_wrapped = monolith_src.count("_v10_p(") - 1 - _sub_extra  # trừ `def _v10_p(` + literal trong block subproc
     if _n_wrapped != V10_PATH_WRAP_COUNT:
         sys.exit(f"[check] THẤT BẠI: literal /kaggle/* đã wrap = {_n_wrapped} ≠ transform {V10_PATH_WRAP_COUNT}")
     _roots_i0 = monolith_src.index("# ==== [v10-lab-roots]")
@@ -1038,9 +1419,13 @@ def static_checks(monolith_src: str, colab_nb: dict, cpu_nb: dict) -> None:
     _literal_re = re.compile(r"[fF]{0,2}['\"](/kaggle/(?:input|working)[^'\"]*)['\"]")
     _header_n = len(_literal_re.findall(monolith_src[_roots_i0:_roots_i1]))
     _total_n = len(_literal_re.findall(monolith_src))
-    if _total_n - _header_n != V10_PATH_WRAP_COUNT:
-        sys.exit(f"[check] THẤT BẠI: literal /kaggle/* ngoài header roots = {_total_n - _header_n} ≠ wrap {V10_PATH_WRAP_COUNT} — có literal chưa wrap")
-    print(f"[check] [v10-lab-roots] {V10_PATH_WRAP_COUNT} literal /kaggle/* wrap trong _v10_p + header roots {_header_n} literal khóa mặc định")
+    _sub_i0 = monolith_src.find("# [v10-lab-subproc]")
+    if _sub_i0 < 0:
+        sys.exit("[check] THẤT BẠI: thiếu block [v10-lab-subproc] (helper cho script con)")
+    _sub_n = len(_literal_re.findall(monolith_src[_sub_i0:_sub_i0 + len(SUBPROC_HELPER_BLOCK)]))
+    if _total_n - _header_n - _sub_n != V10_PATH_WRAP_COUNT:
+        sys.exit(f"[check] THẤT BẠI: literal /kaggle/* ngoài header roots + subproc = {_total_n - _header_n - _sub_n} ≠ wrap {V10_PATH_WRAP_COUNT} — có literal chưa wrap")
+    print(f"[check] [v10-lab-roots] {V10_PATH_WRAP_COUNT} literal /kaggle/* wrap trong _v10_p + header roots {_header_n} + subproc {_sub_n} literal khóa mặc định")
 
     # ---- notebook checks
     for name, nb, n_cells in (("colab", colab_nb, 4), ("cpu", cpu_nb, 3)):
@@ -1068,7 +1453,12 @@ def static_checks(monolith_src: str, colab_nb: dict, cpu_nb: dict) -> None:
                   'os.environ["V10_INPUT_ROOT"]', 'os.environ["V10_WORKING_ROOT"]', "/content/kaggle/input", "_v10_writable",
                   '%pip install -q --upgrade "kaggle>=2.2"', "V10_KAGGLE_CMD", "[*V10_KAGGLE_CMD, *args]", 'shutil.which("kaggle")',
                   "import threading", "_V10_PAUSE_UNTIL", "429 rate-limit", "V10_FILELIST_DATASET", "def _v10_load_comp_rows",
-                  "v10_comp_files_cache.csv", "time.sleep(2.0)", "đã tải ở lần chạy trước"):
+                  "v10_comp_files_cache.csv", "time.sleep(2.0)", "đã tải ở lần chạy trước",
+                  "V10_STEMS8_DATASET", "vietnguyen130593/biohub-v10-stems8", "def _v10_drive_try_mount",
+                  'drive.mount("/content/drive")', "V10_DRIVE_CACHE", "biohub-v10-cache", "def _v10_extract_stems_zip",
+                  "def _v10_verify_manifest", "def _v10_pack_stems_zip", "def _v10_extract_dataset_zip", "MANIFEST.json",
+                  "ZIP_STORED", "_v10_drive_save_zip", "_v10_drive_load_zip", "def _v10_stems_complete",
+                  "[A] stems8 từ GOOGLE DRIVE", "[B] stems8 từ DATASET", "[C] cần tải", "V10_DRIVE_MANIFEST"):
         if token not in _setup:
             sys.exit(f"[check] cell setup Colab thiếu {token!r}")
     _cpu_lab = "".join(cpu_nb["cells"][1]["source"])

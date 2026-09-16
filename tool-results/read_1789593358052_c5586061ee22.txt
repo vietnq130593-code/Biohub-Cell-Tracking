@@ -1,0 +1,219 @@
+   760→Work Log:
+   761→- Đọc worklog các Task APP-VER8 / BIO-DEPLOY-8 / BIO-REVIEW-9 (rev-3) / BIO-DEPLOY-9 để nắm pattern cập nhật app theo version và ngữ cảnh ver-9 (push 15:56 UTC 15/9, kernel biohub-ver9 v1, GPU T4×2, 9 input, ~2,5-3h; nền v3-fast COMPLETE 1,74h cổng PASS).
+   762→- src/lib/competition-data.ts: THÊM mục ver-9 vào cuối KAGGLE_RESULTS (id "ver9", label "Ver 9 · HOCT veto + RLF", kaggleRef biohub-ver9 v1 GPU T4×2 · 9 input, status RUNNING, mọi số liệu null → hiển thị "—") với 6 notes: (a) HOCT consensus veto mode 2 port nguyên văn sjlee101/biohub-lf-hoctveto-div-b — linker thứ hai độc lập royerlab general_v0 6,25M params arXiv 2607.11754 chạy trên node set FINAL, mọi cạnh HOCT không đề xuất bị bỏ, sjlee 20 video honest +0,0040 [+0,0006, +0,0058], false divisions 55→29; (b) RLF pawanmali divfix — fork có tổ tiên cũng fork bỏ cạnh con xa, GT 0/132 lặp lineage, guard ≤ 0,5%; (c) hardcode tight per-prefix 44b6→5,5/6bba→6,5 + BỎ PPSWEEP (v1 fail hidden-test runtime vì sweep 86%); (d) [ver9-gate] system-view official SAU veto+RLF trên 8 stems → ver9_gate_report.json 6 cổng §6 rev-2 + ELEVEN → verdict SUBMIT/SUBMIT_SAFE/FALLBACK_V3FAST; (e) nền v3-fast COMPLETE 1,74h cổng PASS (proxy 0,9594, adjEJ +0,0025, div 4/1/8, 241.355 dòng); (f) kỳ vọng +0,004…+0,007 so với v3-fast.
+   763→- src/lib/competition-data.ts (ver8): status RUNNING → COMPLETE (v3-fast đã xong), submittedAt cập nhật đuôi "v3-fast COMPLETE", THÊM note "★ v3-fast COMPLETE 15:35 UTC chỉ sau 1,74h — CỔNG PASS … là fallback của ver-9" (giữ nguyên 7 note cũ). LB_CONTEXT giữ nguyên (đã đúng 3569 đội / hạng 183 / cụm 0,948 = 46 đội), chỉ đổi comment cho rõ.
+   764→- src/components/competition/hero.tsx: badge amber "Ver 8 · v1 FAIL runtime hidden test — v3-fast đang chạy…" → "Ver 9 · HOCT consensus veto + RLF — ĐANG CHẠY (GPU T4×2)" (giữ Loader2 animate-spin + border/bg/text amber); 4 stat thành tích giữ nguyên.
+   765→- src/components/competition/tracking-demo.tsx: type Mode thêm 'ver9' đứng đầu; MODE_LABEL ver9 "Ver 9 · đang chạy" (ver8 → "Ver 8 · v3-fast COMPLETE"); default mode = 'ver9'; VERSION_INFO thêm 6 chips ver-9 (HOCT veto mode 2 · RLF · tight 5.5/6.5 hardcode · no sweep · gate 6 cổng §6 rev-2 · [ver9-gate] report); analysis + console log map ver9 → tái dùng pipeline ver-8 (nền ensemble ver-7, không đụng tracking-pipeline.ts); console log ver-9 đúng 11 dòng: ensemble → fusion → link → safe-div → [ver9·divnet] → [ver9·re-parent] → [ver9·hoct-veto mode 2 +0,0040 CI-dương sjlee] → [ver9·rlf 0/132 GT] → [ver9·tight hardcode 5,5/6,5 bỏ sweep] → [ver9-gate ref vs veto2 vs veto2rlf → SUBMIT/SUBMIT_SAFE/FALLBACK] → [submit biohub-ver9 v1 ĐANG CHẠY ~2,5-3h]; dòng [v3-fast] của log ver-8 cập nhật sang COMPLETE 1,74h cổng PASS; selector ToggleGroup thêm "Ver 9 · đang chạy" ở ĐẦU (5 mục); CardDescription + header comment thêm câu ver-9.
+   766→- src/components/competition/submission-lab.tsx: tab "Phiên bản & điểm" THÊM card ver-9 (md:col-span-2, amber, icon ScanSearch + Loader2 spin) ở ĐẦU registry: badge "ĐANG CHẠY · GPU T4×2 (~2,5-3 H)", kiến trúc (HOCT veto mode 2 port sjlee101 · RLF pawanmali · tight 5.5/6.5 hardcode bỏ sweep · 9 input +2 HOCT datasets), hộp amber "KỲ VỌNG +0,004…+0,007 so với v3-fast" (sjlee +0,0040 CI-dương 20 video · RLF 0/132 GT), hộp [ver9-gate] 6 cổng + verdict, bảng "Cơ sở v3-fast" (runtime 1,74h ≤ 2h · adjEJ 0,9287 +0,0025 · div 4/1/8 · proxy 0,9594 · 241.355 dòng · cổng PASS). Card ver-8: badge → "v3-fast COMPLETE — cổng PASS (fallback ver-9)", hộp amber v3-fast cập nhật kết quả COMPLETE, CardDescription đuôi cập nhật.
+   767→- LINT: bun run lint EXIT 0 sạch; bunx tsc --noEmit 0 lỗi trong src/ (chỉ examples/skills template có sẵn — không phải app).
+   768→- BROWSER VERIFY (agent-browser, dev server PM2 port 3000): trang / HTTP 200, 0 lỗi console (chỉ HMR/Fast Refresh info), 0 page errors; hero badge amber "Ver 9 · HOCT consensus veto + RLF — ĐANG CHẠY (GPU T4×2)"; selector 5 mục với "Ver 9 · đang chạy" pressed=on mặc định — bấm Ver 6 (9 dòng log) / Ver 8 (11 dòng, đuôi v3-fast COMPLETE) / quay lại Ver 9 (11 dòng [ver9·divnet]/[ver9·re-parent]/[ver9·hoct-veto]/[ver9·rlf]/[ver9·tight]/[ver9-gate]/[submit đang chạy]) OK; bảng KAGGLE_RESULTS có hàng "Ver 9 · HOCT veto + RLF" badge ĐANG CHẠY + mọi số null → "—" + 6 notes hiển thị, hàng Ver 8 chuyển COMPLETE; card ver-9 hiển thị đầy đủ ở ĐẦU registry (badge/kiến trúc/kỳ vọng/gate/cơ sở v3-fast), card ver-8 badge mới; mobile 390px scrollWidth=390 không tràn ngang, footer đáy (footerAtBottom=true). Screenshots: kaggle/tools/e2e-ver9-{hero,selector,card,mobile}.png.
+   769→
+   770→Stage Summary:
+   771→- App phản ánh đúng trạng thái ver-9 RUNNING: badge hero amber + selector mặc định "Ver 9 · đang chạy" + console log 11 dòng + card ver-9 (kỳ vọng +0,004…+0,007, cơ sở v3-fast, [ver9-gate]) + hàng bảng KAGGLE_RESULTS mọi số "—".
+   772→- Ver-8 được chuyển sang COMPLETE với v3-fast cổng PASS làm fallback của ver-9; LB_CONTEXT 3569 đội / hạng 183 / cụm 0,948 = 46 đội.
+   773→- Không đổi route, không đụng file ngoài 4 file trên, không thêm deadline/prize, layout/footer giữ nguyên; lint EXIT 0.
+   774→
+   775→---
+   776→Task ID: BIO-SUBMIT-9
+   777→Agent: main (Bio — AI engineer/system architect/algorithm expert)
+   778→Task: Triển khai ver-9 trên Kaggle và nộp bài ver-9 (tiếp tục từ BIO-DEPLOY-9 — kernel đã push RUNNING)
+   779→
+   780→Work Log:
+   781→- Kiểm tra 18:50 UTC: kernel biohub-ver9 v1 COMPLETE (~2,4h kể từ push 15:56) — tải output toàn bộ (submission.csv 240.871 dòng + ver9_gate_report.json + ver9_rlf_report.json + log).
+   782→- Đọc gate report: adjEJ veto2rlf vs ref +0,0017 (0,9287→0,9303 — tín hiệu dương ổn định ~71k cạnh) · div_tp 4→3 (−1/4 mẫu, nhiễu) · div_fn 8→9 · proxy −0,0060 → gates G1/G3/G4/G5/G6 PASS, G2 (div_tp) + ELEVEN FAIL → verdict FALLBACK_V3FAST.
+   783→- Phân tích log: pipeline chạy đúng thiết kế — test 4 video → ghi 240.873 dòng (HOCT veto áp trong lần ghi, mode 2, veto 4 cạnh, 949s) → RLF bỏ 2 cạnh (0,0017%) → 240.871 dòng cuối; validator replay 8 stems veto 20 cạnh. RLF report: dropped=2/118.061 cạnh.
+   784→- Kiểm định topology submission ver-9 local: 122.812 nodes + 118.059 edges · 0 cạnh dt≠±1 · max_out 2 · max_in 1 · 76 division parents ✓.
+   785→- SUBMIT BỊ CHẶN 400: kaggle CLI file submit → "This competition only accepts Submissions from Notebooks" — phát hiện cơ chế thật: cuộc thi notebooks-only, mọi submission phải là code submission từ kernel version. Giải thích các submission trước (ver-6/7/8) vào bằng create_code_submission; file bị bỏ qua (totalBytes 207MB = output kernel, KHÔNG phải file 12,3MB).
+   786→- Khám phá kagglesdk: CompetitionApiClient.create_code_submission(ApiCreateCodeSubmissionRequest{competition_name, kernel_owner, kernel_slug, kernel_version, file_name, submission_description}) — submit từ kernel version CỤ THỂ qua API, không cần re-push.
+   787→- get_submission_limits: numToday=2, numTotal=7, numAllowedNow=3 (limit 5/ngày).
+   788→- ★ SUBMIT VER-9 19:07:48 UTC 15/9 — ref 56261328, code submission từ kernel vietnguyen130593/biohub-ver9 v1 (HOCT veto mode 2 + RLF + tight 5,5/6,5 hardcode + no sweep). Kaggle rerun hidden ~4,8h (public 2,4h × ~2 < 12h an toàn) → điểm dự kiến ~00:00-01:00 UTC.
+   789→- ★ SUBMIT A/B ĐỐI CHỨNG 19:09 UTC — ref 56261360, code submission từ kernel biohub-ver8 v3 (v3-fast, COMPLETE 1,74h, cổng PASS, verdict fallback). Cùng batch chấm → sáng mai so 2 điểm tách riêng hiệu ứng HOCT veto + RLF trên LB thật. Chi phí 0 GPU (dùng kernel version sẵn có). Còn 1 lượt hôm nay.
+   790→- Quyết định vượt verdict FALLBACK_V3FAST (chỉ nộp v3-fast) sang nộp A/B CẢ HAI: bằng chứng trái chiều — adjEJ validator +0,0017 (71k cạnh tin cậy) + sjlee field +0,0040 CI-dương vs proxy −0,006 (bị kéo bởi divJ 4-mẫu thưa 10× so hidden 124 forks/video); còn 3 lượt → field test là cách duy nhất giải dứt điểm; kỷ luật cổng §6 rev-2 thiết kế cho thế giới 1-lượt.
+   791→- Watch nền PID 21249 (/tmp/watch-subs.sh, poll 300s → /tmp/ver9-subs-watch.log) theo dõi 56261328 + 56261360 + 56255523.
+   792→- APP CẬP NHẬT (frontend): competition-data.ts (ver9: status SUBMITTED, submittedAt 19:07 A/B, runSeconds 8663, rows 240.871, proxy 0,9534/adjEJ 0,9303/divJ 0,2308 từ gate report + 7 notes mới: nộp A/B, kernel results, gate trái chiều, vì sao vẫn nộp, RLF no-op, quota) · hero.tsx (badge emerald "Ver 9 · ĐÃ NỘP A/B (56261328 + 56261360) — đang chấm trên hidden test") · tracking-demo.tsx (MODE_LABEL "Ver 9 · đã nộp A/B", console log ver-9 12 dòng: +[ver9-gate] kết quả thật +[ver9-run] 2,4h COMPLETE +[submit] ĐÃ NỘP A/B 19:07, CardDescription + header comment + aria-label/selector label) · submission-lab.tsx (card ver-9 chuyển emerald: badge "ĐÃ NỘP A/B · ĐANG CHẤM HIDDEN TEST", CardDescription 2 refs + kernel + dự kiến điểm, hộp KẾT QUẢ KERNEL + [ver9-gate] thay KỲ VỌNG, hộp [ver9-run] topology 0 lỗi, caption v3-fast "đã nộp làm ĐỐI CHỨNG A/B (56261360)").
+   793→- LINT EXIT 0 · PM2 biohub-web online 20h · HTTP 200 · agent-browser: 0 lỗi console/page, hero badge + selector ver-9 checked (aria-label mới) + card emerald + nội dung 56261328/56261360/FALLBACK_V3FAST/240.871/+0,0017 đều hiển thị · mobile 390px scrollWidth=390 · footer đáy khi scroll cuối. Screenshots: kaggle/tools/e2e-ver9-submitted-{hero,card,mobile}.png.
+   794→
+   795→Stage Summary:
+   796→- ★ VER-9 ĐÃ NỘP: 56261328 (19:07 UTC 15/9) — HOCT consensus veto mode 2 + RLF + tight hardcode, từ kernel biohub-ver9 v1, đang chấm hidden test ~4,8h.
+   797→- A/B field test: 56261360 v3-fast đối chứng (kernel biohub-ver8 v3) nộp 19:09 — cùng batch → sáng mai 2 điểm tách hiệu ứng veto trên LB thật.
+   798→- Phát kiến hạ tầng QUAN TRỌNG: cuộc thi notebooks-only — submit phải qua create_code_submission (kagglesdk) với kernel_version cụ thể; file submission bị bỏ qua hoàn toàn (CLI file submit bị 400).
+   799→- Gate verdict FALLBACK_V3FAST (proxy −0,006) nhưng adjEJ +0,0017 dương + sjlee CI-dương → nộp A/B cả hai (3 lượt còn → dùng 2, còn 1).
+   800→- Điểm dự kiến ~00:00-01:00 UTC: ver-9 >0,947 → giữ ver-9 làm production; ver-9 ≤0,947 → v3-fast là mỏ neo, v10 xoá veto giữ RLF+tight.
+   801→- 56255523 (13:33, description rỗng, không phải tool ta) vẫn PENDING — nghi submit từ kernel v2 sẽ fail runtime.
+   802→
+   803→---
+   804→Task ID: BIO-VERIFY-APP-16
+   805→Agent: main (Bio — AI engineer/system architect/algorithm expert)
+   806→Task: User (Mr. Architect) yêu cầu: (1) xác minh app trong sandbox là bản mới nhất hay bị reset; nếu không phải thì tải lại từ GitHub; (2) sau đó thảo luận bước triển khai tiếp theo. Bối cảnh user cung cấp: ver-9 v1 submission FAIL, user đã gửi lại; ver-8 v3-fast nộp thành công → hạng 165, huy chương bạc; ver-7 xưa chỉ ~500+.
+   807→
+   808→Work Log:
+   809→- KIỂM TRA SANDBOX SAUCE DỰNG LẠI: hạ tầng đã rebuild (PM2 biến mất — server giờ chạy `bun run dev` native PID 1052 từ 10:26 16/9; kaggle CLI/python kagglesdk mất; thư mục clone /home/z/Biohub-Cell-Tracking bị XÓA) — NHƯNG /home/z/my-project bảo toàn nguyên vẹn: worklog 801 dòng (có BIO-SUBMIT-9), kaggle/ver-9 + output/latest đầy đủ (ver9_gate_report.json, submission.csv), screenshots ver-9-submitted, file mtime 15/9 19:10-19:11.
+   810→- SO SÁNH VERSION: GitHub repo vietnq130593-code/Biohub-Cell-Tracking (public, query anonymous) — commit mới nhất 0e1c017 lúc 15/9 16:08:04 UTC "ver-9: research outputs". App sandbox có cập nhật SAU ĐÓ (19:10-19:11 — trạng thái A/B submitted + notes BIO-SUBMIT-9) → KẾT LUẬN: app sandbox KHÔNG bị reset, đang NEW HƠN GitHub ~3h công việc → KHÔNG tải lại (tải lại sẽ làm regress). Auto-backup commit ad8e185 (15/9 19:15:17) + commit thủ công 1749f9c (16/9) bảo toàn trạng thái.
+   811→- CÀI LẠI TOOLING: `uv pip install kaggle` (CLI 2.2.4 + kagglesdk) trong /home/z/.venv — leaderboard + submissions API hoạt động lại.
+   812→- XÁC MINH KAGGLE (khớp 100% lời user): 56261328 (ver-9) complete KHÔNG điểm + errorDescription "exceeded the allowed runtime" — FAIL runtime hidden test; 56261360 (v3-fast) complete score 0.947; 56276434 (user gửi lại 10:29:13 16/9, pending) — url scriptVersionId=350108883 TRÙNG KHỚP 56261328 → gửi lại CÙNG kernel v1 chưa sửa → dự báo fail lần nữa (deterministic: cùng code + cùng data + cùng limit). 56255523 giải mã: biohub-ver8 v2 (scriptVersionId 349929611) — fail runtime như dự đoán.
+   813→- LEADERBOARD ĐẦY ĐỦ (16/9 10:39 UTC): 3602 đội · Mr. Architect hạng 165 điểm 0.947 (submission 15/9 19:09:23 = v3-fast) · cụm 0.947 = 525 đội (hạng 144-668), ta vị trí 22/525 (full-precision đầu cụm) · cụm 0.948 = 55 đội (hạng 89-143) · top 1 Sergio Alvarez 0.970 · silver cutoff top 180 (5%) → dư 15 chỗ · "daoviet" (hạng 203) là đội KHÁC — LB_CONTEXT cũ ghi nhầm tên team, đã sửa thành Mr. Architect.
+   814→- PHÂN TÍCH NHẢY HẠNG 500+ → 165: LB sắp theo điểm full-precision — v3-fast ≈ 0,9475-0,9479 (re-parent + DivNet rank + tight hardcode = +~0,0005-0,0009 THẬT trên hidden) vượt 503/525 đội cùng 0.947 hiển thị; ver-7 xưa ~500+ đáy cụm.
+   815→- PHÂN TÍCH FAIL VER-9: v3-fast 1,74h public PASS ≠ ver-9 2,4h public FAIL → hidden ≈ 5-7× public (không phải ~2× ước tính cũ). Ba nhân tố: (1) HOCT transformer ~bậc 2 theo node/frame trên hidden embryo-3 dày nhất (124 forks/video); (2) ~2h [ver9-gate] validator replay + HOCT 8 stems overhead trong notebook; (3) budget 900s/video × nhiều video tích lũy. Bài học: notebook production phải TỐI THIỂU (bỏ validator/gate replay); v10 = v3-fast + RLF (chi phí ~0) + bỏ HOCT.
+   816→- APP CẬP NHẬT (4 file, commit 1749f9c): competition-data.ts (type +FAILED · ver8: lbScore 0.947 + 6 notes bạc · ver9: status FAILED + 6 notes fail/resubmit/phân tích · LB_CONTEXT: Mr. Architect/165/SILVER/525/22/55/3602) · hero.tsx (badge bạc Medal + badge rose ver-9 fail · 4 stats: 0.947 · Hạng 165 HUY CHƯƠNG BẠC · 105 phút pass hidden · cụm 525 vị trí 22) · tracking-demo.tsx (MODE_LABEL, STATUS_BADGE +FAILED rose, console log ver-9 4 dòng mới [submit][fail-analysis][resubmit][lesson] + ver-8 [lb-result][why-165], default mode ver8, LB viz + narrative mới, CardDescription, header comment) · submission-lab.tsx (card ver-9 → rose FAIL + hộp PHÂN TÍCH FAIL + caption v3-fast bạc; card ver-8 → emerald + badge Medal ★ LB 0.947 HẠNG 165/3602 HUY CHƯƠNG BẠC + hộp KẾT QUẢ LB; import Medal).
+   817→- LINT EXIT 0 · tsc src/ 0 lỗi (chỉ examples/skills template cũ) · PM2 không còn — server chạy bun run dev native HTTP 200 · agent-browser: 0 console/page errors, 8/8 content check (badge bạc, badge fail, hạng 165, 22/525, 56276434, PHÂN TÍCH FAIL, KẾT QUẢ LB, 525 đội), selector ver-8 default checked + click ver-9 → log [resubmit]/[fail-analysis]/[lesson] đầy đủ, mobile 390px scrollW=390, footer đáy. Screenshots: kaggle/tools/e2e-ver8-silver-{hero,mobile}.png + e2e-ver9-fail-card.png.
+   818→
+   819→Stage Summary:
+   820→- TRẢ LỜI CÂU HỎI VERSION: app sandbox KHÔNG bị reset — là bản MỚI NHẤT (new hơn GitHub commit 0e1c017 16:08 15/9 một bước: trạng thái A/B submitted + cập nhật bạc hôm nay); KHÔNG cần tải lại từ GitHub. Hạ tầng sandbox được rebuild (PM2/CLI/clone mất) nhưng dữ liệu bảo toàn; đã cài lại kaggle CLI.
+   821→- KHÔNG THỂ PUSH ngược lên GitHub: token ghp_ (chỉ còn phần trong summary) không tìm thấy trong filesystem sau rebuild (clone chứa credentials đã bị xóa) — cần user cung cấp lại token nếu muốn đồng bộ latest lên GitHub.
+   822→- ⚠️ CẢNH BÁO UỐNG: 56276434 (user gửi lại 10:29) = cùng kernel v1 scriptVersionId 350108883 → gần như chắc chắn fail lần nữa; cần kernel v2 (strip validator replay + bỏ HOCT) nhưng GPU quota ~0,4h/30h còn (refresh 19/9 Saturday) → không push kernel GPU mới được trước 19/9.
+   823→- Huy chương BẠC xác nhận độc lập: hạng 165/3602, top 5% cắt 180, dư 15 chỗ, vị trí 22/525 cụm 0.947.
+   824→- Sẵn sàng thảo luận next steps: v10 = v3-fast + RLF + strip overhead (chờ quota 19/9); mục tiêu cụm 0.948 (55 đội); deadline 29/9.
+   825→
+   826→---
+   827→Task ID: V10-LAB-1
+   828→Agent: subagent (V10 lab builder — hoàn tất bởi agent chính sau timeout)
+   829→Task: Dựng bộ công cụ V10 LAB: monolith LAB-mode + notebook Colab T4 + kernel CPU replay + unit tests (kaggle/ver-10-lab/ + download/v10-lab-*.ipynb)
+   830→
+   831→Work Log:
+   832→- (subagent) Đọc worklog + ver-9 monolith + build/make/test patterns + ver8-wave1 precedent; dựng cell-monolith-v10lab.py (patch LAB_MODE bỏ predict-test/submission/audit, LAB_NO_CUDA bypass, LAB_VAL_CACHE_DIR load-cache, [v10-lab-dump] 3 file, [v10-lab-grid] v10_score_config theo pattern ver9_score_final), lab-grid-block.py, build-v10-lab.py (dựng 2 notebook + static checks, offline), test-v10-lab.py 9 nhóm test, 2 notebook colab 4 cell + cpu 3 cell — hết context deadline trước khi hoàn thiện worklog/README.
+   833→- (agent chính) Chạy test lần 1: 85/87 tương đương nhưng 6 FAIL hành vi + crash rows_0_1.csv — chẩn đoán gốc: harness test dùng _CUR snapshot (mock đọc giá trị cũ sau khi v10_score_config override globals) + grid block ghi đè V10_LAB_ROWS_PATH inject. Code monolith ĐÚNG.
+   834→- (agent chính) Vá 2 chỗ: lab-grid-block.py tôn trọng path inject (globals().get(...) or default); test-v10-lab.py _CUR = ns live-view (rebind, global trong run_grid).
+   835→- (agent chính) python3 build-v10-lab.py tái dựng (5311 dòng monolith + colab 364KB + cpu 347KB, static checks 6/6 PASS).
+   836→- (agent chính) Vá 2 chuỗi kỳ vọng env trong test (builder dùng os.environ["K"] = "v" — deterministic, đúng cho notebook) → test lại.
+   837→- (agent chính) Viết README.md (5 bước chạy Colab + env bảng + cơ chế + giả định/rủi ro + quy trình tái build).
+   838→
+   839→Stage Summary:
+   840→- ★ 87/87 unit test PASS (T1 py_compile → T9 sha256 ver-9 gốc không đổi). Artifacts: kaggle/ver-10-lab/{cell-monolith-v10lab.py, lab-grid-block.py, build-v10-lab.py, test-v10-lab.py, README.md, V10-LAB-PLAN.md} + download/{v10-lab-colab.ipynb, v10-lab-cpu.ipynb}.
+   841→- KHÔNG push gì lên Kaggle (GPU quota ~0.4h còn). Notebook Colab: token KGAT + Colab Secrets fallback + assert hướng dẫn tiếng Việt; tải 9 dataset + 8 stems train (phân trang + 4 luồng); LAB_MODE predict + dump cache + grid 9 config + bootstrap CI 95% paired + upload dataset biohub-v10-lab-cache (fallback version, không crash).
+   842→- Rủi ro ghi nhận: chưa verify trên GPU/data thật (lần chạy Colab đầu = verify thật); ước 4-8h/session; cổng kiểm chứng ref phải tái lập adjEJ 0.9287/proxy 0.9594/div 4/1/8 của gate report.
+   843→
+   844→---
+   845→Task ID: V10-STRATEGY-16
+   846→Agent: main (Bio — AI engineer/system architect/algorithm expert)
+   847→Task: Trả lời chiến lược của user 16/9: tấn công 0.948+ bằng v10, đánh giá ver-8 vs ver-9 KHÔNG dùng GPU Kaggle, GPU có cần thiết không, phương án Colab T4, tôi có tự chạy Colab được không.
+   848→
+   849→Work Log:
+   850→- Kiểm chứng hiện trạng qua Kaggle API: 56276434 (user resubmit 10:29 16/9) vẫn pending — cùng scriptVersionId 350108883 với 56261328 đã fail TLE → deterministic fail, không cần đợi; 56261360 (v3-fast) 0.947 COMPLETE; ver-9 chưa từng có điểm vì TLE (không phải chờ chấm).
+   851→- Đào dữ kiện kỹ thuật: ver9_gate_report.json (adjEJ veto2rlf +0.0017, proxy −0.006, div_tp −1, verdict FALLBACK_V3FAST), validator_results.csv 8 stems (per-stem adjEJ 0.815-0.995, σ≈0.07 → phải paired), ppsweep base 1049.6s/config, RLF no-op validator + 2/118k cạnh submission.
+   852→- Phân tích GPU-dependence từ monolith: CUDA hard-check dòng ~1094 (predict); post-processing CPU (filter_output_graph ~17.5'/config); HOCT ~35'/8 stems GPU / 4-8h CPU; official scoring numpy. Kết luận: đánh giá KHÔNG cần GPU — chỉ cần 1 phiên dump raw graphs (Colab T4 được) + kernel production (19/9 quota về).
+   853→- Phát hiện tiền lệ: ver8-wave1 CPU kernel + dataset v7-heldout-preds (GEFF 12MB) đã từng chạy lab 0 GPU; VAL_RAW_GRAPHS (dòng 4716-4742 monolith) chính là điểm replay; 8 stems: 44b6_12dfb391/267148e4/2a2eff9f/341df25f, 6bba_062c8d37/07e24132/085bf656/09961292; 9 dataset VER9_DATASETS liệt kê đủ để cell setup Colab tự tải.
+   854→- Viết kaggle/ver-10-lab/V10-LAB-PLAN.md (~260 dòng): TL;DR, bảng sự thật, bảng phân tích GPU, kiến trúc 1-dump-nhiều-replay, 3 môi trường (Colab T4/Kaggle CPU/sandbox), grid tách biến ver-8 vs ver-9, cổng quyết định D1-D5, lộ trình 16→29/9, rủi ro, 5 bước chạy Colab.
+   855→- Launch subagent V10-LAB-1 (opus) dựng bộ công cụ; subagent hết deadline sau khi sinh artifacts chính → agent chính hoàn tất: vá 2 lỗi (grid path inject + test _CUR live-view), rebuild, sửa 2 chuỗi kỳ vọng env test, KẾT QUẢ 87/87 PASS; viết README + worklog này.
+   856→- Kiểm tra an toàn: git status chỉ file mới (ver-10-lab/ + 2 notebook untracked, ver-9 nguyên vẹn — T9 sha256 PASS); dev server HTTP 200, dev.log sạch.
+   857→
+   858→Stage Summary:
+   859→- ★ Trả lời chiến lược 4 câu hỏi: (1) KHÔNG cần GPU để đánh giá ver-8 vs ver-9 — toàn bộ delta nằm ở post-processing CPU + cache raw graphs; (2) GPU chỉ cần 1 lần dump (Colab T4) + kernel production (quota 19/9); (3) Colab T4 khả thi nhưng tôi KHÔNG tự chạy được như Kaggle (Google không có headless API) — notebook tự chứa + tự upload kết quả về Kaggle dataset = vòng lặp "user 30 giây, tôi phần còn lại"; (4) lab 3 môi trường: Colab T4 (full-fidelity + veto) / Kaggle CPU kernel (tôi tự động, quota tách GPU) / sandbox (stats + unit test).
+   860→- ★ V10-LAB hoàn chỉnh 87/87 PASS: notebook Colab sẵn sàng cho user chạy NGAY HÔM NAY (predict + dump + grid + upload), kernel CPU replay chờ cache, plan D1-D5 + lộ trình 16→29/9.
+   861→- Bước tiếp theo: user upload v10-lab-colab.ipynb lên Colab T4 + dán token + Run all (~4-8h) → tôi đọc dataset biohub-v10-lab-cache → phân tích + push CPU kernel sweep mở rộng → chốt cấu hình v10 → 19/9 quota GPU về thì push kernel production v10 minimal (bài học TLE) → submit.
+   862→
+   863→---
+   864→Task ID: V10-CELL2-TOKEN
+   865→Agent: main (Bio — AI engineer/system architect/algorithm expert)
+   866→Task: User cung cấp Kaggle token KGAT_14164511bf6b0ba6b14ed9050ffdea66 — viết lại cell 2 (S2 SETUP) của v10-lab-colab.ipynb để copy-paste thẳng vào Google Colab không cần cấu hình gì thêm.
+   867→
+   868→Work Log:
+   869→- Inspect download/v10-lab-colab.ipynb: 4 cell (markdown + S2 SETUP + S3 LAB + S4 RESULTS); "cell 2" user nhắc = cell index 1 (S2 SETUP) chứa placeholder KAGGLE_API_TOKEN = "KGAT_DAN_TOKEN_VAO_DAY".
+   870→- NGHIÊN CỨU "LỖI CÚ PHÁP" GIẢ: output terminal hiện 2 list comprehension thiếu dấu "[" (members = / _cand =) → hexdump bytes chứng minh file LUÔN chứa "[" (0x5b) đầy đủ; ast.parse cell S2 PASS. Kết luận: pipeline hiển thị output Bash ăn mất chuỗi "[m ...]" khi in — notebook KHÔNG hỏng; T9 sha256 ver-9 nguyên vẹn; KHÔNG đụng monolith.
+   871→- Vá builder kaggle/ver-10-lab/build-v10-lab.py phần token: nhúng token thật + logic mới ưu tiên Colab Secret KAGGLE_API_TOKEN (tuỳ chọn, nếu có) → fallback token nhúng sẵn; assert KGAT_ hợp lệ giữ nguyên.
+   872→- Cập nhật test-v10-lab.py dòng 564: assertion "token KGAT nhúng sẵn + ưu tiên Colab Secrets" (token thật có mặt, placeholder cũ KHÔNG còn, userdata.get vẫn có).
+   873→- Rebuild: python3 build-v10-lab.py → cell-monolith 5311 dòng + 2 notebook ghi lại (colab 364KB · cpu 347KB), static checks 6/6 PASS.
+   874→- Verify: token baked trong S2 ✓ · ast.parse cell S2 PASS ✓ · test suite 87/87 PASS ✓ · token auth Kaggle API HTTP 200 ✓.
+   875→- Xuất cell 2 hoàn chỉnh (9.416 ký tự) cho user copy-paste vào Colab (nguồn: /tmp/v10-cell2-final.txt + đã dán trong trả lời chat).
+   876→
+   877→Stage Summary:
+   878→- Cell 2 (S2 SETUP) v10-lab-colab đã SẴN SÀNG copy-paste: token KGAT_14164511bf6b0ba6b14ed9050ffdea66 nhúng sẵn — user chỉ cần dán vào 1 cell code Colab (runtime T4 GPU) rồi Run; không cần tạo Secret (Secret vẫn được ưu tiên nếu đặt sau này).
+   879→- Notebook download/v10-lab-colab.ipynb cũng đã rebuild với token tương tự (giữ nguyên 4 cell; monolith byte-for-byte giống ver-9 + patch v10-lab).
+   880→- Bài học hạ tầng ghi nhận: output hiển thị của Bash tool có thể nuốt ký tự "[" trong chuỗi "[m for m ...]" → khi kiểm tra cú pháp code phải dùng ast.parse/py_compile + hexdump, không tin mắt thường vào output in ra.
+   881→- 87/87 test PASS; không push Kaggle; không đụng app Next.js.
+   882→
+   883→---
+   884→Task ID: V10-COLAB-ROOFIX
+   885→Agent: main (Bio — AI engineer/system architect/algorithm expert)
+   886→Task: User chạy cell 2 trên Colab gặp `OSError: [Errno 30] Read-only file system: '/kaggle/input/biohub-tracking-support-pack-50ep-v1'` — xử lý lỗi + audit lại cell 3 + cell 4.
+   887→
+   888→Work Log:
+   889→- CHẨN ĐOÁN: image Colab mới (Python 3.13) có sẵn /kaggle/input là mount READ-ONLY (mkdir cha thành công vì dir tồn tại + exist_ok; tạo thư mục con bị EROFS). Audit phát hiện monolith v10lab hardcode 24 dòng /kaggle/input + 7 dòng /kaggle/working → cell 3 (REPO_DIR/RESUME_DIR/cache dump) và cell 4 (đọc report) sẽ crash tương tự; /kaggle/working trên Colab cũng có thể read-only.
+   890→- KIẾN TRÚC FIX — root override 3 tầng: (1) Cell 2 dò root ghi được bằng probe ghi file (_v10_writable, except OSError bắt cả EROFS) → root read-only thì chuyển /content/kaggle/{input,working} + export env V10_INPUT_ROOT/V10_WORKING_ROOT; giữ /kaggle/input nếu ghi được HOẶC đã có dataset gắn sẵn (phòng chạy trên Kaggle thật); (2) build-v10-lab.py P16: regex wrap 38 literal /kaggle/* trong monolith vào _v10_p(...) — hàm runtime dịch path theo env, env thiếu → path nguyên vẹn (Kaggle cpu notebook hành ver-9 y hệt); P17: inject header [v10-lab-roots] ngay sau `import os` (trước lần dùng đầu tiên); (3) Cell 3 thêm COLAB_ROOTS_BLOCK dò lại roots nếu restart runtime (env mất, file còn); Cell 4 resolve WORKING_DIR từ env + fallback dò /content/kaggle/working khi thiếu report + cảnh báo upload khi thiếu token.
+   891→- Các chỉnh phụ: deps command rewrite theo INPUT_ROOT (cả 2 dạng path mount), skip dataset khi root read-only đã có sẵn thư mục (attached), static_checks thêm invariant wrap-count (38 literal ngoài header == số _v10_p gọi) + marker roots + cell checks mới, header md cập nhật (token nhúng + tự xử read-only).
+   892→- REBUILD: monolith 5329 dòng (+18 header) · colab 370KB · cpu 350KB · 6/6 static checks PASS (38 literal wrap + 14 literal khóa mặc định trong header).
+   893→- TEST: test-v10-lab.py thêm nhóm T10 (13 check mới: marker/invariant/functional _v10_p qua exec header với env override + không override khi env thiếu + cell checks 4 loại) → 100/100 PASS; T9 sha256 ver-9 không đổi.
+   894→- VERIFY MÔI TRƯỜNG: ast.parse cả 3 cell colab + cpu lab cell PASS; kaggle CLI 2.x + KAGGLE_API_TOKEN KGAT verify từ sandbox (competitions files -v trả dữ liệu + Next Page Token đúng như parser cell 2); mô phỏng picker 4 kịch bản (Colab RO input / cả 2 RO / Kaggle attached / image cũ ghi được) — 4/4 đúng nhánh (lần đầu fail do artifact /tmp sót thư mục + chmod 555 với user thường, không phải lỗi logic).
+   895→- README.md thêm mục "Cơ chế root override" (5 dấu đầu dòng).
+   896→
+   897→Stage Summary:
+   898→- ★ Cell 2 mới: token nhúng + tự dò root ghi được + export V10_INPUT_ROOT/V10_WORKING_ROOT — paste thẳng Colab chạy được, in rõ INPUT_ROOT/WORKING_ROOT đã chọn.
+   899→- ★ Cell 3 (monolith) và Cell 4 đã được audit + fix cùng cơ chế: 38 literal path wrap trong _v10_p; KHÔNG paste cell 3/4 cũ — phải lấy từ notebook rebuild (download/v10-lab-colab.ipynb 370KB) vì monolith thay đổi.
+   900→- 100/100 test PASS · ver-9 sha256 nguyên vẹn · kaggle CLI + token verify OK · không push Kaggle.
+   901→- Lưu ý vận hành Colab: cell idempotent (chạy lại để retry); nếu restart runtime giữa chừng, chạy lại Cell 2 (bỏ qua phần đã tải) rồi Cell 3.
+   902→
+   903→---
+   904→Task ID: V10-COLAB-CLIFIX
+   905→Agent: main (Bio — AI engineer/system architect/algorithm expert)
+   906→Task: User chạy cell 2 (bản root-fixed) trên Colab gặp lỗi mới: "No module named kaggle.__main__; 'kaggle' is a package and cannot be directly executed" → RuntimeError kaggle datasets download exit 1.
+   907→
+   908→Work Log:
+   909→- CHẨN ĐOÁN: root fix hoạt động đúng (log INPUT_ROOT=/content/kaggle/input chứng minh) — lỗi thật ở kaggle CLI: Colab preinstall kaggle 2.0.2 (bản kagglesdk đời đầu KHÔNG có __main__.py) → `python -m kaggle` fail; `%pip install -q kaggle` chỉ nói "Requirement already satisfied" (2.0.2 thoả yêu cầu "kaggle") nên KHÔNG nâng cấp, tin nhắn bị -q che mất.
+   910→- KIỂM CHỨNG SANDBOX: venv kaggle 2.2.4 CÓ kaggle/__main__.py; `python -m kaggle --version` exit 0 in "Kaggle CLI 2.2.4" → kaggle >=2.2 hỗ trợ -m, 2.0.x không.
+   911→- FIX cell 2 (builder COLAB_SETUP_TEMPLATE): (1) `%pip install -q --upgrade "kaggle>=2.2"` thay bản thường + comment giải thích; (2) preflight `_v10_kaggle_base_cmd()` chạy `python -m kaggle --version` (exit 0 → dùng [python, -m, kaggle]) → fallback console script `shutil.which("kaggle")` (--version exit 0) → cả hai fail thì RuntimeError hướng dẫn restart runtime; `V10_KAGGLE_CMD` dùng trong `v10_run_kaggle` (`cmd = [*V10_KAGGLE_CMD, *args]`); (3) cosmetic: tổng GB fallback cột size khi API -v không trả totalBytes.
+   912→- FIX cell 4 (UPLOAD_PART): helper `_v10_sp_kaggle(args)` — chạy python -m kaggle, nếu stderr chứa "No module named kaggle.__main__" thì retry console script; áp cho cả datasets create + datasets version.
+   913→- static_checks builder: thêm token %pip upgrade + V10_KAGGLE_CMD + [*V10_KAGGLE_CMD, *args] + shutil.which (setup) + _v10_sp_kaggle + "No module named kaggle.__main__" (results).
+   914→- test-v10-lab.py: thêm 4 string-check (setup) + nhóm T11 functional (3 kịch bản preflight: môi trường ≥2.2 → [python,-m,kaggle] thật với venv sandbox / fake 2.0.x thiếu __main__ → console script / cả hai fail → RuntimeError có chữ restart) + check upload fallback.
+   915→- REBUILD + TEST: colab 372KB · cpu 350KB · 107/107 PASS (100 cũ + 7 mới) · T9 sha256 ver-9 nguyên vẹn · ast.parse cell 2/3/4 PASS · preflight chạy thật trong test in "Kaggle CLI 2.2.4".
+   916→
+   917→Stage Summary:
+   918→- ★ Cell 2 v3: token nhúng + root read-only picker + %pip --upgrade kaggle>=2.2 + preflight V10_KAGGLE_CMD (in rõ phiên bản kaggle CLI đang dùng) + fallback console script — tự chữa cả 3 lớp lỗi môi trường Colab gặp trong 2 lần chạy thật.
+   919→- Cell 4 cũng được加固 fallback upload (cell 3 không dùng kaggle CLI — không đổi; monolith giữ nguyên 38 wrap _v10_p).
+   920→- Notebook download/v10-lab-colab.ipynb đã rebuild; user paste lại cell 2 (hoặc upload notebook) là chạy tiếp; cell idempotent với phần đã tải (bỏ qua dataset đã có .v10_ok).
+   921→
+   922→---
+   923→Task ID: V10-COLAB-429FIX
+   924→Agent: main (Bio — AI engineer/system architect/algorithm expert)
+   925→Task: User chạy cell 2 gặp 429 Too Many Requests ở bước listing files competition — xử lý chống 429 + trả lời inventory công cụ.
+   926→
+   927→Work Log:
+   928→- CHẨN ĐOÁN: API competitions files chặn page-size thực tế 200 dòng/page (yêu cầu 500 vẫn trả 200) → listing tốn ~125 pages gọi dồn dập ngay sau 9 lệnh datasets download → 429. Thí nghiệm sandbox: 4 pages đầu OK rồi ngắt để đo.
+   929→- DỰNG FILELIST TỪ SANDBOX: listing toàn bộ 125 pages (24.886 file) bằng script chunk foreground (120 pages + 5 pages, state resume, sleep 1,2s/page, retry 429 backoff 30→300s). Lưu ý vận hành: background process (kể cả setsid+nohup+disown) bị sandbox reaper kill sau khi Bash command kết thúc → phải chạy chunk foreground nhiều lệnh.
+   930→- ★ TẠO DATASET vietnguyen130593/biohub-v10-lab-filelist (comp_files.csv 1,86MB · 24.886 dòng name,size,creationDate · CC0-1.0) — verify download từ sandbox OK: 8 stems cần đúng 984 file (mỗi stem 102 zarr chunks + 21 geff) = 3,40 GB.
+   931→- PATCH BUILDER cell 2 (3 cơ chế chống 429): (1) v10_run_kaggle retry 6 lần với backoff luỹ tiến 30/60/120/240/300s + _V10_PAUSE_UNTIL global dưới threading.Lock — MỌI luồng tải cùng tôn trọng khoảng pause chung khi có 429; (2) filelist 3 bậc: cache local WORKING_DIR/v10_comp_files_cache.csv → dataset biohub-v10-lab-filelist (1 API call, 0 listing) → fallback listing trực tiếp (sleep 2s/page + backoff) + luôn ghi cache local; (3) resume per-file: _v10_fetch_comp_file bỏ qua file dest đã tồn tại size>0 (re-run sau crash không tải lại).
+   932→- static_checks + test T12 (4 string-check + 3 functional: 429×2 rồi OK với pause toàn cục / non-429 lỗi raise ngay / resume file tồn tại return không tải) — phát hiện + sửa 2 bug test harness (strip global gây UnboundLocalError; ns thiếu sys/_V10_429_LOCK).
+   933→- REBUILD + TEST: colab 376KB · cpu 350KB · 113/113 PASS (107 cũ + 6 mới) · T9 sha256 ver-9 nguyên vẹn · ast.parse cell 2 PASS.
+   934→
+   935→Stage Summary:
+   936→- ★ Cell 2 v4: 429 được xử lý ở 3 lớp (backoff phối hợp + filelist 0-listing-call qua dataset dựng sẵn + resume per-file). Re-run tốn tối đa 1 call filelist + chỉ tải các file còn thiếu.
+   937→- Dataset mới vietnguyen130593/biohub-v10-lab-filelist là hạ tầng dùng lại được (có thể gắn làm input kernel CPU sau này thay listing).
+   938→- Thang đo thật: 984 file · 3,40 GB cho 8 stems — tải ~10-30 phút trên Colab với 4 luồng + backoff.
+   939→- 113/113 PASS · không push kernel · app không đổi (HTTP 200).
+   940→
+   941→---
+   942→Task ID: V10-COLABCLI-RESEARCH
+   943→Agent: main (Bio — AI engineer/system architect/algorithm expert)
+   944→Task: User hỏi (1) Colab CLI trong giao diện Colab mới — cài vào sandbox thì em có thao tác được Colab không; (2) có công cụ nào tự đánh giá/so sánh các phiên bản trước khi nộp Kaggle không.
+   945→
+   946→Work Log:
+   947→- WEB SEARCH xác minh: Google Colab CLI là THẬT — công bố 5/6/2026 (developers.googleblog.com "Introducing the Google Colab CLI"), repo github.com/googlecolab/google-colab-cli (Apache-2.0, 1.2k stars, commit mới 15/9/2026, v0.6.0) — thiết kế cho "headless automation, and AI agent integrations", Linux/macOS only.
+   948→- Đọc README đầy đủ (page_reader): lệnh chính colab new (--gpu T4/L4/G4/H100/A100, --tpu, --high-mem) / exec (-f .py hoặc .ipynb) / run (job 1 lần: provision→chạy→lấy output→teardown) / upload/download/install/drivemount/ssh (WebSocket) / log / pay; keep-alive daemon chống idle; session state ~/.config/colab-cli/sessions.json; yêu cầu Colab Pro/Pro+ entitlement cho accelerator + compute units (pay-as-you-go $9.99/100CU; H100 ~$3.50/h).
+   949→- ★ Đọc source auth.py trong package: auth mặc định oauth2 dùng REMOTE COPY-PASTE flow — in URL (redirect sdk.cloud.google.com/applicationdefaultauthcode.html, token_usage=remote), user mở URL bằng browser bất kỳ (máy anh/điện thoại), approve, Google hiển thị authorization code, paste lại cho CLI — "works identically in local and remote environments" (tác giả cố tình tránh localhost redirect + OOB đã bị Google chặn 2022) → HOẠT ĐỘNG ĐƯỢC TRÊN SANDBOX HEADLESS. Token lưu ~/.config/colab-cli/token.json sau khi auth 1 lần.
+   950→- ★ CÀI THÀNH CÔNG trong sandbox: uv pip install google-colab-cli → v0.6.0, lệnh `colab` chạy được (help OK); test `colab sessions` treo ở input() chờ authorization code — đúng như thiết kế (chưa auth). Kiểm tra không phá kaggle CLI (typer 0.23.1→0.27.2 tương thích, kaggle competitions list OK).
+   951→- KẾT LUẬN Q1: CÀI ĐƯỢC + THAO TÁC ĐƯỢC — chỉ cần anh auth 1 lần (30 giây: mở URL → approve → paste code cho em), sau đó em tự chạy colab run --gpu T4 script.py → tự download kết quả → vòng lặp agent hoàn toàn không cần anh paste cell nữa. Chi phí: GPU qua CLI ăn compute units Colab (để xác định chính xác mức T4 khi chạy thật).
+   952→- TRẢ LỜI Q2: công cụ tự đánh giá đã có sẵn = V10-LAB (đang triển khai): 3 tầng (replay CPU 0 GPU trên cache raw graphs + grid config + official scorer adjEJ/proxy/div + bootstrap CI 95% paired 10k resample / dump 1 lần GPU Colab / field test Kaggle 5 subs-ngày); tiền lệ vận hành ver9_gate_report adjEJ +0.0017 & v3-fast 0.9287→LB 0.947; giới hạn trung thực (validator ≠ hidden test, div samples thưa, adjEJ vs proxy có thể lệch hướng — ver-9 đã thấy).
+   953→
+   954→Stage Summary:
+   955→- ★ Colab CLI v0.6.0 ĐÃ CÀI trong sandbox, auth flow copy-paste remote xác minh từ source — KHẢ THI hoàn toàn cho agent-driven GPU loop; chờ user auth 1 lần để kích hoạt.
+   956→- Quy trình đánh giá ver-8 vs ver-10 vs tương lai = V10-LAB 3 tầng + bootstrap paired CI; grid 9 config mặc định chính là phép so ver-8 (ref) vs từng thành phần ver-9 (tight/rlf/veto).
+   957→- Kaggle CLI nguyên vẹn sau cài; LB hiện 3616 đội hạng 169 (trôi tự nhiên).
+   958→- Không push Kaggle; không đụng app (HTTP 200).
+   959→
+   960→---
+   961→Task ID: 2
+   962→Agent: general-purpose
+   963→Task: Push source backup lên Kaggle private dataset (repo từ xa)
+   964→
+   965→Work Log:
+   966→- Đọc ktool.py: auth = token KGAT_*** (trích từ kaggle/ver-10-lab/build-v10-lab.py, chuỗi KGAT_***) → ghi ~/.kaggle/access_token (chmod 600) + export KAGGLE_API_TOKEN khi chạy CLI — đúng cơ chế run_kaggle của ktool.py; network OK (kaggle.com HTTP 200).
+   967→- Xác định owner THẬT qua API (datasets list --mine): **vietnguyen130593** (không phải pilkwang — pilkwang/* chỉ là dataset input của người khác). state.json cũng ghi ref vietnguyen130593/biohub-ver8.
+   968→- Dựng /tmp/repo-stage: 168 file, 6,81 MB — kaggle/** toàn bộ .py+.md (88 file, loại __pycache__ + api/output/**), comp_files.csv 1,86MB, state.json (check redact KGAT: không có token trong file), download/ 6 notebook chính + README.md, worklog.md, package.json, prisma/schema.prisma, src/** 68 file text (.ts/.tsx/.css). Không có README.md ở root repo (không tồn tại → bỏ qua). Không file nào > 5MB.
+   969→- Create v1: `kaggle datasets create -p /tmp/repo-stage` → tạo dataset PRIVATE nhưng CLI mặc định BỎ QUA folder ("Skipping folder: src/download/kaggle/prisma; use --dir-mode") → v1 chỉ có package.json + worklog.md.
+   970→- FIX (1 lần, đúng vấn đề): push v2 bằng `kaggle datasets version -p /tmp/repo-stage --dir-mode zip -m "backup 2026-09-16T18:52:05Z"` → upload src.zip 150KB + download.zip 431KB + kaggle.zip 1,01MB + prisma.zip 510B + package.json + worklog.md (~1,75MB nén). Kaggle tự giải nén zip → dataset chứa ĐÚNG cấu trúc thư mục gốc 168 file.
+   971→- VERIFY end-to-end: status = ready; datasets files hiện đúng tree kaggle/api/ktool.py, download/v10-lab-colab.ipynb...; download ngược về /tmp/repo-verify → 168 file, 9/9 sha256 spot-check MATCH (build-v10-lab.py, ktool.py, comp_files.csv, v10-lab-colab.ipynb, ver9, worklog.md, package.json, schema.prisma, page.tsx).
+   972→- PRIVACY verified: (1) output create ghi rõ "Your private Dataset is being created"; (2) có trong `datasets list --mine`; (3) KHÔNG xuất hiện trong search public (`datasets list -s biohub-source-repo` chỉ trả dataset người khác). Dataset chứa token KGAT gốc trong build-v10-lab.py + notebook → private là bắt buộc, đã thoả.
+   973→- Push sau này: `kaggle datasets version -p /tmp/repo-stage --dir-mode zip -m "backup <UTC>"` (NHỚ --dir-mode zip nếu không folder bị bỏ qua).
+   974→
+   975→Stage Summary:
+   976→- ★ Repo từ xa = dataset PRIVATE vietnguyen130593/biohub-source-repo — https://www.kaggle.com/datasets/vietnguyen130593/biohub-source-repo (v1 partial 2 file, v2 đầy đủ 168 file / 6,81MB nguồn, ~1,75MB nén) — privacy verified YES bằng 3 cách; sha256 nguyên vẹn sau round-trip.
+   977→- Không đổi file nào trong project (staging /tmp, git tree sạch); auth token lưu ~/.kaggle/access_token tái dùng được.
+   978→

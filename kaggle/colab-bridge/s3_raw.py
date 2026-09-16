@@ -1,3 +1,48 @@
+# v10-lab-colab S3 LAB — env + exec monolith v10lab (validator 8 stems + grid sweep)
+import os
+import json
+from pathlib import Path
+
+V10_DEFAULT_GRID_JSON = "[{\"label\":\"ref\"},{\"label\":\"tight_45\",\"tight_override\":4.5},{\"label\":\"tight_50\",\"tight_override\":5.0},{\"label\":\"tight_60\",\"tight_override\":6.0},{\"label\":\"tight_70\",\"tight_override\":7.0},{\"label\":\"rlf_only\",\"apply_rlf\":true},{\"label\":\"veto1\",\"veto_mode\":1,\"needs_gpu\":true},{\"label\":\"veto2\",\"veto_mode\":2,\"needs_gpu\":true},{\"label\":\"veto2rlf\",\"veto_mode\":2,\"apply_rlf\":true,\"needs_gpu\":true}]"
+# --- [v10-lab-roots] roots: kế thừa env từ Cell 2 (INPUT_ROOT/WORKING_ROOT); restart runtime thì dò lại ---
+def _v10_writable(p):
+    try:
+        _probe = p / ".v10_write_probe"
+        _probe.write_text("ok")
+        _probe.unlink()
+        return True
+    except OSError:
+        return False
+
+
+if "V10_INPUT_ROOT" not in os.environ:
+    _inp = Path("/kaggle/input")
+    try:
+        _inp.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    os.environ["V10_INPUT_ROOT"] = str(_inp) if _v10_writable(_inp) else "/content/kaggle/input"
+if "V10_WORKING_ROOT" not in os.environ:
+    _wrk = Path("/kaggle/working")
+    try:
+        _wrk.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    os.environ["V10_WORKING_ROOT"] = str(_wrk) if _v10_writable(_wrk) else "/content/kaggle/working"
+for _p in (os.environ["V10_INPUT_ROOT"], os.environ["V10_WORKING_ROOT"]):
+    Path(_p).mkdir(parents=True, exist_ok=True)
+print("[v10-lab] roots:", os.environ["V10_INPUT_ROOT"], "·", os.environ["V10_WORKING_ROOT"])
+os.environ["BIOHUB_LAB_MODE"] = "1"                 # lab: bỏ predict-test + submission + audit
+os.environ["BIOHUB_HOCT_DEADLINE_H"] = "9"          # ~9h (Colab session ~12h, chừa dư upload)
+os.environ["BIOHUB_HOCT_MAX_VIDEO_S"] = "900"
+os.environ["BIOHUB_VALIDATOR_ENABLE"] = "1"
+os.environ["BIOHUB_HOCT_VETO"] = "2"                # hook armed nhưng lab không ghi submission → không áp
+os.environ["BIOHUB_RLF_ENABLE"] = "1"               # RLF áp ở mức graph trong [v10-lab-grid]
+os.environ["BIOHUB_ALLOW_PIP_INSTALL"] = "1"        # Colab có internet — fallback PyPI nếu wheels thiếu
+os.environ["BIOHUB_V10_GRID"] = V10_DEFAULT_GRID_JSON
+print("[v10-lab] env xong — grid:", [c["label"] for c in json.loads(V10_DEFAULT_GRID_JSON)])
+
+_MONOLITH_V10LAB = r'''
 # ver 8 · monolith — ver-7 (port notebook public LB 0.947 của Reyhan Ksatria) + [ver8]:
 # DivNet RANK-ONLY (W=15µm, GATE GIỮ NGUYÊN production tau 0.6 / diverge 2.25 — khác ver-7b)
 # + RE-PARENTING division recovery (cơ chế mới: tháo cạnh sai Y→D2, nối mẹ M→D2 cho các
@@ -1654,25 +1699,6 @@ _ps.write_text(_et_s)
 if 'EDGE_TTA_ACTIVE' not in _ps.read_text():
     raise RuntimeError('Edge-feature TTA patch did not persist')
 print('Edge-feature TTA patch installed and enabled')
-# [v10-lab-subproc] script con chạy SUBPROCESS riêng không có _v10_p của monolith —
-# các chuỗi patch (P16) đã wrap literal /kaggle/* bên trong code tiêm vào script con →
-# tiêm def _v10_p tự-chứa (đọc env V10_INPUT_ROOT/V10_WORKING_ROOT) SAU khi mọi patch áp xong.
-_s = _ps.read_text()
-if '_v10_p(' in _s and 'def _v10_p(' not in _s:
-    _s = (
-        "import os as _v10_sp_os\n"
-        "def _v10_p(p):\n"
-        "    _inp = _v10_sp_os.environ.get('V10_INPUT_ROOT', '/kaggle/input').rstrip('/') or '/kaggle/input'\n"
-        "    _wrk = _v10_sp_os.environ.get('V10_WORKING_ROOT', '/kaggle/working').rstrip('/') or '/kaggle/working'\n"
-        "    if p.startswith('/kaggle/input'):\n"
-        "        return _inp + p[len('/kaggle/input'):]\n"
-        "    if p.startswith('/kaggle/working'):\n"
-        "        return _wrk + p[len('/kaggle/working'):]\n"
-        "    return p\n"
-    ) + _s
-    _ps.write_text(_s)
-    print('[v10-lab-subproc] tiêm helper _v10_p vào predict_unet_transformer.py (subprocess tự dịch path theo env)')
-_s = _ps.read_text()
 
 # List all test movie identifiers available for inference
 def list_test_stems() -> list[str]:
@@ -5346,3 +5372,7 @@ if not LAB_MODE:
 else:
     print('[v10-lab] LAB_MODE: bỏ qua audit cuối + retention guard — pipeline lab kết thúc tại [v10-lab-grid]')
     print('[v10-lab] TOTAL LAB RUNTIME: %.0fs' % (time.time() - _V10_LAB_T0))
+
+'''
+exec(compile(_MONOLITH_V10LAB, "cell-monolith-v10lab.py", "exec"))
+print("[v10-lab] monolith v10lab exec xong")

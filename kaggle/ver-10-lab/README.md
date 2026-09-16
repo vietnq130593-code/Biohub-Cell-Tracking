@@ -1,7 +1,7 @@
 # V10-LAB — Bộ công cụ phòng thí nghiệm không-GPU
 
 Định hướng chiến lược: xem `V10-LAB-PLAN.md`. Repo này chứa **công cụ chạy được** — đã qua
-**87/87 unit test** (chạy lại bất cứ lúc nào: `python3 test-v10-lab.py`).
+**124/124 unit test** (chạy lại bất cứ lúc nào: `python3 test-v10-lab.py`).
 
 ## Artifacts
 
@@ -10,9 +10,33 @@
 | `cell-monolith-v10lab.py` | Monolith ver-9 + patch LAB: bỏ predict-test/submission/audit (LAB_MODE), bypass CUDA (LAB_NO_CUDA), load cache thay predict (LAB_VAL_CACHE_DIR), dump raw graphs + GT, grid replay + official scoring |
 | `lab-grid-block.py` | Nguồn block `[v10-lab-grid]` (grid sweep, `v10_score_config`) — build script inject vào monolith |
 | `build-v10-lab.py` | Dựng lại monolith + 2 notebook (offline, không đụng Kaggle): `python3 build-v10-lab.py` |
-| `test-v10-lab.py` | 87 unit test: py_compile, env behavior, LAB_MODE guard (AST + hành vi), dump/load roundtrip, dispatch tight/veto/RLF, grid đầy đủ + skip logic, CUDA bypass, 2 notebook JSON + monolith nhúng nguyên văn, sha256 ver-9 gốc không đổi |
+| `test-v10-lab.py` | 124 unit test: py_compile, env behavior, LAB_MODE guard (AST + hành vi), dump/load roundtrip, dispatch tight/veto/RLF, grid đầy đủ + skip logic, CUDA bypass, 2 notebook JSON + monolith nhúng nguyên văn, 429 backoff, 3 nếp tải stems8 (extract/verify/pack/roundtrip), sha256 ver-9 gốc không đổi |
 | `download/v10-lab-colab.ipynb` | ★ Notebook chạy trên **Google Colab T4** — do USER upload + Run all |
 | `download/v10-lab-cpu.ipynb` | Notebook cho **Kaggle CPU kernel** (tôi push sau khi có cache dataset) — replay không veto |
+
+## Cơ chế tải dữ liệu 3 nếp (chống 429) — cập nhật 16/9 tối
+
+**Gốc rễ 429**: cell 2 v3/v4 tải 984 file train của 8 stems bằng 984 API call
+`DownloadDataFile` riêng lẻ ≈ ngưỡng ~1000 request/ngày của Kaggle → bị rate-limit nặng
+(VM#2 rơi còn 1-2 file/phút). **Fix bằng kiến trúc 3 nếp dự phòng** trong Cell 2 v5:
+
+1. **Nếp A — GOOGLE DRIVE cache** (0 API call Kaggle): mount Drive 1 lần (popup auth trong
+   browser, chỉ lần đầu mỗi VM); zip `stems8.zip` (3.4GB) + 9 dataset zip (~0.9GB) nằm trong
+   `MyDrive/biohub-v10-cache/zips/` + `drive_manifest.json` (size từng zip). Session sau copy
+   Drive→local qua mạng nội bộ Google (~50-150MB/s) → giải nén → verify MANIFEST từng file.
+   VM chết không mất dữ liệu (VM#1 từng mất 2.2GB vì không có lớp này).
+2. **Nếp B — dataset `vietnguyen130593/biohub-v10-stems8`** (1 API call): dataset private do
+   kernel CPU Kaggle `v10-stems8-builder` đóng gói từ competition input gắn sẵn (lưu ý: Kaggle
+   mới mount competition dưới `/kaggle/input/competitions/<comp>/`); tải cả 3.4GB bằng đúng
+   1 request. Zip có `MANIFEST.json` (984 tên file + size) để verify tên+size 100%.
+3. **Nếp C — per-file 429-armor** (fallback cuối, giữ nguyên v4): filelist 3 bậc (local → Drive
+   → dataset `biohub-v10-lab-filelist` → listing trực tiếp sleep 2s/page) + 4 luồng + backoff
+   30→300s phối hợp `_V10_PAUSE_UNTIL` + resume per-file; sau khi xong tự đóng gói zip
+   `stems8.zip` (ZIP_STORED) lưu lên Drive cho lần sau.
+
+Env điều khiển: `V10_DRIVE` = `auto` (mặc định — mount khi chạy tương tác browser) | `on` | `off`
+(headless qua bridge/agent); `V10_HEADLESS=1` khiến auto bỏ qua mount (không chờ popup);
+`V10_DRIVE_CACHE_DIR` đổi thư mục cache Drive; `V10_STEMS8_DATASET` đổi dataset nguồn nếp B.
 
 ## Cơ chế root override (Colab mount /kaggle/* READ-ONLY) — cập nhật 16/9 chiều
 
@@ -43,10 +67,12 @@ Image Google Colab mới (Python 3.13) có sẵn `/kaggle/input` (đôi khi cả
 5. Chờ ~4-8h (giữ tab mở — Colab ngắt idle). Kết quả: bảng so sánh in ở cell 4 + cache + report
    **tự upload** về dataset `vietnguyen130593/biohub-v10-lab-cache` (tôi đọc từ đó).
 
-Notebook tự: cài kaggle CLI → tải 9 dataset → tải file train của đúng 8 stems validator (phân trang
-`competitions files` + 4 luồng) → chạy monolith LAB_MODE (predict 8 stems trên T4, DEADLINE 9h) →
-dump cache → grid replay (ref/tight 4.5-7.0/rlf/veto1/veto2/veto2rlf) → bootstrap CI 95% paired →
-upload (có fallback `datasets version` nếu dataset đã tồn tại; lỗi upload không crash).
+Notebook tự: cài kaggle CLI → (tuỳ chọn) mount Google Drive → tải 9 dataset (Drive cache ưu tiên) →
+tải 8 stems theo 3 nếp A/B/C (xem trên) → chạy monolith LAB_MODE (predict 8 stems trên T4,
+DEADLINE 9h) → dump cache → grid replay (ref/tight 4.5-7.0/rlf/veto1/veto2/veto2rlf) → bootstrap
+CI 95% paired → upload (có fallback `datasets version` nếu dataset đã tồn tại; lỗi upload không crash).
+Lần chạy đầu trong browser sẽ hiện popup Google Drive 1 lần — đồng ý là các lần sau (kể cả VM mới)
+copy dữ liệu từ Drive, không cần Kaggle API.
 
 ## Env vars (bản LAB thêm vào)
 
@@ -58,6 +84,10 @@ upload (có fallback `datasets version` nếu dataset đã tồn tại; lỗi up
 | `BIOHUB_V10_GRID` | grid 9 config | JSON grid (sai cú pháp → fallback mặc định + warning) |
 | `BIOHUB_V10_SKIP_VETO` | 0 | 1 = skip mọi config `needs_gpu` (CPU không chạy HOCT) |
 | `BIOHUB_LAB_FORCE_DUMP` | 0 | 1 = cho phép đè cache cũ khi dump |
+| `V10_DRIVE` | auto | auto/on/off — bật lớp Google Drive cache (nếp A) |
+| `V10_HEADLESS` | '' | 1 = auto không mount Drive (agent/bridge chạy thay user) |
+| `V10_DRIVE_CACHE_DIR` | MyDrive/biohub-v10-cache | thư mục cache zip trên Drive |
+| `V10_STEMS8_DATASET` | vietnguyen130593/biohub-v10-stems8 | dataset 1-call của nếp B |
 
 Grid mặc định (label · tight_override · veto_mode · apply_rlf):
 `ref`, `tight_45/50/55/60/70` (global override), `rlf_only`, `veto1`, `veto2`, `veto2rlf`.
@@ -93,7 +123,7 @@ gate report cũ (adjEJ 0.9287 / proxy 0.9594 / div 4/1/8) thì cache mới đư�
 
 ```bash
 python3 build-v10-lab.py      # dựng lại monolith + 2 notebook (static check tự chạy)
-python3 test-v10-lab.py       # 87/87 PASS mới được coi là xong
+python3 test-v10-lab.py       # 124/124 PASS mới được coi là xong
 ```
 
 KHÔNG push gì lên Kaggle từ repo này — kernel CPU sẽ do agent chính đẩy bằng `kaggle/api/ktool.py`

@@ -975,3 +975,56 @@ Work Log:
 Stage Summary:
 - ★ Repo từ xa = dataset PRIVATE vietnguyen130593/biohub-source-repo — https://www.kaggle.com/datasets/vietnguyen130593/biohub-source-repo (v1 partial 2 file, v2 đầy đủ 168 file / 6,81MB nguồn, ~1,75MB nén) — privacy verified YES bằng 3 cách; sha256 nguyên vẹn sau round-trip.
 - Không đổi file nào trong project (staging /tmp, git tree sạch); auth token lưu ~/.kaggle/access_token tái dùng được.
+
+---
+Task ID: V10-COLAB-LIVE
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: User giao authorization code + URL/TOKEN bridge → kích hoạt kênh điều khiển Colab và tự chạy v10-lab (tự chạy tự sửa).
+
+Work Log:
+- AUTH COLAB CLI: process colab sessions (PID 8352, stdin=/tmp/colab-auth-fifo do phiên trước dựng) vẫn sống chờ code → printf code user vào FIFO → exchange PKCE OK → ~/.config/colab-cli/token.json (refresh_token + 6 scopes, expiry 1h).
+- BRIDGE v1 hoạt động (Tesla T4, Python 3.13.15): extract cell S2 từ v10-lab-colab.ipynb, thay %pip bằng subprocess, footer dump env /content/v10_env.json → upload + chạy background: kaggle CLI 2.2.4 OK, 9 dataset 46s, filelist 0 listing call, 984 file/3.4GB tải với backoff 429 đúng thiết kế (600/984 lúc 870s).
+- VM#1 CHẾT ~20:05 UTC (tunnel 530; endpoint đổi euw4c2→use1c2) — mất 2.2GB đã tải.
+- PHỤC HỒI KÊNH CHÍNH THỨC KHÔNG TUNNEL: register_t4.py lấy runtime_proxy_info từ list_assignments → SessionState t4live; colab exec fail do jupyter-kernel-client 1.0.2 đổi API → downgrade 0.15.0 → exec OK.
+- RELAUNCH VM#2: cell 2 chạy lại background PID 2812 (9 dataset 23s) — quota Kaggle siết nặng sau ~1000 request/ngày: tốc độ rơi 41 file/min → ~1-2 file/min (429 tầng 1-2/6).
+- KEEP-ALIVE: keepalive_t4.py mỗi vòng poll (refresh proxy token + keep_alive_assignment ping OK).
+
+Stage Summary:
+- ★ Colab CLI 0.6.0 ĐÃ AUTH + ĐIỀU KHIỂN session T4 browser user qua colab exec/upload — kênh độc lập với bridge tunnel.
+- ★ Cell 2 v4 chạy lại trên VM#2; quota siết → chấp nhận chậm; kỳ vọng quota window mới sau đổi giờ UTC.
+- File công cụ: kaggle/colab-bridge/{colabctl.py, register_t4.py, keepalive_t4.py, poll_probe.py, launch_cell2/3/4.py, v10_cell2/3/4_run.py}.
+---
+Task ID: V10-COLAB-DRIVE
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: User hỏi chiến lược Kaggle → Google Drive → Colab (an toàn hơn? ít 429 hơn?) — phân tích + triển khai toàn bộ.
+
+Work Log:
+- TRẢ LỜI BẰNG SỐ LIỆU THẬT: full competition 24.886 file / 87.61GB (quá lớn cho Drive); 8 stems = 984 file / 3.40GB (vừa Drive); 9 dataset ~0.86GB. Gốc rễ 429 = 984 API call per-file ≈ ngưỡng ~1000 req/ngày (VM#2 đo thực: 167/984 sau 1.5h, 1-2 file/phút).
+- KIẾN TRÚC 3 NẾP (cell 2 v5): (A) Drive cache 0-call → (B) dataset stems8 1-call → (C) per-file 429-armor v4. Drive cache: mount idempotent + thread timeout 240s + V10_DRIVE auto/on/off + V10_HEADLESS + manifest size-check + .part→rename marker + backfill khi data đã có mà Drive chưa có.
+- ★ KERNEL CPU Kaggle `v10-stems8-builder` (4 lần push): v1 lỗi path (Kaggle MỚI mount competition dưới /kaggle/input/competitions/<comp>/); v3 copy 984 file/3.4GB/54s + payload zip OK nhưng datasets create fail (kernel cũng dính kaggle 2.0.2 thiếu __main__); v4 fix pip upgrade kaggle>=2.2 trong kernel → TẠO ĐƯỢC dataset vietnguyen130593/biohub-v10-stems8 (984 file + MANIFEST.json 52KB, private).
+- PATCH BUILDER: section 1 Drive-aware (9 dataset zip cache + extract_dataset_zip tự giải zip lồng); section 4 3 nếp + _v10_extract_stems_zip (xử lý zip lồng tên bất kỳ + MANIFEST trong/out) + _v10_verify_manifest + _v10_pack_stems_zip (STORED); filelist thêm tầng Drive; backfill; static checks +16 token.
+- TEST: T13 mới (12 check: 3 nếp thứ tự, extract 3 dạng, verify manifest, dataset zip lồng, pack, stems_complete, roundtrip, payload-zip, Drive save/has/load roundtrip + off) → 127/127 PASS.
+- VM#2 (browser t4live) CHẾT giữa chừng (assignment mất khi tab đóng) — minh hoạ đúng rủi ro lớp Drive chống lại.
+- ★ COLAB CLI `new --gpu T4` TẠO ĐƯỢC session f37bae (không cần browser user!); drivemount trên session CLI cần user mở 1 URL auth (đã có URL, chờ user); `colab exec -c` không tồn tại (dùng -f file).
+- DEPLOY cell 2 v5 headless (V10_DRIVE=off) lên f37bae: 9 dataset 81s KHÔNG 429; deps install exit=2 (fallback wheels cell 3 — như thiết kế); đang tải stems8 nếp B.
+
+Stage Summary:
+- ★ Dataset biohub-v10-stems8 sống = 984 call → 1 call. Kaggle→Drive→Colab của anh = ĐÚNG chiến lược, đã auto hoá trong cell 2 v5 ( Drive là nếp A, dataset là nếp B).
+- Colab CLI session tự tạo T4 = kênh agent-driven không phụ thuộc tab browser; Drive mount trên đó chờ 1 click auth của user.
+- Artifacts: build-v10-lab.py (3 nếp + Drive), test-v10-lab.py 127 PASS, v10-lab-colab.ipynb 395KB rebuild, colab-bridge/v10_cell2_run.py v5 headless.
+---
+Task ID: V10-COLAB-LIVE2
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: Vận hành tiếp sau V10-COLAB-DRIVE: sửa dependency + bug subproc _v10_p, đưa cell 3 lab chạy thật trên T4 CLI session.
+
+Work Log:
+- DEPENDENCY REPAIR (session f37bae, Python 3.13): lệnh pip nguyên khối chết atomically ở google-crc32c + pydantic-core 2.49.0 ≠ pydantic cần 2.46.5 + thiếu msgspec → repair_deps.py cài TỪNG gói rời + pydantic-core==2.46.5 → 13/13 import OK.
+- ★ BUG SUBPROC (bug tiềm ẩn bản build, lần đầu cell 3 chạy thật trên Colab): transform P16 wrap literal /kaggle/* wrap CẢ literal trong chuỗi _patch_text tiêm vào predict_unet_transformer.py — script con chạy SUBPROCESS riêng không có _v10_p → NameError ở retention-guard patch. Fix P16.5: block [v10-lab-subproc] tiêm def _v10_p tự-chứa (đọc env V10_INPUT_ROOT/V10_WORKING_ROOT) vào script con SAU patch cuối (học thử sai: tiêm ở điểm đọc ĐẦU vô ích vì _v10_p chỉ xuất hiện SAU khi patch chèn).
+- static_checks + T10 + T14 mới (tiêm/idempotent/subprocess resolve theo env/script sạch không tiêm) → 133/133 PASS.
+- ★ CELL 3 CHẠY THẬT trên f37bae (PID 18979): retention guard ghi record từng frame, EDGE_TTA views=8, SECONDARY_EDGE_TTA weight 0.75 — validator predict 8 stems đang chạy trên T4 (~1-2h) → grid sweep (~2-3h).
+- drivemount session CLI: in URL auth cho user (kernel-side pending, user click là mount xong); URL lưu /tmp/drive_auth_url.txt.
+
+Stage Summary:
+- ★ Toàn chuỗi agent-driven hoạt động: CLI tạo T4 → cell 2 v5 (216s, 10 API call) → repair env → cell 3 lab chạy thật — không cần tab browser user.
+- Drive cache chờ 1 click auth của user (URL trong câu trả lời) → backfill tự động 4.3GB lên Drive lần chạy cell 2 sau.
+- Artifacts cập nhật: build-v10-lab.py (P16.5), cell-monolith-v10lab.py (5397 dòng), test 133 PASS, v10_cell2/3_run.py, /tmp/stems8-v2on (kernel builder v4).

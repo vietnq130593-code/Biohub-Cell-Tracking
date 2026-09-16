@@ -597,9 +597,14 @@ check('monolith: header [v10-lab-roots] + _v10_p + V10_INPUT_ROOT/V10_WORKING_RO
 _lit_re10 = _re10.compile(r"[fF]{0,2}['\"](/kaggle/(?:input|working)[^'\"]*)['\"]")
 _i0_10 = _mon_txt10.index('# ==== [v10-lab-roots]')
 _i1_10 = _mon_txt10.index("os.environ['BIOHUB_MODEL_ARTIFACTS']")
-_n_wrap10 = _mon_txt10.count('_v10_p(') - 1
-_n_out10 = len(_lit_re10.findall(_mon_txt10)) - len(_lit_re10.findall(_mon_txt10[_i0_10:_i1_10]))
-check(f'monolith: mọi literal /kaggle/* ngoài header roots đều đã wrap trong _v10_p ({_n_out10} literal)', _n_wrap10 == _n_out10 and _n_wrap10 >= 30, f'wrap={_n_wrap10} ngoài-header={_n_out10}')
+# block [v10-lab-subproc] (helper tiêm vào script con) chứa literal '/kaggle/*' cố ý KHÔNG wrap
+_i_sp10 = _mon_txt10.index('# [v10-lab-subproc]')
+_i_sp10_end = _mon_txt10.index('_s = _ps.read_text()', _mon_txt10.index('_ps.write_text(_s)', _i_sp10)) + len('_s = _ps.read_text()')
+_sub_txt10 = _mon_txt10[_i_sp10:_i_sp10_end]
+_n_wrap10 = _mon_txt10.count('_v10_p(') - 1 - _sub_txt10.count('_v10_p(')
+_n_out10 = len(_lit_re10.findall(_mon_txt10)) - len(_lit_re10.findall(_mon_txt10[_i0_10:_i1_10])) - len(_lit_re10.findall(_sub_txt10))
+check(f'monolith: mọi literal /kaggle/* ngoài header roots + subproc đều đã wrap trong _v10_p ({_n_out10} literal)', _n_wrap10 == _n_out10 and _n_wrap10 >= 30, f'wrap={_n_wrap10} ngoài-header+subproc={_n_out10}')
+check('monolith: block [v10-lab-subproc] tiêm def _v10_p tự-chứa cho script con', 'def _v10_p(p):' in _sub_txt10 and '_ps.write_text(_s)' in _sub_txt10)
 check("monolith: WORKING_DIR resolve qua _v10_p (không còn Path '/kaggle/working' trần)", "WORKING_DIR = Path(_v10_p('/kaggle/working')) if Path(_v10_p('/kaggle/working')).exists() else Path('.')" in _mon_txt10)
 check('monolith: COMP_DIR candidates + discovery input_root đều qua _v10_p', "Path(_v10_p(f'/kaggle/input/competitions/{COMPETITION}'))" in _mon_txt10 and "input_root = Path(_v10_p('/kaggle/input'))" in _mon_txt10)
 
@@ -741,13 +746,197 @@ with _tf12.TemporaryDirectory() as _td12:
     _existing12 = _train12 / 'sub' / 'a.zarr' / 'chunk'
     _existing12.parent.mkdir(parents=True, exist_ok=True)
     _existing12.write_bytes(b'x' * 123)
-    _ns12c = {'Path': _P12, 'TRAIN_DEST': _train12}
+    _ns12c = {'Path': _P12, 'TRAIN_DEST': _train12, 'time': _time12}
     _i_ff12 = setup_src.index('def _v10_fetch_comp_file')
-    _i_ff_end12 = setup_src.index('_done = 0')
+    _i_ff_end12 = setup_src.index('_stems_zip_local = None')
     _ff_src12 = setup_src[_i_ff12:_i_ff_end12]
     exec(compile(_ff_src12, 'fetch', 'exec'), _ns12c)
     _n12, _sz12 = _ns12c['_v10_fetch_comp_file']('sub/a.zarr/chunk')
     check('functional resume: file đã tồn tại → return ngay không tải lại', _n12 == 'sub/a.zarr/chunk' and _sz12 == 123)
+
+# T13 [v10-lab-drive] Google Drive cache + 3 nếp tải stems8 (A Drive → B dataset → C per-file)
+print('T13 [v10-lab-drive] Drive cache + 3 nếp tải stems8')
+
+# (a) string: 3 nếp xuất hiện đúng thứ tự A(Drive) → B(dataset) → C(per-file)
+_i_a13 = setup_src.index('[A] stems8 từ GOOGLE DRIVE')
+_i_b13 = setup_src.index('[B] stems8 từ DATASET')
+_i_c13 = setup_src.index('[C] cần tải')
+check('string: cell setup có 3 nếp A(Drive)→B(dataset)→C(per-file) đúng thứ tự', _i_a13 < _i_b13 < _i_c13)
+check('string: V10_STEMS8_DATASET mặc định + V10_DRIVE tuỳ chọn',
+      'os.environ.get("V10_STEMS8_DATASET", "vietnguyen130593/biohub-v10-stems8")' in setup_src
+      and 'os.environ.get("V10_DRIVE", "auto")' in setup_src)
+
+# (b) functional _v10_extract_stems_zip: zip ngoài chứa train.zip lồng + MANIFEST.json
+import json as _json13
+import zipfile as _zf13
+import tempfile as _tf13
+import shutil as _sh13
+import time as _time13
+import os as _os13
+from pathlib import Path as _P13
+_ns13 = {'zipfile': _zf13, 'json': _json13, 'Path': _P13, 'tempfile': _tf13, 'shutil': _sh13,
+         'print': print, 'time': _time13, 'os': _os13}
+with _tf13.TemporaryDirectory() as _td13:
+    _td13 = _P13(_td13)
+    _inner = _td13 / 'train.zip'
+    with _zf13.ZipFile(_inner, 'w') as _z:
+        _z.writestr('train/44b6_12dfb391.zarr/0/zarr.json', b'{}')
+        _z.writestr('train/44b6_12dfb391.zarr/0/c/0/0/0/0', b'chunk-bytes-123')
+        _z.writestr('train/44b6_12dfb391.geff/nodes/ids/zarr.json', b'{}')
+    _mani13 = {"stems": ["44b6_12dfb391"], "files": {
+        "train/44b6_12dfb391.zarr/0/zarr.json": 2,
+        "train/44b6_12dfb391.zarr/0/c/0/0/0/0": 15,
+        "train/44b6_12dfb391.geff/nodes/ids/zarr.json": 2}}
+    _outer = _td13 / 'stems8.zip'
+    with _zf13.ZipFile(_outer, 'w') as _z:
+        _z.write(_inner, 'train.zip')
+        _z.writestr('MANIFEST.json', _json13.dumps(_mani13))
+    _i_ex13 = setup_src.index('def _v10_extract_stems_zip')
+    _i_ex_end13 = setup_src.index('def _v10_verify_manifest')
+    exec(compile(setup_src[_i_ex13:_i_ex_end13], 'extract', 'exec'), _ns13)
+    _dest13 = _td13 / 'input' / 'biohub-cell-tracking-during-development'
+    _dest13.mkdir(parents=True)
+    _mani_out13 = _ns13['_v10_extract_stems_zip'](_outer, _dest13)
+    check('functional extract: zip ngoài (train.zip lồng + MANIFEST) → giải ra comp_dest + trả manifest',
+          (_dest13 / 'train/44b6_12dfb391.zarr/0/c/0/0/0/0').read_bytes() == b'chunk-bytes-123'
+          and _mani_out13 is not None and _mani_out13['files']['train/44b6_12dfb391.zarr/0/zarr.json'] == 2)
+
+    # (c) functional _v10_verify_manifest: khớp → True; thiếu file → False
+    _i_v13 = setup_src.index('def _v10_verify_manifest')
+    _i_v_end13 = setup_src.index('def _v10_pack_stems_zip')
+    exec(compile(setup_src[_i_v13:_i_v_end13], 'verify', 'exec'), _ns13)
+    _ok13, _why13 = _ns13['_v10_verify_manifest'](_mani_out13, _dest13)
+    check('functional verify manifest: đủ file + đúng size → True (3 file)', _ok13 and '3 file' in _why13)
+    (_dest13 / 'train/44b6_12dfb391.geff/nodes/ids/zarr.json').unlink()
+    _ok13b, _why13b = _ns13['_v10_verify_manifest'](_mani_out13, _dest13)
+    check('functional verify manifest: thiếu 1 file → False + đếm thiếu', (not _ok13b) and '1 file thiếu' in _why13b)
+
+    # (d) functional extract dạng phẳng train/... trực tiếp (dạng nếp C đóng gói)
+    _flat = _td13 / 'stems8_flat.zip'
+    with _zf13.ZipFile(_flat, 'w') as _z:
+        _z.writestr('train/44b6_12dfb391.zarr/0/zarr.json', b'{}')
+        _z.writestr('MANIFEST.json', _json13.dumps({"files": {"train/44b6_12dfb391.zarr/0/zarr.json": 2}}))
+    _dest2 = _td13 / 'input2' / 'biohub-cell-tracking-during-development'
+    _dest2.mkdir(parents=True)
+    _m2 = _ns13['_v10_extract_stems_zip'](_flat, _dest2)
+    check('functional extract: dạng phẳng train/... trực tiếp → OK + manifest',
+          (_dest2 / 'train/44b6_12dfb391.zarr/0/zarr.json').is_file()
+          and _m2 is not None and _m2['files']['train/44b6_12dfb391.zarr/0/zarr.json'] == 2)
+
+    # (e) functional _v10_extract_dataset_zip: zip lồng được tự giải + xoá
+    _i_ds13 = setup_src.index('def _v10_extract_dataset_zip')
+    _i_ds_end13 = setup_src.index('# --- 1) tải 9 dataset ver-9')
+    exec(compile(setup_src[_i_ds13:_i_ds_end13], 'dszip', 'exec'), _ns13)
+    with _zf13.ZipFile(_td13 / 'inner_pack.zip', 'w') as _z:
+        _z.writestr('models/weights.pth', b'W')
+    _ds_zip = _td13 / 'pack.zip'
+    with _zf13.ZipFile(_ds_zip, 'w') as _z:
+        _z.write(_td13 / 'inner_pack.zip', 'pack.zip')
+    _ds_dest = _td13 / 'dsdest'
+    _ds_dest.mkdir()
+    _ns13['_v10_extract_dataset_zip'](_ds_zip, _ds_dest)
+    check('functional dataset zip: zip lồng pack.zip → tự giải + xoá zip lồng',
+          (_ds_dest / 'models/weights.pth').is_file() and not (_ds_dest / 'pack.zip').exists())
+
+    # (f) functional _v10_pack_stems_zip: TRAIN_DEST → zip phẳng + MANIFEST.json
+    _train13 = _dest13 / 'train'
+    (_train13 / '44b6_12dfb391.geff/nodes/ids').mkdir(parents=True, exist_ok=True)
+    (_train13 / '44b6_12dfb391.geff/nodes/ids/zarr.json').write_bytes(b'{}')
+    _ns13['V10_STEMS'] = ['44b6_12dfb391']
+    _ns13['TRAIN_DEST'] = _train13
+    _i_p13 = setup_src.index('def _v10_pack_stems_zip')
+    _i_p_end13 = setup_src.index('def _v10_fetch_comp_file')
+    exec(compile(setup_src[_i_p13:_i_p_end13], 'pack', 'exec'), _ns13)
+    _zip13 = _ns13['_v10_pack_stems_zip']()
+    with _zf13.ZipFile(_zip13) as _z:
+        _names13 = _z.namelist()
+        _mani13b = _json13.loads(_z.read('MANIFEST.json'))
+    check('functional pack: TRAIN_DEST → zip train/... + MANIFEST.json (n_files khớp)',
+          'train/44b6_12dfb391.zarr/0/zarr.json' in _names13 and 'MANIFEST.json' in _names13
+          and _mani13b['n_files'] == 3)
+
+    # (g) functional _v10_stems_complete: đủ → True; thiếu .geff → False kèm tên stem
+    _i_sc13 = setup_src.index('def _v10_stems_complete')
+    _i_sc_end13 = setup_src.index('def _v10_extract_stems_zip')
+    exec(compile(setup_src[_i_sc13:_i_sc_end13], 'sc', 'exec'), _ns13)
+    _ok13c, _bad13 = _ns13['_v10_stems_complete']()
+    check('functional stems_complete: đủ zarr(zarr.json)+geff → True', _ok13c)
+    _sh13.rmtree(_train13 / '44b6_12dfb391.geff')
+    _ok13d, _bad13d = _ns13['_v10_stems_complete']()
+    check('functional stems_complete: thiếu .geff → False + tên stem trong bad', (not _ok13d) and '44b6_12dfb391' in _bad13d)
+
+    # (h) functional roundtrip nếp C: pack → extract → verify (giống nếp A/B đọc lại)
+    _sh13.rmtree(_train13 / '44b6_12dfb391.geff', ignore_errors=True)
+    (_train13 / '44b6_12dfb391.geff/nodes/ids').mkdir(parents=True, exist_ok=True)
+    (_train13 / '44b6_12dfb391.geff/nodes/ids/zarr.json').write_bytes(b'{}')
+    _zip13b = _ns13['_v10_pack_stems_zip']()
+    _dest3 = _td13 / 'input3'
+    _dest3.mkdir()
+    _m3 = _ns13['_v10_extract_stems_zip'](_zip13b, _dest3)
+    _ok13e, _why13e = _ns13['_v10_verify_manifest'](_m3, _dest3)
+    check('functional roundtrip: pack → extract → verify manifest khớp 100%',
+          _ok13e and _m3 is not None and _m3['n_files'] == 3)
+
+    # (i) functional extract dạng payload: zip lồng TÊN KHÁC (stems8_payload.zip) + MANIFEST nằm TRONG zip lồng
+    _pay_inner = _td13 / 'pay_train.zip'
+    with _zf13.ZipFile(_pay_inner, 'w') as _z:
+        _z.writestr('train/6bba_09961292.zarr/0/zarr.json', b'{}')
+        _z.writestr('MANIFEST.json', _json13.dumps({"files": {"train/6bba_09961292.zarr/0/zarr.json": 2}}))
+    _pay_outer = _td13 / 'download.zip'
+    with _zf13.ZipFile(_pay_outer, 'w') as _z:
+        _z.write(_pay_inner, 'stems8_payload.zip')
+    _dest4 = _td13 / 'input4'
+    _dest4.mkdir()
+    _m4 = _ns13['_v10_extract_stems_zip'](_pay_outer, _dest4)
+    check('functional extract: zip lồng tên khác (payload) + MANIFEST bên trong → OK',
+          (_dest4 / 'train/6bba_09961292.zarr/0/zarr.json').is_file()
+          and _m4 is not None and _m4['files']['train/6bba_09961292.zarr/0/zarr.json'] == 2)
+
+    # (j) functional Drive helpers roundtrip: save_zip → has_zip → load_zip (Drive giả = tmp dir)
+    _i_dd13 = setup_src.index('def _v10_drive_dir')
+    _i_dd_end13 = setup_src.index('# --- 1) tải 9 dataset ver-9')
+    _ns13['V10_DRIVE_MOUNTED'] = True
+    _ns13['V10_DRIVE_CACHE'] = _td13 / 'fake_drive'
+    exec(compile(setup_src[_i_dd13:_i_dd_end13], 'drive', 'exec'), _ns13)
+    _src13 = _td13 / 'orig.zip'
+    with _zf13.ZipFile(_src13, 'w') as _z:
+        _z.writestr('a/b.txt', b'hello-drive')
+    _ok_save13 = _ns13['_v10_drive_save_zip'](_src13, 't1')
+    _mani13c = _ns13['_v10_drive_load_manifest']()
+    _has13 = _ns13['_v10_drive_has_zip']('t1', _mani13c)
+    _loaded13 = _ns13['_v10_drive_load_zip']('t1', _mani13c)
+    _round13 = _loaded13 is not None and _zf13.ZipFile(_loaded13).read('a/b.txt') == b'hello-drive'
+    _mani13c['zips']['t1']['size'] += 1  # sai size → has_zip False
+    _bad13e = _ns13['_v10_drive_has_zip']('t1', _mani13c)
+    check('functional Drive roundtrip: save → manifest → has → load nguyên vẹn; sai size → False',
+          _ok_save13 and _has13 and _round13 and (not _bad13e))
+    _ns13['V10_DRIVE_MOUNTED'] = False
+    check('functional Drive off: has_zip → False khi chưa mount', _ns13['_v10_drive_has_zip']('t1', _mani13c) is False)
+
+# T14 [v10-lab-subproc] helper _v10_p cho script con (subprocess riêng — NameError đã lộ trên Colab thật)
+print('T14 [v10-lab-subproc] helper _v10_p cho predict script con')
+check('string: monolith có block [v10-lab-subproc]', '# [v10-lab-subproc]' in MON and "def _v10_p(p):" in MON)
+_i_sp14 = MON.index('# [v10-lab-subproc]')
+_i_sp14_end = MON.index('_s = _ps.read_text()', MON.index('_ps.write_text(_s)', _i_sp14)) + len('_s = _ps.read_text()')
+_seg14 = MON[_i_sp14:_i_sp14_end]
+import subprocess as _sp14
+import os as _os14
+with _tf13.TemporaryDirectory() as _td14:
+    _td14 = _P13(_td14)
+    _fake14 = _td14 / 'predict_fake.py'
+    _fake14.write_text("from pathlib import Path\nimport os\nX = Path(_v10_p('/kaggle/working')) / 'out.txt'\nprint('RESOLVED', X)\n")
+    exec(compile(_seg14, 'subproc', 'exec'), {'_ps': _fake14, 'print': print})
+    check('functional subproc: tiêm def _v10_p khi script con có _v10_p(', 'def _v10_p' in _fake14.read_text())
+    _r14 = _sp14.run([sys.executable, str(_fake14)], capture_output=True, text=True,
+                     env={**_os14.environ, 'V10_WORKING_ROOT': str(_td14 / 'wrk'), 'V10_INPUT_ROOT': str(_td14 / 'inp')})
+    check('functional subproc: script con chạy SUBPROCESS resolve path theo env (không NameError)',
+          ('RESOLVED ' + str(_td14 / 'wrk' / 'out.txt')) in (_r14.stdout or ''), ((_r14.stdout or '') + (_r14.stderr or ''))[:120])
+    exec(compile(_seg14, 'subproc', 'exec'), {'_ps': _fake14, 'print': print})
+    check('functional subproc: idempotent — chạy lại không tiêm lần 2', _fake14.read_text().count('def _v10_p(') == 1)
+    _fake14b = _td14 / 'predict_pure.py'
+    _fake14b.write_text("print('PURE')\n")
+    exec(compile(_seg14, 'subproc', 'exec'), {'_ps': _fake14b, 'print': print})
+    check('functional subproc: script KHÔNG có _v10_p → không tiêm (nguyên văn)', _fake14b.read_text() == "print('PURE')\n")
 
 # ============================================================================================
 print('T9 ver-9 gốc giữ nguyên byte (KHÔNG sửa file ngoài ver-10-lab + download)')
