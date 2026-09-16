@@ -561,6 +561,9 @@ check('colab setup: đủ 8 stems validator', all(stem in setup_src for stem in 
 check('colab setup: phân trang files (--page-token) + 4 luồng (ThreadPoolExecutor max_workers=4)', '--page-token' in setup_src and 'ThreadPoolExecutor(max_workers=4)' in setup_src)
 check('colab setup: đọc + thực thi kaggle_dependency_install_command.txt', 'kaggle_dependency_install_command.txt' in setup_src)
 check('colab setup: cài wheel HOCT từ biohub-hoct-020-wheels', 'biohub-hoct-020-wheels' in setup_src and '.whl' in setup_src)
+check('colab setup: %pip --upgrade kaggle>=2.2 (fix 2.0.x thiếu __main__)', '%pip install -q --upgrade "kaggle>=2.2"' in setup_src)
+check('colab setup: preflight V10_KAGGLE_CMD + fallback console script shutil.which', all(t in setup_src for t in ('def _v10_kaggle_base_cmd', 'V10_KAGGLE_CMD = _v10_kaggle_base_cmd()', '[*V10_KAGGLE_CMD, *args]', 'shutil.which("kaggle")')))
+check('colab setup: tổng bytes fallback cột size khi thiếu totalBytes', 'r.get("totalBytes") or r.get("size") or 0' in setup_src)
 check('colab setup: token KGAT nhúng sẵn + ưu tiên Colab Secrets', 'KAGGLE_API_TOKEN = "KGAT_' in setup_src and 'KGAT_DAN_TOKEN_VAO_DAY' not in setup_src and 'userdata.get' in setup_src)
 lab_colab = ''.join(nb_colab['cells'][2]['source'])
 check('colab lab cell: env LAB_MODE + DEADLINE 9h + MAX_VIDEO_S 900 + VALIDATOR + HOCT_VETO 2 + RLF 1 + GRID default', all(t in lab_colab for t in ('os.environ["BIOHUB_LAB_MODE"] = "1"', 'os.environ["BIOHUB_HOCT_DEADLINE_H"] = "9"', 'os.environ["BIOHUB_HOCT_MAX_VIDEO_S"] = "900"', 'os.environ["BIOHUB_VALIDATOR_ENABLE"] = "1"', 'os.environ["BIOHUB_HOCT_VETO"] = "2"', 'os.environ["BIOHUB_RLF_ENABLE"] = "1"', 'os.environ["BIOHUB_V10_GRID"]')))
@@ -632,6 +635,63 @@ check('colab lab: roots block dò lại khi restart runtime + mkdir + print root
 check('colab results: WORKING_DIR từ env V10_WORKING_ROOT + fallback dò /content khi thiếu report', 'os.environ.get("V10_WORKING_ROOT")' in res_colab and '/content/kaggle/working' in res_colab)
 check('colab results: cảnh báo upload khi thiếu token (restart runtime)', 'thiếu KAGGLE_API_TOKEN' in res_colab)
 check('cpu lab: KHÔNG set V10_INPUT_ROOT/V10_WORKING_ROOT (Kaggle dùng mặc định ver-9)', 'os.environ["V10_INPUT_ROOT"]' not in lab_cpu and 'os.environ["V10_WORKING_ROOT"]' not in lab_cpu)
+
+# T11 [v10-lab-cli] kaggle CLI preflight — 2.0.x thiếu __main__ → upgrade >=2.2 + fallback console script
+print('T11 [v10-lab-cli] preflight kaggle CLI (upgrade >=2.2 + fallback console script)')
+_i_pf0 = setup_src.index('def _v10_kaggle_base_cmd')
+_i_pf1 = setup_src.index('V10_KAGGLE_CMD = _v10_kaggle_base_cmd()')
+_pf_src = setup_src[_i_pf0:_i_pf1]
+
+# (a) functional nhánh chính: dò python nào có `python -m kaggle --version` exit 0 (venv sandbox 2.2.4)
+import subprocess as _sp11
+import sys as _sys11
+import shutil as _sh11
+_pf_py = None
+for _cand11 in (_sys11.executable, '/home/z/.venv/bin/python', '/usr/bin/python3'):
+    try:
+        _rr11 = _sp11.run([_cand11, '-m', 'kaggle', '--version'], capture_output=True, text=True, timeout=180)
+        if _rr11.returncode == 0:
+            _pf_py = _cand11
+            break
+    except Exception:
+        continue
+if _pf_py:
+    class _FakeSys11:
+        executable = _pf_py
+    _ns11 = {'subprocess': _sp11, 'sys': _FakeSys11(), 'shutil': _sh11, 'print': print}
+    exec(compile(_pf_src, 'preflight', 'exec'), _ns11)
+    _cmd11 = _ns11['_v10_kaggle_base_cmd']()
+    check('functional preflight: môi trường có kaggle >=2.2 → trả [python, -m, kaggle]', _cmd11 == [_pf_py, '-m', 'kaggle'], str(_cmd11))
+else:
+    check('functional preflight: môi trường có kaggle >=2.2 → trả [python, -m, kaggle]', True, 'SKIP — sandbox test-env không có kaggle CLI')
+
+# (b) functional nhánh fallback: -m fail "No module named kaggle.__main__" → console script
+class _FakeRun11:
+    def __init__(self, rc=0, out='', err=''):
+        self.returncode, self.stdout, self.stderr = rc, out, err
+
+class _FakeSP11:
+    def run(self, cmd, **kw):
+        if '-m' in cmd[:3] and cmd[cmd.index('-m') + 1:cmd.index('-m') + 2] == ['kaggle'][:1]:
+            return _FakeRun11(1, '', "No module named kaggle.__main__; 'kaggle' is a package and cannot be directly executed")
+        return _FakeRun11(0, 'Kaggle CLI 2.0.2', '')
+
+_ns12 = {'subprocess': _FakeSP11(), 'sys': _sys11, 'shutil': _sh11, 'print': lambda *a, **k: None}
+_ns12['shutil'] = type('_FS', (), {'which': staticmethod(lambda n: '/fake/bin/kaggle' if n == 'kaggle' else None)})()
+exec(compile(_pf_src, 'preflight', 'exec'), _ns12)
+_cmd12 = _ns12['_v10_kaggle_base_cmd']()
+check('functional preflight: 2.0.x thiếu __main__ → fallback console script', _cmd12 == ['/fake/bin/kaggle'], str(_cmd12))
+
+# (c) functional nhánh chết: cả -m lẫn console đều fail → RuntimeError rõ ràng
+_ns13 = {'subprocess': _FakeSP11(), 'sys': _sys11, 'shutil': type('_FS', (), {'which': staticmethod(lambda n: None)})(), 'print': lambda *a, **k: None}
+exec(compile(_pf_src, 'preflight', 'exec'), _ns13)
+try:
+    _ns13['_v10_kaggle_base_cmd']()
+    check('functional preflight: cả hai fail → RuntimeError hướng dẫn', False, 'không raise')
+except RuntimeError as _e13:
+    check('functional preflight: cả hai fail → RuntimeError hướng dẫn', 'restart' in str(_e13).lower(), str(_e13)[:80])
+
+check('colab results: upload dùng _v10_sp_kaggle + bắt lỗi __main__', '_v10_sp_kaggle' in res_colab and 'No module named kaggle.__main__' in res_colab)
 
 # ============================================================================================
 print('T9 ver-9 gốc giữ nguyên byte (KHÔNG sửa file ngoài ver-10-lab + download)')

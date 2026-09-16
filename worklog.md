@@ -899,3 +899,22 @@ Stage Summary:
 - ★ Cell 3 (monolith) và Cell 4 đã được audit + fix cùng cơ chế: 38 literal path wrap trong _v10_p; KHÔNG paste cell 3/4 cũ — phải lấy từ notebook rebuild (download/v10-lab-colab.ipynb 370KB) vì monolith thay đổi.
 - 100/100 test PASS · ver-9 sha256 nguyên vẹn · kaggle CLI + token verify OK · không push Kaggle.
 - Lưu ý vận hành Colab: cell idempotent (chạy lại để retry); nếu restart runtime giữa chừng, chạy lại Cell 2 (bỏ qua phần đã tải) rồi Cell 3.
+
+---
+Task ID: V10-COLAB-CLIFIX
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: User chạy cell 2 (bản root-fixed) trên Colab gặp lỗi mới: "No module named kaggle.__main__; 'kaggle' is a package and cannot be directly executed" → RuntimeError kaggle datasets download exit 1.
+
+Work Log:
+- CHẨN ĐOÁN: root fix hoạt động đúng (log INPUT_ROOT=/content/kaggle/input chứng minh) — lỗi thật ở kaggle CLI: Colab preinstall kaggle 2.0.2 (bản kagglesdk đời đầu KHÔNG có __main__.py) → `python -m kaggle` fail; `%pip install -q kaggle` chỉ nói "Requirement already satisfied" (2.0.2 thoả yêu cầu "kaggle") nên KHÔNG nâng cấp, tin nhắn bị -q che mất.
+- KIỂM CHỨNG SANDBOX: venv kaggle 2.2.4 CÓ kaggle/__main__.py; `python -m kaggle --version` exit 0 in "Kaggle CLI 2.2.4" → kaggle >=2.2 hỗ trợ -m, 2.0.x không.
+- FIX cell 2 (builder COLAB_SETUP_TEMPLATE): (1) `%pip install -q --upgrade "kaggle>=2.2"` thay bản thường + comment giải thích; (2) preflight `_v10_kaggle_base_cmd()` chạy `python -m kaggle --version` (exit 0 → dùng [python, -m, kaggle]) → fallback console script `shutil.which("kaggle")` (--version exit 0) → cả hai fail thì RuntimeError hướng dẫn restart runtime; `V10_KAGGLE_CMD` dùng trong `v10_run_kaggle` (`cmd = [*V10_KAGGLE_CMD, *args]`); (3) cosmetic: tổng GB fallback cột size khi API -v không trả totalBytes.
+- FIX cell 4 (UPLOAD_PART): helper `_v10_sp_kaggle(args)` — chạy python -m kaggle, nếu stderr chứa "No module named kaggle.__main__" thì retry console script; áp cho cả datasets create + datasets version.
+- static_checks builder: thêm token %pip upgrade + V10_KAGGLE_CMD + [*V10_KAGGLE_CMD, *args] + shutil.which (setup) + _v10_sp_kaggle + "No module named kaggle.__main__" (results).
+- test-v10-lab.py: thêm 4 string-check (setup) + nhóm T11 functional (3 kịch bản preflight: môi trường ≥2.2 → [python,-m,kaggle] thật với venv sandbox / fake 2.0.x thiếu __main__ → console script / cả hai fail → RuntimeError có chữ restart) + check upload fallback.
+- REBUILD + TEST: colab 372KB · cpu 350KB · 107/107 PASS (100 cũ + 7 mới) · T9 sha256 ver-9 nguyên vẹn · ast.parse cell 2/3/4 PASS · preflight chạy thật trong test in "Kaggle CLI 2.2.4".
+
+Stage Summary:
+- ★ Cell 2 v3: token nhúng + root read-only picker + %pip --upgrade kaggle>=2.2 + preflight V10_KAGGLE_CMD (in rõ phiên bản kaggle CLI đang dùng) + fallback console script — tự chữa cả 3 lớp lỗi môi trường Colab gặp trong 2 lần chạy thật.
+- Cell 4 cũng được加固 fallback upload (cell 3 không dùng kaggle CLI — không đổi; monolith giữ nguyên 38 wrap _v10_p).
+- Notebook download/v10-lab-colab.ipynb đã rebuild; user paste lại cell 2 (hoặc upload notebook) là chạy tiếp; cell idempotent với phần đã tải (bỏ qua dataset đã có .v10_ok).

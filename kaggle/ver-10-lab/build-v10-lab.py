@@ -455,7 +455,9 @@ assert KAGGLE_API_TOKEN and KAGGLE_API_TOKEN.startswith("KGAT_"), (
     "Chưa có token Kaggle hợp lệ! Dán token KGAT_... vào biến KAGGLE_API_TOKEN "
     "ở đầu cell này, hoặc tạo Colab Secret tên KAGGLE_API_TOKEN rồi chạy lại.")
 os.environ["KAGGLE_API_TOKEN"] = KAGGLE_API_TOKEN
-%pip install -q kaggle
+# [v10-lab-setup] Colab preinstall kaggle 2.0.x THIẾU __main__.py (lỗi "No module named kaggle.__main__")
+# → phải --upgrade lên >=2.2 (pip thường thì thấy 2.0.2 "đã thoả" và bỏ qua — KHÔNG nâng cấp).
+%pip install -q --upgrade "kaggle>=2.2"
 
 V10_COMPETITION = "@@COMPETITION@@"
 V10_DATASETS = @@DATASETS@@
@@ -506,8 +508,38 @@ print(f"[v10-lab-setup] WORKING_ROOT = {WORKING_DIR}")
 TRAIN_DEST = INPUT_ROOT / V10_COMPETITION / "train"
 
 
+def _v10_kaggle_base_cmd():
+    # [v10-lab-setup] preflight: `python -m kaggle` cần bản >=2.2 (có __main__.py); Colab 2.0.x thiếu →
+    # fallback console script `kaggle` (which). Nếu cả hai không chạy được thì báo lỗi rõ ràng.
+    try:
+        _r = subprocess.run([sys.executable, "-m", "kaggle", "--version"], capture_output=True, text=True, timeout=180)
+    except Exception as _e:
+        _r = None
+        print(f"[v10-lab-setup] preflight python -m kaggle lỗi ({type(_e).__name__}: {_e})")
+    if _r is not None and _r.returncode == 0:
+        _v = [ln for ln in (_r.stdout or "").splitlines() if ln.strip().startswith("Kaggle CLI")]
+        print(f"[v10-lab-setup] kaggle CLI OK qua python -m kaggle ({_v[-1] if _v else 'version ?'})")
+        return [sys.executable, "-m", "kaggle"]
+    _bin = shutil.which("kaggle")
+    if _bin:
+        try:
+            _r2 = subprocess.run([_bin, "--version"], capture_output=True, text=True, timeout=180)
+        except Exception as _e:
+            _r2 = None
+        if _r2 is not None and _r2.returncode == 0:
+            print(f"[v10-lab-setup] python -m kaggle không chạy được — dùng console script: {_bin}")
+            return [_bin]
+    raise RuntimeError(
+        "Không tìm thấy kaggle CLI chạy được (python -m kaggle lỗi + console script thiếu). "
+        "Restart runtime rồi chạy lại Cell 2 (cell tự %pip install --upgrade kaggle>=2.2), "
+        "hoặc chạy thủ công: !pip install --upgrade 'kaggle>=2.2' rồi chạy lại Cell 2.")
+
+
+V10_KAGGLE_CMD = _v10_kaggle_base_cmd()
+
+
 def v10_run_kaggle(args, check=True, timeout=3600):
-    cmd = [sys.executable, "-m", "kaggle", *args]
+    cmd = [*V10_KAGGLE_CMD, *args]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     if check and r.returncode != 0:
         print((r.stdout or "")[-2000:])
@@ -591,7 +623,7 @@ _t0 = time.time()
 _all_rows = _v10_list_comp_files()
 _wanted = [r for r in _all_rows if any(r["name"].startswith(f"train/{s}.") for s in V10_STEMS)]
 _wanted_names = [r["name"] for r in _wanted]
-_total_bytes = sum(int(r.get("totalBytes") or 0) for r in _wanted)
+_total_bytes = sum(int(r.get("totalBytes") or r.get("size") or 0) for r in _wanted)
 print(f"[v10-lab-setup] cần tải {len(_wanted_names):,} file cho {len(V10_STEMS)} stems — tổng {_total_bytes / 1e9:.2f} GB")
 
 
@@ -827,6 +859,17 @@ if UPLOAD_RESULTS:
     try:
         import subprocess as _sp
         import sys as _sys
+
+        def _v10_sp_kaggle(args):
+            # [v10-lab-upload] python -m kaggle (>=2.2); nếu thiếu __main__ (2.0.x) → console script
+            _r = _sp.run([_sys.executable, "-m", "kaggle", *args], capture_output=True, text=True)
+            if _r.returncode != 0 and "No module named kaggle.__main__" in ((_r.stdout or "") + (_r.stderr or "")):
+                _bin = shutil.which("kaggle")
+                if _bin:
+                    print(f"[v10-lab-upload] python -m kaggle thiếu __main__ — dùng console script {_bin}")
+                    _r = _sp.run([_bin, *args], capture_output=True, text=True)
+            return _r
+
         _up = Path("/content/v10_lab_upload")
         shutil.rmtree(_up, ignore_errors=True)
         _up.mkdir(parents=True, exist_ok=True)
@@ -840,16 +883,14 @@ if UPLOAD_RESULTS:
             "id": "vietnguyen130593/biohub-v10-lab-cache",
             "licenses": [{"name": "CC0-1.0"}],
         }, indent=2))
-        _r = _sp.run([_sys.executable, "-m", "kaggle", "datasets", "create", "-p", str(_up)],
-                     capture_output=True, text=True)
+        _r = _v10_sp_kaggle(["datasets", "create", "-p", str(_up)])
         _blob = (_r.stdout or "") + (_r.stderr or "")
         if _r.returncode == 0:
             print("[v10-lab-upload] ĐÃ TẠO dataset vietnguyen130593/biohub-v10-lab-cache (create OK)")
         elif "409" in _blob or "already exists" in _blob.lower() or "conflict" in _blob.lower():
             _iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-            _r2 = _sp.run([_sys.executable, "-m", "kaggle", "datasets", "version",
-                           "-p", str(_up), "-m", f"lab run {_iso}", "-r", "skip"],
-                          capture_output=True, text=True)
+            _r2 = _v10_sp_kaggle(["datasets", "version",
+                                  "-p", str(_up), "-m", f"lab run {_iso}", "-r", "skip"])
             print(f"[v10-lab-upload] version -m 'lab run {_iso}' exit={_r2.returncode}")
             if _r2.returncode != 0:
                 print((_r2.stdout or "")[-1500:])
@@ -952,7 +993,8 @@ def static_checks(monolith_src: str, colab_nb: dict, cpu_nb: dict) -> None:
         if stem not in _setup:
             sys.exit(f"[check] cell setup Colab thiếu stem {stem}")
     for token in ("--page-token", "ThreadPoolExecutor(max_workers=4)", "kaggle_dependency_install_command.txt", "biohub-hoct-020-wheels",
-                  'os.environ["V10_INPUT_ROOT"]', 'os.environ["V10_WORKING_ROOT"]', "/content/kaggle/input", "_v10_writable"):
+                  'os.environ["V10_INPUT_ROOT"]', 'os.environ["V10_WORKING_ROOT"]', "/content/kaggle/input", "_v10_writable",
+                  '%pip install -q --upgrade "kaggle>=2.2"', "V10_KAGGLE_CMD", "[*V10_KAGGLE_CMD, *args]", 'shutil.which("kaggle")'):
         if token not in _setup:
             sys.exit(f"[check] cell setup Colab thiếu {token!r}")
     _cpu_lab = "".join(cpu_nb["cells"][1]["source"])
@@ -971,6 +1013,8 @@ def static_checks(monolith_src: str, colab_nb: dict, cpu_nb: dict) -> None:
             sys.exit(f"[check] cell kết quả Colab thiếu {token!r}")
     if 'os.environ.get("V10_WORKING_ROOT")' not in _colab_res or "/content/kaggle/working" not in _colab_res:
         sys.exit("[check] cell kết quả Colab thiếu resolve WORKING_ROOT từ env + fallback /content")
+    if "_v10_sp_kaggle" not in _colab_res or "No module named kaggle.__main__" not in _colab_res:
+        sys.exit("[check] cell kết quả Colab thiếu fallback upload _v10_sp_kaggle khi kaggle 2.0.x")
     _cpu_res = "".join(cpu_nb["cells"][2]["source"])
     if "N_BOOT = 10_000" not in _cpu_res or "biohub-v10-lab-cache" in _cpu_res:
         sys.exit("[check] cell kết quả CPU: phải có bootstrap, KHÔNG có upload")
