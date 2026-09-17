@@ -1210,3 +1210,23 @@ Stage Summary:
 - CPU: UNMETERED (chỉ GPU/TPU metered) + raw_graphs cache sẵn → thí nghiệm hậu xử lý = CPU free vô hạn trên main account.
 - Trial accounts: rủi ro phát hiện là thật (metadata tự động, không phải content review), hậu quả khoá chùm bất đối xứng; hạ tầng trial sẵn sàng nhưng nhu cầu thực tế gần 0 vì (1) grid replay CPU được, (2) quota GPU refresh dư 27h/tuần sau khi nộp.
 - Không thay đổi kế hoạch: nộp v10 sau refresh 19/9 00:00 UTC qua v10-launch.sh như đã định.
+
+---
+Task ID: V11-CLEANUP-RESEARCH
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: User yêu cầu (17/9 tối, sau khi chấp nhận chờ quota 28h nữa): (1) rà soát + xóa các thứ cũ/lỗi thời/không cần thiết trong cây thư mục, xóa ver vô dụng; (2) nghiên cứu phương án/hướng đi/thuật toán/triển khai cho ver-11.
+
+Work Log:
+- CLEANUP (nguyên tắc: git rm khỏi working tree — history giữ 100% retrievable): xác minh DivNet đã nhúng ver-8 monolith (92 match) → xóa an toàn ver-1→ver-7b + ver-7-planning (kiến trúc 4-cell cũ ~2M); xóa output trùng api/output/{latest,ver8-v2,wave1-v5} (115M — md5 xác nhận latest ≠ bản chấm nào, mọi thứ tái tạo từ Kaggle); xóa secondary_seed_weights trùng md5 ở ver8-v1 + tracking_repo nội bộ 3 nơi (~72M — giữ 1 bản weights tại ver8-v3fast bản 0.947); xóa notebook ver2→ver8-wave1 (tái tạo từ make-*-ipynb.py); dọn __pycache__. kaggle/ 377M → 132M. COMMIT 2b46a3f + PUSH.
+- GIỮ: ver-8/9/10 + planning docs, eval/scorer/colab-bridge/tools, output/v10-lab-gpu NGUYÊN VẸN (raw_graphs.json 27MB = tài sản v11), api/research toàn bộ (tri thức), ver8-v1 (đối chứng baseline, đã bỏ weights), ver8-v3fast nguyên vẹn (bản 0.947), sjlee csv đối chứng 24M.
+- RESEARCH v11: dispatch Explore agent đọc 30+ notebook đối thủ (0948/0949/v9-research); tự đọc V10-RESULTS gates, VER9-RESEARCH N1-N6, code monolith dòng 2685-3115 (add_safe_divisions_postlink + _divnet_rerank_proposals), verifier evaluator.
+- ★ PHÁT HIỆN CHÍNH: (1) DivNet rank-only W=15 ĐÃ bank trong 0.947 — việc còn lại là GATE chứ không phải ranker; (2) sổ cái zhincez (0.952 hạng ~32): trục division offline sign khớp LB 3/3, trục edge 0/3 — DUY NHẤT đáng làm; (3) audit megayak 151 GT: gate mình parent 9µm reach 71% / diverge 2.25 ngay MEDIAN (giết 50%) / symmetry 0.6 ≈ p60 — nhưng mở hết không evidence = −0.017; (4) evaluator tracksdata nghi đọc ×2 official (rule weakly-connected cũ, Kaggle patch aa65e90 17/7) — PHẢI port evaluator patch trước khi tune; (5) phạt bất đối xứng: xóa node đắt trên division (−0.0041) → node set đóng băng; (6) exploit hub/fork 0.966 đã chết — 2 team còn trên LB là fossil.
+- VIẾT kaggle/ver-11-planning/V11-RESEARCH.md (8 mục): TL;DR, ngân sách điểm, tổng hợp đối thủ, phân tích code (dòng chính xác), grid 81 configs (parent 9→10.5/12 × diverge 2.25→1.5/1.0 × tau 0.6→0.8/0.95 × W 15/25/40), kiến trúc 3 kernel (lab dump proposals gate rộng + grid CPU replay + production = ver-10 + 4 hằng số), lộ trình 19/9 nộp v10 → lab → grid → nộp v11 ~20-21/9 (~8h GPU/30h), gates D1-D6 (D6 = node set hash giữ nguyên).
+- APP: competition-data.ts thêm ver11research (status RESEARCH mới + type union) + 8 notes; tracking-demo STATUS_BADGE thêm RESEARCH (fuchsia); hero.tsx badge fuchsia "Ver 11 · nghiên cứu xong — kênh division" + import BookOpen; submission-lab.tsx card fuchsia md:col-span-2 3 cột (bằng chứng/thuật toán/kỳ vọng).
+- VERIFY: lint EXIT 0 · tsc chỉ lỗi examples/ cũ · HTTP 200 · agent-browser: 0 lỗi console/page, DOM có đủ hero badge + card + hàng bảng + badge NGHIÊN CỨU, mobile 390 scrollWidth=390 (không tràn), screenshot kaggle/tools/e2e-ver11-research-desktop.png.
+
+Stage Summary:
+- ★ Cây thư mục sạch: kaggle/ 377M → 132M, mọi file cũ vẫn retrievable từ git history (commit 2b46a3f đã push).
+- ★ V11-RESEARCH.md hoàn chỉnh — hướng đi: ver-10 + mở VỪA 4 gate division + DivNet rerank giữ nguyên + cap FP, chấm bằng evaluator ĐÃ VÁ, grid CPU replay trên dump proposals (pattern v10-lab). Kỳ vọng +0.002..+0.006 → 0.951-0.955.
+- Điểm nghẽn nhận diện: validator chỉ 12 GT division → gate D3/D4 khắt khe + config bảo thủ nếu biên mờ; mô phỏng replay phải khớp base 4/1/8 + adjEJ 0.928665 (D2) trước khi tin grid.
+- Lộ trình chốt: 19/9 sau quota → (1) v10-launch.sh bank 0.949x → (2) v11-lab dump → (3) grid CPU → (4) nộp v11 ~20-21/9. Deadline 29/9 dư 8 ngày.

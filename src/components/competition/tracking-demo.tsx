@@ -477,6 +477,10 @@ const STATUS_BADGE: Record<KaggleRunStatus, { label: string; cls: string }> = {
     label: 'ĐÃ NỘP · ĐANG CHẤM',
     cls: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300',
   },
+  RESEARCH: {
+    label: 'NGHIÊN CỨU',
+    cls: 'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300',
+  },
   FAILED: {
     label: 'FAIL RUNTIME HIDDEN',
     cls: 'border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300',

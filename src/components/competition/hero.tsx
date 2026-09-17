@@ -5,6 +5,7 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import {
   ArrowDown,
+  BookOpen,
   ExternalLink,
   FlaskConical,
   Globe2,
@@ -105,6 +106,13 @@ export function Hero() {
           >
             <FlaskConical className="mr-1 h-3 w-3" aria-hidden />
             Ver 10 · kernel sẵn sàng — chờ quota 19/9
+          </Badge>
+          <Badge
+            variant="outline"
+            className="border-fuchsia-300/60 bg-fuchsia-400/10 text-fuchsia-200 backdrop-blur-sm"
+          >
+            <BookOpen className="mr-1 h-3 w-3" aria-hidden />
+            Ver 11 · nghiên cứu xong — kênh division
           </Badge>
         </motion.div>
 

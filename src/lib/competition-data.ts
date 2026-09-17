@@ -186,6 +186,7 @@ export type KaggleRunStatus =
   | "PENDING"
   | "RUNNING"
   | "SUBMITTED"
+  | "RESEARCH"
   | "FAILED";
 
 export interface KaggleVersionResult {
@@ -375,6 +376,29 @@ export const KAGGLE_RESULTS: KaggleVersionResult[] = [
       "BUILD ĐÃ KIỂM CHỨNG: phẫu thuật monolith ver-9 (đã chạy thật Kaggle) — xóa 207 dòng RLF+gate, chèn block [ver10-hoct] 609 dòng; py_compile PASS; test 65/65 PASS (veto mode 1/2, hiệu chuẩn 8 stems, budget, abort không-retry, strip sạch, thứ tự block); mấu gate production giữ nguyên (tau 0.6 / diverge 2.25 / re-parent 0.25)",
       "PUSH 20:22 UTC 17/9 bị Kaggle chặn cứng: 'Maximum weekly GPU quota of 30.00 hours reached' (30.93/30h — v10-lab đã chạy vượt 3.6h khi quota gần cạn). Launcher một lệnh kaggle/api/v10-launch.sh (--wait tự poll quota) → push → watch → submit (kagglesdk create_code_submission) → score",
       "KỲ VỌNG: pass hidden → 0.948-0.949 → vượt cụm 55 đội 0.948 (hạng 89-143) → bạc chắc chắn + mở đường 0.949; TLE (đã phòng bằng 3 lớp guard) → mất 1 lượt, v3-fast 0.947 vẫn là final — rủi ro giới hạn, deadline 29/9 còn 12 ngày",
+    ],
+  },
+  {
+    id: "ver11research",
+    label: "Ver 11 · RESEARCH — kênh division: mở gate vừa + DivNet rerank",
+    kaggleRef: "kaggle/ver-11-planning/V11-RESEARCH.md — nghiên cứu hoàn thành 17/9, chờ quota 19/9 để chạy lab",
+    lbScore: null,
+    submittedAt: "2026-09-17 22:00 UTC · nghiên cứu + kế hoạch đầy đủ — chưa build kernel",
+    status: "RESEARCH",
+    runSeconds: null,
+    submissionRows: null,
+    proxy: null,
+    adjEJ: null,
+    divJ: null,
+    notes: [
+      "★ PHÁT HIỆN TỪ NGHIÊN CỨU ĐỐI THỦ (api/research/ 30+ notebooks): sổ cái 6 submission của zhincez (0.952, hạng ~32) chứng minh trục DIVISION là trục duy nhất có offline sign khớp LB (3/3 đúng, trục edge 0/3) — toàn bộ 0.947→0.950 của anh ta thuần từ kênh division",
+      "AUDIT GATE CỦA MÌNH (từ megayak đo trên 151 GT division): SAFE_DIV_MAX_UM 9.0 chỉ reach 71% parent (GT tới 10.4µm) · DIVERGE_UM 2.25 nằm ngay MEDIAN phân phối thật (giết ~50%) · SYMMETRY_TAU 0.6 ≈ p60 (giết ~40%) — nhưng mở hết không kèm ranker evidence đo −0.017 (FP nổ)",
+      "★ THUẬT TOÁN V11: giữ DivNet rank W=15 (đã bank trong 0.947) + mở VỪA 4 gate (parent 9→10.5-12, diverge 2.25→1.0-1.5, tau 0.6→0.8-0.95, W sweep 15-40) + cap frame/global GIỮ NGUYÊN chống FP — cặp 'gate mở vừa + rank bằng evidence' chưa ai trong cụm 0.948 làm (zhincez dùng per-node cost tự viết)",
+      "ĐIỀU KIỆN TIÊN QUYẾT: evaluator division của public stack (tracksdata — mình đang dùng) bị nghi đọc GẤP ĐÔI official (rule weakly-connected cũ, Kaggle patch aa65e90 ngày 17/7) — phải port evaluator rule-patch TRƯỚC khi tune gate, mọi quyết định sau đó chấm bằng bản patch",
+      "VẬT LÝ HIỆN TƯỢNG (zhincez EDA paired-control): volume tế bào co từ t−2 TRƯỚC khi chia, peak intensity giữ nguyên — feature size-drop là tín hiệu sớm đúng; DivNet lags (−1,0,+1,+2) của mình đã khớp cửa sổ này",
+      "PHẠT BẤT ĐỐI XỨNG (zhincez): xóa node gần-free trên edge nhưng ĐẮT trên division (FP mới −0.0041) → v11 chỉ thêm cạnh chia, node set giữ nguyên hệt ver-10 (gate D6)",
+      "KIẾN TRÚC: v11-lab GPU 1 lần (dump proposals ở gate RỘNG NHẤT + DivNet p_div + HOCT pairs) → grid CPU replay 81 configs (mô phỏng add_safe_divisions_postlink) → production = ver-10 + 4 hằng số, không code mới; tổng ~8h GPU/30h quota; lộ trình: nộp v10 trước → lab → grid → nộp v11 ~20-21/9",
+      "KỲ VỌNG: +0.002..+0.006 LB → 0.951-0.955 (DivNet hits@5 = 56.9% GT, trần divJ thực dụng ~0.5); nếu âm → v10 vẫn là final, rủi ro giới hạn",
     ],
   },
 ];

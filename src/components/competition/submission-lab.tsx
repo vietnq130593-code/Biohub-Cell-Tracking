@@ -7,6 +7,7 @@ import {
   ArrowDown,
   ArrowUp,
   BarChart3,
+  BookOpen,
   BookOpenCheck,
   Calculator,
   CircleAlert,
@@ -1241,6 +1242,94 @@ function VersionsTab() {
                   </li>
                   <li>TLE dù guard: mất 1 lượt — v3-fast 0.947 vẫn là final (rủi ro giới hạn)</li>
                   <li>Deadline 29/9 còn 12 ngày · quota về 19/9 00:00 UTC (~07:00 giờ VN)</li>
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ver 11 — RESEARCH: kênh division, nghiên cứu hoàn thành */}
+        <Card className="border-fuchsia-500/50 bg-fuchsia-500/[0.04] md:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+              <span className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-fuchsia-600 dark:text-fuchsia-300" aria-hidden />
+                ver 11 · RESEARCH — kênh division: mở gate vừa + DivNet rerank
+              </span>
+              <Badge className="gap-1 bg-fuchsia-600 text-[10px] leading-4 text-fuchsia-50 hover:bg-fuchsia-600 sm:text-xs">
+                <FlaskConical className="h-3 w-3" aria-hidden />
+                NGHIÊN CỨU XONG · CHỜ QUOTA
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              Sau khi dọn cây thư mục (xóa ver-1..7b + output trùng, tiết kiệm 245MB), tổng hợp 30+
+              notebook nghiên cứu đối thủ trong{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                api/research/
+              </code>{" "}
+              → kế hoạch đầy đủ tại{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                kaggle/ver-11-planning/V11-RESEARCH.md
+              </code>
+              . Trục division là trục DUY NHẤT còn tín hiệu thật ở vùng 0.947+ (zhincez 0.952 = hạng
+              ~32 leo thuần bằng kênh này, offline sign 3/3).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Bằng chứng quyết định
+                </p>
+                <ul className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
+                  <li>
+                    Sổ cái zhincez: trục division sign khớp LB{" "}
+                    <span className="font-semibold text-foreground">3/3</span> (trục edge 0/3) —
+                    0.948→0.950 bằng raising division gate
+                  </li>
+                  <li>
+                    Audit megayak (151 GT): gate mình đang ở parent 9µm (reach 71%) · diverge 2.25
+                    = MEDIAN thật (giết ~50%) · symmetry 0.6 ≈ p60
+                  </li>
+                  <li>
+                    Mở gate KHÔNG kèm evidence → −0.017 (FP nổ) — nên mở VỪA + DivNet W=15 giữ
+                    nguyên làm ranker
+                  </li>
+                </ul>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Thuật toán &amp; triển khai
+                </p>
+                <ul className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
+                  <li>
+                    v11 = ver-10 + 4 hằng số (parent 9→10.5-12 · diverge 2.25→1.0-1.5 · tau
+                    0.6→0.8-0.95 · W sweep 15-40) — không code mới
+                  </li>
+                  <li>
+                    Lab GPU 1 lần dump proposals gate rộng + p_div DivNet → grid CPU replay 81
+                    configs → chọn theo evaluator division ĐÃ VÁ (tracksdata nghi đọc ×2 official)
+                  </li>
+                  <li>
+                    Gates D1-D6: div_tp ≥ +2 AND adjEJ ≥ −0.0002 AND FP ≤ +2 AND node set giữ
+                    nguyên hệt ver-10
+                  </li>
+                </ul>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Kỳ vọng &amp; lộ trình
+                </p>
+                <ul className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
+                  <li>
+                    +0.002..+0.006 LB →{" "}
+                    <span className="font-semibold text-foreground">0.951-0.955</span> (hạng ~32-60
+                    vùng này) — nếu âm, v10 vẫn là final
+                  </li>
+                  <li>
+                    19/9: nộp v10 (bank 0.949x) → v11-lab (3-4h GPU) → grid CPU → nộp v11 ~20-21/9
+                  </li>
+                  <li>Tổng ~8h GPU/30h quota · deadline 29/9 còn 8 ngày dư sau lộ trình</li>
                 </ul>
               </div>
             </div>
