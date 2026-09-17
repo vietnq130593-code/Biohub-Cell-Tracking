@@ -1251,3 +1251,28 @@ Stage Summary:
 - ★ Trục geo-sister 8.0µm có thể là lever lớn nhất kênh division (chặn ~50-70% division thật) — nếu đúng, kỳ vọng +0.002..+0.006 còn bảo thủ.
 - Thiết kế dump theo-node biến grid CPU thành bài toán tra bảng (mili-giây/config) + verify top-3 bằng re-run thật trong lab → độ tin cậy mô phỏng khép kín.
 - Không thay đổi lộ trình: 19/9 nộp v10 → v11-lab → grid 243 configs → nộp v11 ~20-21/9.
+
+---
+Task ID: V11-REVIEW-ROUND2
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: User hỏi: kiến trúc v11 đã chặt chẽ hoàn toàn chưa — có lỗ hổng dù nhỏ nhất không, có điểm nào phát triển mạnh hơn nữa không. Review vòng 2 V11-RESEARCH.md đối chiếu code thật.
+
+Work Log:
+- Đọc toàn bộ V11-RESEARCH.md (312 dòng) + ver-10/cell-monolith.py các khối: guard 148-171, env preset 61-110, add_safe_divisions_postlink 2959-3106, _divnet_rerank_proposals 2942-2954, add_reparent_divisions_postlink 3115-3262, edge_sort_key 1844, pipeline 3540-3596, build-ver10-monolith.py toàn bộ, validator lab 4605-4664.
+- ★★ B-1 (ĐỎ, crash-level): guard _EXPECTED_NUMERIC (dòng 148-171) hard-code BIOHUB_SAFE_DIV_MAX_UM=9.0 + DEEPCENTER_SAFE_DIV_THRESHOLD=0.20, lệch 1e-12 là RuntimeError. build-ver10-monolith.py vá 7 chỗ, KHÔNG chỗ nào đụng guard (ver-10 đổi HOCT/RLF ngoài guard) → "pattern phẫu thuật đã chứng minh" KHÔNG transfer cho v11: đổi SAFE_DIV_MAX_UM mà quên vá guard = production kernel chết ngay phút đầu, mất 2.2h GPU + 1 lượt. Đã thêm checklist build 4 mục vào §5.3.
+- ★★ B-2 (ĐỎ, trục dominated): DIV_PARENT_MAX_UM=10.5 (geo-filter dòng 3572) binding khi SAFE_DIV_MAX_UM=12 — cạnh (10.5,12] qua safe-div (ăn slot cap dòng 3079) rồi bị demote-to-single; edge_sort_key=(prob,−dist) khiến cạnh mới (prob None→0.0) luôn thua cạnh linker → (12.0, 10.5-cố-định) ≤ (10.5,10.5) + đốt budget. Doc cũ ghi "không binding" SAI cho trục >10.5. Fix: ghép cặp (9.0/10.5)·(10.5/10.5)·(12.0/12.0). Phụ: REPARENT_MAX_UM=12>10.5 — 1 phần reparent bị demote sẵn, nới geo-parent mở cả kênh này.
+- ★ B-3 (CAM): doc ghi caps 0.008/0.004 nhưng production preset (dòng 66-67) là 0.0076/0.00375 — 0.008/0.004 chỉ là default fallback; vòng review 1 cũng sót. Sim dùng sai → D2 fail ngầm. Đã sửa §3.2 + §3.4.
+- ★ B-4 (CAM): dump 6 mục không có GT 8 stem validator → grid LOCAL không chấm được div_tp/adjEJ. Đã thêm mục 7 (dump GT nodes+edges) vào §3.3.
+- B-5 (VÀNG): HOCT pre-snap KHÔNG bất biến tuyệt đối theo config (snap trên FINAL node set + positions post-linefit, cả hai phụ thuộc config) — vô hại phần lớn vì mode-1 bảo vệ cạnh division; top-3 re-run thật là lưới an toàn. Đã ghi §7 + §5.1 bước 7.
+- B-6 (XANH, giá trị cao nhất): thiếu GT-attribution funnel — thêm ~50 dòng lab instrumentation: từng FN (8) + TP (4) → tra dump rộng nhất → gate nào giết (mutual-NN/divergence/symmetry/parent/sister/existing-child/DC 0.20/cap/không-có-proposal). Cho phép (a) nhắm trục theo gate THẬT bị bóp thay vì đoán từ audit megayak, (b) ước TRẦN Δdiv_tp trước khi grid. Đã thêm bước 6 §5.1.
+- B-7 (XANH): thiếu trục SAFE_DIV_MIN_PDIV {0/0.3/0.5} — floor p_div là van FP phẫu thuật nhất khi mở gate (FP division được mode-1 bảo vệ, caps là hàng rào mỏng); chi phí sim 0, +3 dòng code nếu thắng. Đã thêm §3.4.
+- B-8 (XANH): dump DC raw score thay verdict-only → mở miễn phí trục threshold DC {0.15/0.20/0.25}. Đã sửa §3.3 mục 3.
+- B-9: mutual-NN = gate cấu trúc (mỗi source đúng 1 candidate = NN của existing child) — nếu con thật không phải NN thì KHÔNG gate nào trong grid cứu được; tier-2 "mutual-NN off + floor p_div ≥ 0.3". B-10: nới geo-gate un-demote cả fork native của linker (không cap bảo vệ) → grid phải log dropped_division_edges diff (3b(i) §5.2). B-11: EXISTING_CHILD 10.0 < GT max 10.4. B-12: boundary-sensitivity near-tie ±1 division (3b(iii) §5.2). B-13: contingency D1 + thống nhất 6h/8h GPU.
+- SỬA FILE: V11-RESEARCH.md — header, TL;DR 3 hàng, §3.2 (caps thật + guard + mutual-NN + divergence + existing-child), §3.3 (mục 3 raw score + mục 7 GT dump), §3.4 (hàng MIN_PDIV mới + DIV_PARENT ghép cặp + hàng giữ-nguyên phase 1/tier-2 + đếm 243+tier-2), §5.1 (bước 6 funnel + renumber 7-8), §5.2 (3b accounting), §5.3 (checklist build 4 mục), §6 (D1 contingency), §7 (hàng HOCT pre-snap), §8 (5-7 hằng số), PHỤ LỤC B đầy đủ 13 phát hiện + đánh giá tổng thể. Sửa luôn typo "by chứng" do MultiEdit lỗi giữa chừng tạo ra.
+- Không đụng code pipeline (production ver-10 đã push Kaggle, chờ quota 19/9 07:00 VN).
+
+Stage Summary:
+- ★ Kiến trúc v11 giữ nguyên xương sống (3 kernel + dump theo-node + sim (3)→(9) + D1-D6) — đúng thiết kế, không phát hiện nào phủ nhận hướng division.
+- ★★ 2 lỗ ĐỎ phải vá trước khi build: B-1 guard crash (checklist §5.3), B-2 trục SAFE_DIV_MAX_UM=12 dominated (ghép cặp DIV_PARENT_MAX_UM). 2 lỗ CAM trước khi grid: B-3 caps 0.0076/0.00375, B-4 dump GT.
+- ★ Điểm phát triển mạnh nhất (giá trị/chi phí): B-6 funnel > B-7 p_div floor > B-8 DC raw score > B-9 mutual-NN tier-2 > B-11 existing-child.
+- V11-RESEARCH.md giờ là bản kế hoạch đối chiếu code 2 vòng (Phụ lục A + B); git chưa commit — để commit cùng đợt push kế tiếp.
