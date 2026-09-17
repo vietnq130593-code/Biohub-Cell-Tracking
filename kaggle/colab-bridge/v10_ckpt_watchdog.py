@@ -28,9 +28,9 @@ KAGGLE_API_TOKEN = "KGAT_14164511bf6b0ba6b14ed9050ffdea66"
 os.environ["KAGGLE_API_TOKEN"] = KAGGLE_API_TOKEN
 
 WATCH_LOG = "/content/v10_ckpt.log"
-CELL3_LOG = "/content/v10_cell3.log"
-CELL2_LOG = "/content/v10_cell2.log"
-ENV_JSON = "/content/v10_env.json"
+ENV_JSON = os.environ.get("V10_CKPT_ENV_JSON", "/content/v10_env.json")
+CELL3_LOG = os.environ.get("V10_CKPT_CELL3_LOG", "/content/v10_cell3.log")
+CELL2_LOG = os.environ.get("V10_CKPT_CELL2_LOG", "/content/v10_cell2.log")
 DS_A = "vietnguyen130593/biohub-v10-checkpoints"
 DS_B = "vietnguyen130593/biohub-v10-rawgraphs"
 STAGE_A = Path("/content/v10_stage_ckpt")
@@ -52,14 +52,17 @@ def wlog(msg: str) -> None:
         pass
 
 
-# --- WORKING_ROOT: cell 2 ghi /content/v10_env.json; fallback như monolith ---
+# --- WORKING_ROOT: env V10_WORKING_ROOT → /content/v10_env.json → fallback ---
 _wr = None
-try:
-    _wr = Path(json.loads(Path(ENV_JSON).read_text())["V10_WORKING_ROOT"])
-except Exception:
-    pass
+if os.environ.get("V10_WORKING_ROOT"):
+    _wr = Path(os.environ["V10_WORKING_ROOT"])
+if _wr is None:
+    try:
+        _wr = Path(json.loads(Path(ENV_JSON).read_text())["V10_WORKING_ROOT"])
+    except Exception:
+        pass
 if _wr is None or not _wr.is_dir():
-    _wr = Path("/content/kaggle/working")
+    _wr = Path("/kaggle/working") if Path("/kaggle/working").is_dir() else Path("/content/kaggle/working")
 WORKING_DIR = _wr
 wlog("watchdog start · WORKING_DIR=%s · pid=%d" % (WORKING_DIR, os.getpid()))
 

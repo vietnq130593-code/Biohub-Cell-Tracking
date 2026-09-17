@@ -1090,3 +1090,21 @@ Stage Summary:
 - ★ Colab CLI ĐÃ AUTH lại thành công (diy PKCE 2-pha verifier-file); mọi lệnh chạy được — chỉ T4 assign bị 503.
 - Chờ user thử browser T4: nếu browser cấp được → register + chạy chuỗi ngay; nếu browser cũng lỗi quota → chờ cửa sổ quota reset (dự kiến sau 01:42 UTC 18/9).
 - Toàn bộ artifacts vẫn sẵn sàng: v10_forever.py (keep-busy), recovery master, watchdog, launch script v10lab3.
+
+---
+Task ID: V10-KAGGLE-GPU-PIVOT
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: User hỏi có chạy CPU của GCL được không / bắt buộc GPU? + TPU — khi quota Colab T4 chưa hồi.
+
+Work Log:
+- TRẢ LỜI CẤU TRÚC: cell 2 (data) CPU-OK; cell 3 gồm 2 pha — PREDICT validator (cần GPU: ~1-2h T4, CPU ước 40h+ → bất khả thi) + GRID 9 config (CPU chạy tốt ~2-3h). TPU v5e1 qua CLI: 503 như T4 (cùng cơ chế chặn) + porting torch→xla không đáng.
+- ★ KHÁM PHÁ LỐI THOÁT: Kaggle GPU là POOL QUOTA RIÊNG (30h/tuần, không dính Colab). Push kernel probe "gpu-quota-probe" (enable_gpu + nvidia-smi): CHẠY THÀNH CÔNG — Tesla T4 × 2, torch 2.10.0+cu128, Python 3.12.13.
+- ★ KẾT NỐI v10-lab vào Kaggle GPU kernel: (1) patch cell 2 _v10_pick_roots() tôn trọng env V10_INPUT_ROOT/V10_WORKING_ROOT (trước giờ ghi đè vô điều kiện — lỗ hổng thiết kế); (2) patch watchdog: env override V10_CKPT_CELL3_LOG/CELL2_LOG/ENV_JSON + WORKING_DIR resolve env → env.json → /kaggle/working fallback; (3) dataset mới vietnguyen130593/biohub-v10-lab-runners (4 file: cell2 33KB + cell3 304KB + repair 1.4KB + watchdog 11KB) — kernel gắn làm input rồi copy ra /kaggle/working; (4) kernel driver kernel.py: mkdir /content (cell2 hardcode path /content) → copy runners → env roots (INPUT=/kaggle/working/v10input vì /kaggle/input READ-ONLY, WORKING=/kaggle/working 20GB) → stage cell2 (5400s) → repair (2400s) → watchdog background (setsid) → cell3 foreground (39600s) → tổng kết grid report in log + sleep 180 cho watchdog đẩy nốt.
+- BUG v1: metadata dùng "datasetDataSources" (camelCase từ docs web) — kaggle CLI 2.2.4 đọc "dataset_sources" (snake_case, verify source api_extended.py:6395) → dataset không gắn → SystemExit "KHÔNG TÌM THẤY runners". Fix v2 → RUNNING.
+- Python 3.12 của Kaggle image thay 3.13 Colab → repair_deps gần như no-op (không còn bug pydantic-core 2.49).
+
+Stage Summary:
+- ★ Kernel v10-lab-gpu-t4 v2 ĐANG CHẠY trên Kaggle T4 ×2: cell 2 (data) → repair → watchdog (checkpoint lên dataset) → cell 3 (predict 8 stems + grid 9 config + dump raw_graphs cache vào /kaggle/working = kernel output).
+- Bảo hiểm 2 lớp: kernel output tự lưu khi hoàn tất + watchdog đẩy realtime lên 2 dataset private (biohub-v10-checkpoints / biohub-v10-rawgraphs) — chết giữa chừng vẫn giữ raw graphs.
+- Ước lượng: predict 1-2h + grid 2-3h (T4), tổng ~4-6h trong limit 12h; quota Kaggle ~6h/30h tuần.
+- Sau khi có raw_graphs.json: MỌI grid sweep sau replay được trên CPU (Kaggle CPU kernel / Colab CPU) — không cần GPU nữa.

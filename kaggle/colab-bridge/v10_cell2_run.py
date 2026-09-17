@@ -69,6 +69,15 @@ def _v10_writable(p):
 
 
 def _v10_pick_roots():
+    # [kaggle-kernel] env override — kernel driver chỉ định sẵn writable roots
+    _env_in = os.environ.get("V10_INPUT_ROOT")
+    _env_wrk = os.environ.get("V10_WORKING_ROOT")
+    if _env_in and _env_wrk:
+        _input_root = Path(_env_in)
+        _input_root.mkdir(parents=True, exist_ok=True)
+        _working_root = Path(_env_wrk)
+        _working_root.mkdir(parents=True, exist_ok=True)
+        return _input_root, _working_root, "env override V10_INPUT_ROOT/V10_WORKING_ROOT"
     _inp = Path("/kaggle/input")
     try:
         _inp.mkdir(parents=True, exist_ok=True)
