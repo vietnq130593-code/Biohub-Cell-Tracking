@@ -1,0 +1,34 @@
+{
+  "dumped_at": "2026-09-17T14:48:33Z",
+  "experiment_tag": "secondary_deepcenter_tta_0947_v10lab_grid",
+  "lab_env": {
+    "LAB_MODE": true,
+    "LAB_NO_CUDA": false,
+    "LAB_SKIP_VETO": false,
+    "LAB_VAL_CACHE_DIR": "",
+    "grid_labels": [
+      "ref",
+      "tight_45",
+      "tight_50",
+      "tight_60",
+      "tight_70",
+      "rlf_only",
+      "veto1",
+      "veto2",
+      "veto2rlf"
+    ]
+  },
+  "n_edges_total": 181057,
+  "n_nodes_total": 191751,
+  "source": "validator_prediction",
+  "stems": [
+    "44b6_12dfb391",
+    "44b6_267148e4",
+    "44b6_2a2eff9f",
+    "44b6_341df25f",
+    "6bba_062c8d37",
+    "6bba_07e24132",
+    "6bba_085bf656",
+    "6bba_09961292"
+  ]
+}

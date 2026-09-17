@@ -1002,6 +1002,161 @@ function VersionsTab() {
     <div className="space-y-6">
       {/* Registry phiên bản */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {/* ver 10 — LAB grid so sánh v10 vs ver-8 (kết quả 17/9) */}
+        <Card className="border-teal-500/50 bg-teal-500/[0.04] md:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+              <span className="flex items-center gap-2">
+                <FlaskConical className="h-4 w-4 text-teal-600 dark:text-teal-300" aria-hidden />
+                ver 10 · LAB grid — đánh giá so sánh v10 vs ver-8 (v3-fast)
+              </span>
+              <Badge className="gap-1 bg-teal-600 text-[10px] leading-4 text-teal-50 hover:bg-teal-600 sm:text-xs">
+                <CircleCheck className="h-3 w-3" aria-hidden />
+                LAB COMPLETE 17/9 · 9 CONFIGS × 8 STEMS · CHƯA NỘP
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              Kernel{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                v10-lab-gpu-t4 v2
+              </code>{" "}
+              (GPU T4×2, COMPLETE 3h36m 17/9): predict 8 stems validator 985s
+              + grid sweep 9 cấu hình + dump raw graphs cache 27MB (dataset
+              biohub-v10-rawgraphs). <span className="font-semibold text-foreground">Cổng kiểm chứng: ref tái lập v3-fast chính xác 6 chữ số</span> (adjEJ 0.928665 = gate ver-9 0.9287 · proxy 0.959434 · div 4/1/8) — replay deterministic, mọi delta dùng trực tiếp được.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="space-y-3">
+              <p className="text-sm font-medium">
+                Bảng grid — weighted adjEJ 8 stems (Δ so với ref = ver-8 v3-fast):
+              </p>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">cấu hình</TableHead>
+                      <TableHead className="text-xs">adjEJ</TableHead>
+                      <TableHead className="text-xs">Δ vs v3-fast</TableHead>
+                      <TableHead className="text-xs">proxy</TableHead>
+                      <TableHead className="text-xs">div tp/fp/fn</TableHead>
+                      <TableHead className="text-xs">cạnh bỏ</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="py-1.5 font-mono text-[11px]">ref = v3-fast</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">0.928665</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">—</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">0.959434</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">4/1/8</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px]">—</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="py-1.5 font-mono text-[11px]">tight 4.5/5.0/6.0/7.0</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">0.926–0.9282</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums text-rose-600 dark:text-rose-300">−0.0004…−0.0026</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">0.9517–0.9547</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">4/2-4/8</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px]">0</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="py-1.5 font-mono text-[11px]">rlf_only</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">0.928665</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums text-muted-foreground">±0.0000</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">0.959434</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">4/1/8</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px]">rlf-21</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="py-1.5 font-mono text-[11px]">veto2/veto2rlf (≡ ver-9)</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">0.930328</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums text-amber-600 dark:text-amber-300">+0.001663</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums text-rose-600 dark:text-rose-300">0.953405 (−0.0060)</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums text-rose-600 dark:text-rose-300">3/1/9 (mất 1 tp)</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px]">veto-573</TableCell>
+                    </TableRow>
+                    <TableRow className="bg-teal-500/10 font-semibold">
+                      <TableCell className="py-1.5 font-mono text-[11px]">★ veto1</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">0.930492</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums text-emerald-600 dark:text-emerald-300">+0.001828</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums text-emerald-600 dark:text-emerald-300">0.961262 (+0.0018)</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">4/1/8 nguyên vẹn</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px]">veto-455</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="rounded-lg border border-teal-500/30 bg-teal-500/10 p-3 text-sm">
+                <p className="font-mono font-semibold">
+                  PHÁN QUYẾT SO SÁNH v10 vs ver-8
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  RLF và tight sweep CHẾT (Δ 0.0000 / toàn âm) — không nộp.
+                  <span className="font-semibold text-foreground"> veto1 là cấu hình duy nhất thắng cả adjEJ (+0.0018) LẪN proxy (+0.0018) mà không đụng division</span> — khác mode 2 (ver-9) đúng 1 dòng code: giữ nguyên cả 2 cạnh của node cha ≥2 con. Nếu +0.0018 transfer sang hidden: 0.9475-0.9479 → 0.9493-0.9497 → vượt cụm 0.948 (55 đội hạng 89-143) → hạng ~89-120, bạc chắc chắn. Rủi ro TLE trung bình (cùng cơ chế HOCT đã giết ver-9) — phải thắt guard: MAX_VIDEO_S 900→300s · deadline 10→7.5h · dự đoán theo mật độ node/frame · strip toàn bộ validator replay.
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Phân rã gain veto1 per-stem (trọng số)
+              </p>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">stem</TableHead>
+                      <TableHead className="text-xs">w</TableHead>
+                      <TableHead className="text-xs">Δ adjEJ veto1</TableHead>
+                      <TableHead className="text-xs">divJ giữ?</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="py-1.5 font-mono text-[11px]">6bba_09961292 (dày)</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">1997 (33%)</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums text-emerald-600 dark:text-emerald-300">+0.00491</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px]">✓</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="py-1.5 font-mono text-[11px]">6bba_07e24132 (dày)</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">363</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums text-emerald-600 dark:text-emerald-300">+0.00452</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px]">✓</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="py-1.5 font-mono text-[11px]">44b6_267148e4</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">305</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums text-rose-600 dark:text-rose-300">−0.00054</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px]">✓ (mode 2 mất div_tp tại đây)</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="py-1.5 font-mono text-[11px]">44b6_2a2eff9f</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">231</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums text-rose-600 dark:text-rose-300">−0.00445</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px]">✓</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="py-1.5 font-mono text-[11px]">4 stem còn lại</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">3190</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px] tabular-nums">±0.00000</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px]">✓</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+                <p className="flex items-start gap-2">
+                  <ListChecks className="mt-0.5 h-4 w-4 shrink-0 text-teal-600 dark:text-teal-300" aria-hidden />
+                  <span>
+                    <span className="font-mono font-semibold">[runtime-guard]</span>{" "}
+                    HOCT thực đo 6.6s/1000 nodes (T4, 1249s/189k nodes — dưới slope 9s) nhưng chi phí bậc 2 theo node/frame — embryo-3 dày nhất đã giết ver-9 (hidden ≈ 5-7× public). Kế hoạch: push kernel v10 production (v3-fast + veto1 + guard thắt, strip validator replay) sau quota GPU refresh 19/9 (~2h public) → submit → kỳ vọng 0.948-0.949 · fallback vẫn là v3-fast 0.947.
+                  </span>
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* ver 9 — FAIL runtime hidden, user gửi lại */}
         <Card className="border-rose-500/40 bg-rose-500/[0.03] md:col-span-2">
           <CardHeader>
@@ -1011,8 +1166,8 @@ function VersionsTab() {
                 ver 9 · HOCT consensus veto + RLF
               </span>
               <Badge className="gap-1 bg-rose-500 text-[10px] leading-4 text-rose-50 hover:bg-rose-500 sm:text-xs">
-                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                FAIL RUNTIME HIDDEN · gửi lại 56276434 đang chấm
+                <OctagonAlert className="h-3 w-3" aria-hidden />
+                FAIL RUNTIME HIDDEN ×2 — đúng dự báo
               </Badge>
             </CardTitle>
             <CardDescription>
@@ -1029,7 +1184,7 @@ function VersionsTab() {
                 56276434
               </code>
               , cùng kernel v1 — scriptVersionId 350108883 trùng khớp bản fail →
-              dự báo fail lần nữa (cùng code + cùng data + cùng limit 12h).
+              đã fail đúng như dự báo: COMPLETE sau 32h mà KHÔNG có điểm (deterministic — cùng code + cùng data + cùng limit 12h).
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-6 lg:grid-cols-2">

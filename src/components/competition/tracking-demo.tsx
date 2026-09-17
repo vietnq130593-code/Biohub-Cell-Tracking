@@ -4,10 +4,16 @@
  * Trình mô phỏng & chấm điểm bài nộp
  * Kaggle: "Biohub - Cell Tracking During Development"
  *
- * Môi trường mô phỏng nội bộ các phiên bản pipeline ver-6 / ver-7 / ver-8 / ver-9:
+ * Môi trường mô phỏng nội bộ các phiên bản pipeline ver-6 / ver-7 / ver-8 / ver-9 / ver-10:
+ *  - ver 10 · LAB grid T4×2 (17/9, kernel v10-lab-gpu-t4 v2, CHƯA nộp): 9
+ *    configs × 8 stems validator — veto mode 1 là cấu hình duy nhất thắng
+ *    cả adjEJ (+0,0018) LẪN proxy (+0,0018) mà KHÔNG đụng division (4/1/8
+ *    nguyên vẹn, khác mode 2 mất 1 div_tp); RLF chết (Δ 0,0000) · tight
+ *    sweep toàn âm (xác nhận 5.5/6.5 tối ưu) · ref tái lập v3-fast chính
+ *    xác 6 chữ số — phần mô phỏng chạy trên nền ver-7
  *  - ver 9 · HOCT consensus veto mode 2 + repeat-lineage filter (56261328
  *    FAIL runtime hidden test 15/9 — user gửi lại 16/9 56276434 cùng kernel
- *    v1, dự báo fail lần nữa): nền v3-fast của ver-8 +
+ *    v1, đã fail như dự báo): nền v3-fast của ver-8 +
  *    linker HOCT thứ hai độc lập (royerlab general_v0, 6,25M params) veto
  *    mọi cạnh nó không đề xuất trên node set FINAL + RLF bỏ cạnh con xa của
  *    fork lặp lineage + hardcode tight 5,5/6,5 bỏ PPSWEEP + [ver9-gate]
@@ -393,9 +399,10 @@ interface RuntimeState {
   sparse: boolean
 }
 
-type Mode = 'ver9' | 'ver8' | 'ver6' | 'ver7' | 'custom'
+type Mode = 'ver10' | 'ver9' | 'ver8' | 'ver6' | 'ver7' | 'custom'
 
 const MODE_LABEL: Record<Mode, string> = {
+  ver10: 'Ver 10 · LAB veto1 +0.0018',
   ver9: 'Ver 9 · FAIL runtime',
   ver8: 'Ver 8 · 0.947 · Hạng 165 · BẠC',
   ver7: 'Ver 7 · Kaggle 0.947',
@@ -403,12 +410,20 @@ const MODE_LABEL: Record<Mode, string> = {
   custom: 'Tùy chỉnh',
 }
 
-/** Các phiên bản ensemble chạy trên cùng dữ liệu (mặc định Ver 9 — tái dùng nền ver-7) */
+/** Các phiên bản ensemble chạy trên cùng dữ liệu (mặc định Ver 10 — tái dùng nền ver-7) */
 const ENSEMBLE_RUNS = ['ver6', 'ver7'] as const
 type EnsembleKey = (typeof ENSEMBLE_RUNS)[number]
 
-/** Pipeline chips hiển thị cho từng phiên bản (đúng kernel biohub-ver6/ver7/ver8/ver9) */
+/** Pipeline chips hiển thị cho từng phiên bản (đúng kernel biohub-ver6/ver7/ver8/ver9/v10-lab) */
 const VERSION_INFO: Record<Exclude<Mode, 'custom'>, string[]> = {
+  ver10: [
+    'LAB grid 9 configs × 8 stems validator (T4×2, 3h36m)',
+    'HOCT consensus veto MODE 1 — bảo vệ node cha ≥2 con',
+    'ref tái lập v3-fast chính xác 6 chữ số (deterministic ✓)',
+    'RLF & tight sweep: CHẾT (Δ 0.0000 / toàn âm)',
+    'veto1: adjEJ +0.0018 · proxy +0.0018 · div 4/1/8 nguyên vẹn',
+    'chưa nộp — ứng viên v3-fast + veto1 + guard thắt',
+  ],
   ver9: [
     'HOCT consensus veto mode 2 — linker thứ hai độc lập',
     'RLF — bỏ cạnh con xa của fork lặp lineage',
@@ -475,7 +490,7 @@ export default function TrackingDemo() {
   const [seed, setSeed] = useState(20260911)
   const sim = useMemo(() => buildSimulation(seed), [seed])
 
-  const [mode, setMode] = useState<Mode>('ver8')
+  const [mode, setMode] = useState<Mode>('ver10')
   const [params, setParams] = useState<Params>({ ...DEFAULT_PARAMS })
   const [sparseMode, setSparseMode] = useState(true)
 
@@ -512,7 +527,7 @@ export default function TrackingDemo() {
   const analysis: Analysis =
     mode === 'custom'
       ? customAnalysis
-      : ensembleAnalyses[mode === 'ver9' || mode === 'ver8' ? 'ver7' : mode]
+      : ensembleAnalyses[mode === 'ver10' || mode === 'ver9' || mode === 'ver8' ? 'ver7' : mode]
 
   const [playing, setPlaying] = useState(true)
   const [speed, setSpeed] = useState(1)
@@ -1005,9 +1020,10 @@ export default function TrackingDemo() {
               thể tích 3D tổng hợp của phôi zebrafish, rồi chấm điểm đúng metric
               cuộc thi. Ver 8 v3-fast CHẤM XONG 16/9: 0.947 — HẠNG 165/3602
               — HUY CHƯƠNG BẠC (top 5%, vị trí 22/525 đầu cụm 0.947).
-              Ver 9 (HOCT veto) FAIL runtime hidden test (56261328) — user
-              gửi lại 56276434 cùng kernel v1 (dự báo fail lần nữa). Ver 7
-              (port notebook Reyhan — public LB 0.947) và Ver 6 (Kaggle 0.945
+              Ver 10 LAB (17/9): veto mode 1 +0,0018 adjEJ — ứng viên vượt
+              cụm 0.948, chưa nộp. Ver 9 (HOCT veto mode 2) FAIL runtime
+              hidden test (56261328 + gửi lại 56276434). Ver 7 (port
+              notebook Reyhan — public LB 0.947) và Ver 6 (Kaggle 0.945
               deterministic) cho số GẦN NHAU trên cùng dữ liệu — đúng bằng
               chứng paired A/B thật: ΔadjEJ +0.0000. Đổi phiên bản để so sánh,
               hoặc dùng chế độ{' '}
@@ -1201,12 +1217,15 @@ export default function TrackingDemo() {
                 size="sm"
                 value={mode}
                 onValueChange={(v) => {
-                  if (v === 'ver9' || v === 'ver8' || v === 'ver6' || v === 'ver7' || v === 'custom') setMode(v)
+                  if (v === 'ver10' || v === 'ver9' || v === 'ver8' || v === 'ver6' || v === 'ver7' || v === 'custom') setMode(v)
                 }}
                 aria-label="Chọn phiên bản thuật toán"
                 className="flex-wrap"
               >
-                <ToggleGroupItem value="ver9" aria-label="Ver 9, HOCT consensus veto mode 2 + repeat-lineage filter — submission 56261328 FAIL runtime hidden test, user gửi lại 56276434 cùng kernel v1">
+                <ToggleGroupItem value="ver10" aria-label="Ver 10, lab grid 9 cấu hình trên 8 stems validator — veto mode 1 thắng mọi chỉ số: adjEJ +0.0018, proxy +0.0018, division nguyên vẹn — chưa nộp">
+                  Ver 10 · LAB veto1 +0.0018
+                </ToggleGroupItem>
+                <ToggleGroupItem value="ver9" aria-label="Ver 9, HOCT consensus veto mode 2 + repeat-lineage filter — submission 56261328 FAIL runtime hidden test, gửi lại 56276434 cũng fail như dự báo">
                   Ver 9 · FAIL runtime
                 </ToggleGroupItem>
                 <ToggleGroupItem value="ver8" aria-label="Ver 8, Phase D re-parenting division recovery — v3-fast PUBLIC LB 0.947 hạng 165/3602 huy chương bạc">
@@ -1311,10 +1330,10 @@ export default function TrackingDemo() {
             </>
           ) : (
             <>
-              {/* console log mô phỏng Kaggle — 11 dòng (ver-9) / 11 dòng (ver-8) / 10 dòng (ver-7) / 9 dòng (ver-6) */}
+              {/* console log mô phỏng Kaggle — 12 dòng (ver-10) / 12 dòng (ver-9) / 11 dòng (ver-8) / 10 dòng (ver-7) / 9 dòng (ver-6) */}
               <pre className="mb-4 max-h-72 overflow-auto rounded-lg bg-[#04100b] p-3 font-mono text-[11px] leading-relaxed text-emerald-200/90">
                 {(() => {
-                  const run = ensembles[mode === 'ver9' || mode === 'ver8' ? 'ver7' : mode]
+                  const run = ensembles[mode === 'ver10' || mode === 'ver9' || mode === 'ver8' ? 'ver7' : mode]
                   const st = run.stats
                   const base = [
                     `[ensemble] 2 lượt phát hiện độc lập · primary + seed 314159 · ${st.rawA} + ${st.rawB} node`,
@@ -1322,6 +1341,23 @@ export default function TrackingDemo() {
                     `[link] Hungarian gate 7.2 µm · ${st.edges} cạnh · retention nối ${st.retPairs} track · +${st.retInterp} node`,
                     `[safe-div] xác nhận ${st.divisions} · từ chối động học ${st.divRejDyn} · mất con ${st.divRejLost}`,
                   ]
+                  if (mode === 'ver10') {
+                    return [
+                      ...base,
+                      `[v10-lab] kernel v10-lab-gpu-t4 v2 COMPLETE 3h36m (17/9) · predict 8 stems 985s · grid 9 configs 3h · T4×2`,
+                      `[v10-lab·ref] tái lập v3-fast CHÍNH XÁC: adjEJ 0.928665 (= gate ver-9 0.9287) · proxy 0.959434 · div 4/1/8 → replay deterministic, grid đáng tin`,
+                      `[v10-lab·grid] ref 0.928665 | tight45 −0.0026 | tight50 −0.0020 | tight60 −0.0025 | tight70 −0.0004 | rlf ±0.0000 | veto1 +0.0018 | veto2 +0.0017 | veto2rlf +0.0017`,
+                      `[v10-lab·veto1] ★ adjEJ 0.930492 (+0.001828 — cao nhất grid) · proxy 0.961262 (+0.0018 — DUY NHẤT dương) · div 4/1/8 NGUYÊN VẸN · bỏ 455 cạnh`,
+                      `[v10-lab·mode1v2] khác nhau đúng 1 dòng code: mode 1 giữ nguyên cả 2 cạnh của node cha ≥2 con (bảo vệ division), mode 2 veto tất → mất 1 div_tp (4→3, proxy −0.0060) — ver-9 chọn nhầm mode 2`,
+                      `[v10-lab·rlf] CHẾT: Δ 0.000000 — 21 cạnh bỏ không đổi metric nào (ver-9 cũng chỉ bỏ 2/118k) → v10-RLF ≡ v3-fast, KHÔNG nộp`,
+                      `[v10-lab·tight] CHẾT: 4.5/5.0/6.0/7.0 toàn âm — tight 6.0 (−0.0025) chính là config ver-8 v1 từng chọn → per-prefix 5.5/6.5 của v3-fast là tối ưu`,
+                      `[v10-lab·nguồn-gain] 2 stem dày: 6bba_09961292 +0.0049 (w=1997, 33% trọng số) + 6bba_07e24132 +0.0045 — mất nhỏ 44b6_267148e4 −0.0005 + 44b6_2a2eff9f −0.0045`,
+                      `[v10-lab·runtime] HOCT thực đo 6.6s/1000 nodes (1249s/189k, dưới slope 9s) — nhưng bậc 2 theo node/frame: embryo-3 dày đã giết ver-9 (TLE)`,
+                      `[v10-vs-ver8] nếu +0.0018 transfer: 0.9475-0.9479 + 0.0018 → 0.9493-0.9497 → vượt cụm 0.948 (55 đội hạng 89-143) → hạng ~89-120, bạc chắc (hiện 165, cắt 180, dư 15 chỗ)`,
+                      `[phán-quyết] KHÔNG nộp v10-RLF/v10-tight · ứng viên DUY NHẤT: v3-fast + veto1 + guard thắt (MAX_VIDEO_S 300s · deadline 7.5h · dự đoán theo mật độ node/frame · strip validator replay)`,
+                      `[kế-hoạch] push kernel v10 production sau quota refresh 19/9 (~2h public) → submit → kỳ vọng 0.948-0.949 · fallback vẫn là v3-fast 0.947`,
+                    ].join('\n')
+                  }
                   if (mode === 'ver9') {
                     return [
                       ...base,

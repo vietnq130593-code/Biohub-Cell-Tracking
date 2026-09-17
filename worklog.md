@@ -1126,3 +1126,28 @@ Stage Summary:
 - ★ Hạ tầng trial đa tài khoản SẴN SÀNG: mỗi tài khoản phụ = +30h GPU/tuần (~7 trial/tuần/tài khoản). User cần làm 1 LẦN/tài khoản trên web: accept competition rules + phone-verified + tạo token KGAT.
 - ToS note (đã ghi README): Kaggle chính thức 1 người 1 tài khoản — rủi ro khoá chùm nếu bị liên kết; giảm thiểu bằng trial private + chỉ submit từ tài khoản chính.
 - Bước sau: grid xong → compare full (rows.csv + report grid 9 configs) → chọn version → build kernel nộp offline trên tài khoản chính.
+
+---
+Task ID: V10-RESULTS-17
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: User yêu cầu (17/9 tối): check v10 (kernel đã chạy xong trên Kaggle), phân tích kết quả so sánh với ver-8 v3, tiến hành đánh giá so sánh giữa v10 và ver-8.
+
+Work Log:
+- Kiểm tra kernel v10-lab-gpu-t4: COMPLETE (push 14:25 → finish 18:06 UTC 17/9, 3h36m). Tải output về kaggle/output/v10-lab-gpu/ (download timeout ở phần data cache lớn — đã tải đủ mọi file kết quả; dọn tracking_repo/v10input/secondary_seed_weights/biohub_live_resume 854MB chỉ là cache, giữ 28MB file kết quả + v10_lab_cache).
+- Đọc v10_lab_report.json + v10_lab_rows.csv (72 hàng per-stem) + ppsweep + tail v10_cell3.log (bảng so sánh grid in sẵn): 9 configs × 8 stems, predict 985s, runtime_s 10800 (lab section), valid_validator_base=true.
+- Xác minh độ tin cậy: ref adjEJ 0.928665/proxy 0.959434/div 4/1/8 tái lập gate ver-9 (0.9287/0.9594) đến 6 chữ số — deterministic ✓. Khám phá: tight_60 = 0.926142 chính là "ver8-base" đối chứng cũ → ver-8 v1 sweep từng chọn tight 6.0; v3-fast hơn nó +0.0025.
+- Tính lại weighted adjEJ từ rows (khớp report 100%) + phân rã per-stem veto1: gain từ 6bba_09961292 +0.00491 (w=1997 = 33% trọng số) + 6bba_07e24132 +0.00452; mất nhỏ 44b6_267148e4 −0.00054 + 44b6_2a2eff9f −0.00445; 4 stem ±0.
+- Đọc code _hv_apply_veto (dòng 3887): mode 1 = `if (s,t) in hoct_pairs or (mode==1 and out_deg[s]>=2): keep` → giữ nguyên cả 2 cạnh node cha ≥2 con (bảo vệ division), mode 2 veto tất. Veto2/veto2rlf chạy 1078s/1073s nhờ reuse cache HOCT từ veto1 (2306s gồm ~1249s HOCT compute).
+- Xác minh submissions qua API: 56276434 (user resubmit 16/9) COMPLETE sau 32h KHÔNG có điểm → fail như dự báo (cùng kernel v1 scriptVersionId 350108883); 56261360 (v3-fast) 0.947 duy nhất có điểm gần nhất.
+- Viết kaggle/ver-10-lab/V10-RESULTS.md: độ tin cậy, bảng grid 9 configs, 3 phát hiện chính (RLF chết / tight tối ưu / veto1 > veto2), đánh giá so sánh v10 vs ver-8 (bảng 5 cột), gates D1-D5 (D1-D3 PASS, D4 cần vá, D5 FAIL), khuyến nghị 5 điểm.
+- PHÁT HIỆN CHÍNH: veto1 là cấu hình DUY NHẤT thắng cả adjEJ (+0.001828) LẪN proxy (+0.001828) mà KHÔNG đụng division (4/1/8 nguyên vẹn) — ver-9 chọn nhầm mode 2 (mất 1 div_tp, proxy −0.0060). RLF chết hoàn toàn (Δ 0.000000, 21 cạnh). Tight sweep toàn âm.
+- APP CẬP NHẬT 4 file: competition-data.ts (thêm ver10 vào KAGGLE_RESULTS sau ver9 + note "ver-9 chọn nhầm mode 2" vào ver9) · hero.tsx (badge teal "Ver 10 LAB: veto1 +0.0018 — ứng viên 0.949" + badge ver9 ×2 + rút gọn badge mobile) · tracking-demo.tsx (mode ver10: MODE_LABEL/VERSION_INFO 6 chips/console 12 dòng/selector aria-label, default ver10, comment header, CardDescription) · submission-lab.tsx (card ver10 md:col-span-2 teal: bảng grid 5 hàng + bảng per-stem + PHÁN QUYẾT + [runtime-guard]; card ver9 badge "FAIL ×2 đúng dự báo").
+- SỰ CỐ & FIX: dev server OOM-killed (sandbox 4GB RAM, next-server 2.2GB trong khi compile + agent-browser chrome giữ RAM) → đóng browser + dọn cache output 854MB + restart → HTTP 200. Mobile 390px tràn ngang (badge hero 443px + badge card 412px do whitespace-nowrap) → rút gọn 3 badge hero + badge ver9 → scrollWidth=390 ✓.
+- VERIFY: lint EXIT 0 · tsc src sạch (chỉ lỗi cũ skills template) · agent-browser: 0 lỗi console/page, hero 4 badge, card ver10 đầy đủ (grid + per-stem + phán quyết), selector Ver 10 default PRESSED + click Ver 8/Ver 9/Ver 10 log đúng, hàng Ver 10 trong bảng KAGGLE_RESULTS, mobile 390 không tràn, footer stick đáy. Screenshots: kaggle/tools/e2e-ver10-lab-{hero,card,mobile}.png.
+
+Stage Summary:
+- ★ GRID V10 vs VER-8 (weighted 8 stems): ref=v3-fast 0.928665 | veto1 0.930492 (+0.001828, proxy 0.961262 +0.0018, div 4/1/8 giữ nguyên) | veto2/veto2rlf 0.930328 (+0.0017, proxy −0.0060, mất 1 div_tp) | rlf_only ±0.0000 | tight 4.5/5.0/6.0/7.0 toàn âm (−0.0004…−0.0026).
+- ★ ĐÁNH GIÁ: nếu +0.0018 transfer sang hidden → LB 0.9493-0.9497 → vượt cụm 0.948 (55 đội hạng 89-143) → hạng ~89-120 — bảo vệ chắc huy chương bạc (hiện 165, cắt 180, dư 15 chỗ, cụm 0.947 có 525 đội đang đẩy full-precision).
+- ★ PHÁN QUYẾT: KHÔNG nộp v10-RLF (≡ v3-fast) / v10-tight (tệ hơn). Ứng viên duy nhất: v3-fast + HOCT veto MODE 1 + guard thắt (MAX_VIDEO_S 900→300s, deadline 10→7.5h, dự đoán theo mật độ node/frame thay vì tổng node tuyến tính, strip validator replay). Push sau quota GPU refresh 19/9 (~còn 1.5h tuần này sau ver-9 2.4h + probe + v10-lab 3.6h), deadline 29/9 dư thời gian.
+- Rủi ro ghi nhận: HOCT cùng cơ chế TLE đã giết ver-9 (chi phí bậc 2 theo node/frame trên embryo-3 dày; guard hiện dự đoán TUYẾN TÍNH 9s/1000 nodes, thực đo 6.6s/1000 trên validator, không abort giữa video) — veto1 chỉ đáng đánh đổi vì div không đổi (toàn bộ delta là adjEJ thuần) + sjlee field +0.0040 CI-dương + 5 lượt/ngày còn dư.
+- Raw graphs cache 27MB trên dataset biohub-v10-rawgraphs → grid sweep sau chạy CPU 0 GPU nếu cần thêm bằng chứng trước khi tốn lượt.

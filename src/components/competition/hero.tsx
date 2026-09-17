@@ -6,8 +6,8 @@ import { motion } from "framer-motion";
 import {
   ArrowDown,
   ExternalLink,
+  FlaskConical,
   Globe2,
-  Loader2,
   Medal,
   Timer,
   Trophy,
@@ -90,14 +90,21 @@ export function Hero() {
             className="border-amber-300/60 bg-amber-400/10 text-amber-200 backdrop-blur-sm"
           >
             <Medal className="mr-1 h-3 w-3" aria-hidden />
-            Ver 8 v3-fast · 0.947 — HẠNG 165/3602 · HUY CHƯƠNG BẠC (16/9)
+            Ver 8 · 0.947 — Hạng 165/3602 · HUY CHƯƠNG BẠC
           </Badge>
           <Badge
             variant="outline"
             className="border-rose-400/40 bg-rose-400/10 text-rose-200 backdrop-blur-sm"
           >
-            <Loader2 className="mr-1 h-3 w-3 animate-spin" aria-hidden />
-            Ver 9 FAIL runtime hidden (56261328) — đang gửi lại (56276434)
+            <Medal className="mr-1 h-3 w-3" aria-hidden />
+            Ver 9 · FAIL runtime hidden ×2
+          </Badge>
+          <Badge
+            variant="outline"
+            className="border-teal-300/60 bg-teal-400/10 text-teal-200 backdrop-blur-sm"
+          >
+            <FlaskConical className="mr-1 h-3 w-3" aria-hidden />
+            Ver 10 LAB: veto1 +0.0018 — ứng viên 0.949
           </Badge>
         </motion.div>
 
