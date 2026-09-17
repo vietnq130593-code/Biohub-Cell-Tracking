@@ -1193,3 +1193,20 @@ Stage Summary:
 - ★ GITHUB ĐÃ ĐỒNG BỘ ĐẦY ĐỦ: toàn bộ code ver-2→ver-10 (notebooks + build scripts + test 65/65), tài liệu phân tích (V10-PRODUCTION.md, V10-RESULTS.md, V10-LAB-PLAN.md, VER9-RESEARCH.md, README registry), outputs (ver8-v1/v2/v3fast, v9-research, v10-lab-gpu 28MB kết quả), app Next.js đầy đủ trạng thái — lịch sử cũ + mới hợp nhất không mất file nào.
 - ★ Vấn đề "không nộp được" KHÔNG phải lỗi hệ thống: kernel lab không đủ điều kiện nộp theo luật cuộc thi; kernel production thì chờ GPU quota refresh 19/9 00:00 UTC. Không có gì phải sửa — chỉ cần chạy v10-launch.sh sau refresh.
 - Bước tiếp theo duy nhất: sau 07:00 VN 19/9 chạy `bash kaggle/api/v10-launch.sh` (hoặc --wait để tự poll) → kernel chạy ~2-2.2h → submit tự động → kỳ vọng 0.9493-0.9497.
+
+---
+Task ID: V10-TRIAL-RISK-CPU
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: User dự định tạo tài khoản Kaggle phụ làm thí nghiệm (nộp bằng tài khoản chính), hỏi (1) trial accounts có bị phát hiện không, (2) hạn mức CPU có dùng thay GPU được không.
+
+Work Log:
+- Verify quota lần 2: bảng quota Kaggle CHỈ meter GPU (30h/tuần) + TPU (20h/tuần) — CPU KHÔNG có dòng nào = không giới hạn hằng tuần, chỉ giới hạn 12h/session + concurrency.
+- Verify cache: raw_graphs.json 27MB + gt_bundle.json nguyên vẹn tại kaggle/output/v10-lab-gpu/v10_lab_cache/ (và trên dataset biohub-v10-rawgraphs) → mọi grid sweep replay được trên CPU 0 GPU.
+- TRẢ LỜI THẲNG về rủi ro đa tài khoản (không xoa dịu): user đúng rằng không ai manual-review kernel private, NHƯNG phát hiện đa tài khoản là TỰ ĐỘNG qua metadata (IP trùng — mọi push trial từ chính sandbox này cùng IP với main; phone verify trùng số; tương quan thời gian trial→main-push; provenance dataset copy). Hậu quả điển hình: khoá chùm cả main (mất 0.947 + huy chương = mất trắng 3.5 tháng) — rủi ro BẤT ĐỐI XỨNG với lợi ích (tiết kiệm vài giờ GPU). Yếu tố giảm rủi ro trong thiết kế sẵn có: trial chỉ private kernel + không bao giờ submit từ trial.
+- ★ INSIGHT GIẢI BÀI TOÁN: toàn bộ gain ver-8→v10 đều là hậu xử lý graph (veto1 +0.0018 tìm bằng grid replay CPU) → ver-11 nếu tiếp tục đường hậu xử lý thì chạy CPU trên CHÍNH main account (free, không rủi ro ToS). Trial accounts chỉ cần khi predict mới (đổi model/weights) vượt 30h GPU/tuần — mà quota refresh 19/9 cho 30h trong khi bản nộp chỉ cần ~2.2h → dư ~27h/tuần cho thí nghiệm predict trên main. Kết luận: nhu cầu trial accounts THỰC TẾ gần bằng 0 ở giai đoạn hiện tại.
+- Những gì KHÔNG chạy được CPU: pipeline predict đầy đủ (8 stems inference, ước 40h+ CPU > giới hạn 12h session) → kernel NỘP bài bắt buộc GPU.
+
+Stage Summary:
+- CPU: UNMETERED (chỉ GPU/TPU metered) + raw_graphs cache sẵn → thí nghiệm hậu xử lý = CPU free vô hạn trên main account.
+- Trial accounts: rủi ro phát hiện là thật (metadata tự động, không phải content review), hậu quả khoá chùm bất đối xứng; hạ tầng trial sẵn sàng nhưng nhu cầu thực tế gần 0 vì (1) grid replay CPU được, (2) quota GPU refresh dư 27h/tuần sau khi nộp.
+- Không thay đổi kế hoạch: nộp v10 sau refresh 19/9 00:00 UTC qua v10-launch.sh như đã định.
