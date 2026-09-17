@@ -1028,3 +1028,26 @@ Stage Summary:
 - ★ Toàn chuỗi agent-driven hoạt động: CLI tạo T4 → cell 2 v5 (216s, 10 API call) → repair env → cell 3 lab chạy thật — không cần tab browser user.
 - Drive cache chờ 1 click auth của user (URL trong câu trả lời) → backfill tự động 4.3GB lên Drive lần chạy cell 2 sau.
 - Artifacts cập nhật: build-v10-lab.py (P16.5), cell-monolith-v10lab.py (5397 dòng), test 133 PASS, v10_cell2/3_run.py, /tmp/stems8-v2on (kernel builder v4).
+
+---
+Task ID: V10-POSTMORTEM-CKPT
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: User hỏi (1) đã có kết quả cell 3 để so sánh chưa; (2) kiểm tra link gắn Drive — user đồng ý nhưng chỉ thấy thông báo cuối yêu cầu đóng cửa sổ.
+
+Work Log:
+- ĐIỀU TRA session f37bae (history jsonl + colab.log + sessions.json): drive.mount exec 3 lần (22:12/22:26/22:54 UTC) đều in auth URL (response_type=none+gsession — flow KHÔNG hiện code, "đóng cửa sổ" = consent HOÀN TẤT đúng thiết kế); lần cuối 22:54:40.
+- ★ VM CHẾT 01:42-01:43 UTC 17/9 (keep-alive 200 OK đến 01:42:19 → 404 lúc 01:43:29; keep_alive_stopped consecutive_4xx sau 183 vòng / 12743s; session pruned 07:41). Tuổi session ~3h38m.
+- Cell 3 (PID 18979, launch 22:51): poll cuối 22:56 đang predict stem 1/8 (44b6_12dfb391 frame 94). VM chết giữa chừng — KHÔNG có artefact nào rời VM (toàn bộ /content mất) → KHÔNG có kết quả để so sánh. Drive mount có thể đã xong nhưng backfill không bao giờ chạy (cell 2 không re-run sau mount) → Drive cũng không có gì.
+- T4 assign: 7 lần thử trong ~25 phút đều "Service Unavailable" (503) — CPU session tạo bình thường → chẩn đoán GPU quota/capacity (session 3h38m đêm qua khả năng ăn hạn mức).
+- DỮ LIỆU BỀN vững nguyên vẹn: biohub-v10-stems8 (984 file/3.4GB, status ready — verify lại) → nếp B cell 2 chỉ ~10 API call, không 429.
+- ★ XÂY DỰNG CHECKPOINT PROTECTION (chống lặp thảm họa): v10_ckpt_watchdog.py chạy cạnh cell 3 trên VM — push 2 dataset PRIVATE: (A) biohub-v10-checkpoints = log cell3 (chứa dòng kết quả từng config flush=True) + rows.csv/report.json/ppsweep/validator/guard (rate-limit 4'/15'); (B) biohub-v10-rawgraphs = raw_graphs.json + gt_bundle.json + meta.json push 1 lần khi dump ổn định 2 vòng poll → cache này cho phép grid replay trên CPU.
+- ★ TEST END-TO-END THẬT trên session CPU cputest (giả artefact + timing nhanh env override): create 2 dataset OK, push A (rows + logs + manifest), push B (3 file cache), exit "WATCHDOG COMPLETE" đúng luật (cell3 chết + rows push ≥30s). Verify từ sandbox: DS_A 6 file / DS_B 3 file đúng như stage.
+- v10_recovery_master.py: orchestrate trên VM (cell2 → repair_deps → watchdog + cell3 background, idempotent, marker v10_cell2.done).
+- Giữ session cputest sống (CPU, không tốn GPU quota) làm chỗ replay grid khi có rawgraphs.
+
+Stage Summary:
+- ★ Watchdog checkpoint VERIFIED hoạt động: mất session giữa chừng giờ chỉ mất tối đa ~15' log / 0' raw graphs (push ngay khi dump xong).
+- f37bae chết 01:42 UTC, cell 3 kẹt giữa predict (stem 1/8 lúc poll cuối) — kết quả = 0, không salvage được.
+- Drive auth của user làm ĐÚNG (flow none+gsession không cần code); Drive giờ KHÔNG còn cần thiết cho data (dataset Kaggle là cache bền).
+- T4 chưa cấp lại (503×7) — chờ quota reset / user thử browser Colab register runtime; cputest giữ làm fallback grid CPU.
+- Artifacts mới: colab-bridge/v10_ckpt_watchdog.py (đã test), colab-bridge/v10_recovery_master.py, datasets vietnguyen130593/biohub-v10-checkpoints + biohub-v10-rawgraphs (bootstrap, đã verify roundtrip).
