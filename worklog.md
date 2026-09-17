@@ -1071,3 +1071,22 @@ Stage Summary:
 - ★ Vấn đề auto-stop ĐÃ giải quyết về mặt thiết kế (keep-busy kernel + 3 lớp phòng thủ), chờ auth để triển khai.
 - Auth cần user duyệt lại 1 lần (URL đã sinh, verifier an toàn trong file — không phụ thuộc process sống).
 - Mọi artifacts sẵn sàng; chờ code auth từ user → chạy launch_v10lab3.sh → T4 chạy chuỗi cell2→repair→watchdog+cell3 với keep-busy.
+
+---
+Task ID: V10-AUTH-RESTORED
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: User gửi authorization code mới; trao đổi token, thử T4, fallback browser.
+
+Work Log:
+- Code lần 1 (tái sử dụng từ phiên trước): HTTP 400 invalid_grant — code đã tiêu 1 lần như thiết kế OAuth (token sinh ra hôm qua bị sandbox reset xóa).
+- ★ Code lần 2 (sau khi fix bug scope nối bằng '+' → đổi thành ' ' khiến URL cũ lỗi 400 invalid_scope): SWAP THÀNH CÔNG — refresh_token + 6 scopes lưu ~/.config/colab-cli/token.json; `colab sessions` chạy OK.
+- T4 assign: 8 lần thử trong ~45' đều 503 Service Unavailable, response body {"endpoint":"","sub":0,"subTier":0,"outcome":2,...} — backend từ chối cấp dynamic backend T4 (không phải lỗi capacity cục bộ).
+- L4: 400 "Backend rejected accelerator — no quota or entitlement" (tài khoản không có L4). CPU: OK (tạo/stop bình thường).
+- Xóa CPU session thử giả thuyết "1 dynamic backend/account" — T4 vẫn 503 → loại bỏ.
+- Kết luận: quota T4 account chưa reset thật (tường lăn 24h từ 01:42 UTC hôm qua, khả năng reset ~01:42 UTC 18/9) HOẶC browser path khác CLI path.
+- Chuẩn bị browser fallback: register_browser_t4.py (bắt runtime T4 user connect trong browser thành session CLI t4live — proven pattern phiên V10-COLAB-LIVE).
+
+Stage Summary:
+- ★ Colab CLI ĐÃ AUTH lại thành công (diy PKCE 2-pha verifier-file); mọi lệnh chạy được — chỉ T4 assign bị 503.
+- Chờ user thử browser T4: nếu browser cấp được → register + chạy chuỗi ngay; nếu browser cũng lỗi quota → chờ cửa sổ quota reset (dự kiến sau 01:42 UTC 18/9).
+- Toàn bộ artifacts vẫn sẵn sàng: v10_forever.py (keep-busy), recovery master, watchdog, launch script v10lab3.
