@@ -1,2 +1,0 @@
-config,adjusted_edge_jaccard,division_jaccard,proxy_score,div_tp,div_fp,div_fn,missed_gt_nodes,spurious_pred_nodes,edges_recovered,edges_fragmented,edges_lost_to_detection,wrong_association_edges,n_samples,seconds,overrides
-base,0.9286647911383695,0.3076923076923077,0.9594340219076003,4,1,8,63,182966,5541,131,79,0,8,1049.595291852951,{}
