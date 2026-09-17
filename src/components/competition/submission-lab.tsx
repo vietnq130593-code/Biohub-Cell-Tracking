@@ -12,6 +12,7 @@ import {
   CircleAlert,
   CircleCheck,
   ClipboardPaste,
+  Clock,
   Database,
   FileSearch,
   FlaskConical,
@@ -24,6 +25,7 @@ import {
   Medal,
   OctagonAlert,
   Play,
+  Rocket,
   Ruler,
   ScanSearch,
   Target,
@@ -1152,6 +1154,94 @@ function VersionsTab() {
                     HOCT thực đo 6.6s/1000 nodes (T4, 1249s/189k nodes — dưới slope 9s) nhưng chi phí bậc 2 theo node/frame — embryo-3 dày nhất đã giết ver-9 (hidden ≈ 5-7× public). Kế hoạch: push kernel v10 production (v3-fast + veto1 + guard thắt, strip validator replay) sau quota GPU refresh 19/9 (~2h public) → submit → kỳ vọng 0.948-0.949 · fallback vẫn là v3-fast 0.947.
                   </span>
                 </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ver 10 — PRODUCTION kernel: build xong, chờ quota push */}
+        <Card className="border-emerald-500/50 bg-emerald-500/[0.04] md:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+              <span className="flex items-center gap-2">
+                <Rocket className="h-4 w-4 text-emerald-600 dark:text-emerald-300" aria-hidden />
+                ver 10 · PRODUCTION — kernel build xong, chờ quota GPU 19/9
+              </span>
+              <Badge className="gap-1 bg-emerald-600 text-[10px] leading-4 text-emerald-50 hover:bg-emerald-600 sm:text-xs">
+                <Clock className="h-3 w-3" aria-hidden />
+                SẴN SÀNG · 65/65 TEST · QUOTA 30/30h
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              Kernel{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                biohub-ver10 v1
+              </code>{" "}
+              (T4×2 · Internet OFF · 9 dataset · 1 code cell): v3-fast + HOCT veto
+              MODE 1 + guard mật độ — build theo đúng khuyến nghị §6 V10-RESULTS.
+              Push 20:22 UTC 17/9 bị chặn{" "}
+              <span className="font-mono text-[0.85em]">
+                &quot;Maximum weekly GPU quota of 30.00 hours reached&quot;
+              </span>{" "}
+              (30.93/30h) — quota refresh 19/9 00:00 UTC, một lệnh{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                v10-launch.sh
+              </code>{" "}
+              tự push → watch → submit → score.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Guard mật độ chống TLE (3 lớp)
+                </p>
+                <ul className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
+                  <li>
+                    <span className="font-mono font-semibold text-foreground">cap 300s/video</span>{" "}
+                    (từ 900) + <span className="font-mono font-semibold text-foreground">deadline 7.5h</span>{" "}
+                    (từ 10.5) — est theo k·n·d_max + 50s, k=2.2e-5 hiệu chuẩn 8 stems đo thật
+                    (est ≥ actual toàn bộ, an toàn 1.7-1.9×)
+                  </li>
+                  <li>
+                    <span className="font-mono font-semibold text-foreground">×3 khi d_max &gt; 550 nodes/frame</span>{" "}
+                    — vùng ngoài hiệu chuẩn đã giết ver-9 trên embryo-3 dày
+                  </li>
+                  <li>
+                    <span className="font-mono font-semibold text-foreground">abort giữa video</span> ở biên chunk
+                    (_hvDeadlineAbort — không retry, fail-safe giữ graph gốc) — kernel LUÔN hoàn tất trong hạn 12h
+                  </li>
+                </ul>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Mô phỏng guard trên 8 stems validator
+                </p>
+                <ul className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
+                  <li>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-300">6/8 video được veto</span> —
+                    gồm cả hai stem sinh gain chính (6bba_09961292 est 279s · 6bba_07e24132 est 289s &lt; 300)
+                  </li>
+                  <li>
+                    2 video 44b6 khổng lồ bị skip (est 576s / 498s) đều vô hại — một cái
+                    delta ±0.0000, một cái −0.0045 (skip còn gỡ thiệt hại)
+                  </li>
+                  <li>ĐÃ STRIP: RLF (Δ 0.0000) · gate replay (~45&apos;/lần) · S2 eval cell → public ~2.0-2.2h</li>
+                </ul>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Kỳ vọng &amp; rủi ro
+                </p>
+                <ul className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
+                  <li>
+                    Pass hidden: 0.9475-0.9479 + 0.0018 →{" "}
+                    <span className="font-semibold text-foreground">0.948-0.949</span> → vượt cụm 55 đội
+                    0.948 (hạng 89-143) → bạc chắc chắn
+                  </li>
+                  <li>TLE dù guard: mất 1 lượt — v3-fast 0.947 vẫn là final (rủi ro giới hạn)</li>
+                  <li>Deadline 29/9 còn 12 ngày · quota về 19/9 00:00 UTC (~07:00 giờ VN)</li>
+                </ul>
               </div>
             </div>
           </CardContent>

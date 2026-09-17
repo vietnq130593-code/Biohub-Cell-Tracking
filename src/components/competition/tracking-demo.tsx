@@ -1020,8 +1020,9 @@ export default function TrackingDemo() {
               thể tích 3D tổng hợp của phôi zebrafish, rồi chấm điểm đúng metric
               cuộc thi. Ver 8 v3-fast CHẤM XONG 16/9: 0.947 — HẠNG 165/3602
               — HUY CHƯƠNG BẠC (top 5%, vị trí 22/525 đầu cụm 0.947).
-              Ver 10 LAB (17/9): veto mode 1 +0,0018 adjEJ — ứng viên vượt
-              cụm 0.948, chưa nộp. Ver 9 (HOCT veto mode 2) FAIL runtime
+              Ver 10 LAB (17/9): veto mode 1 +0,0018 adjEJ — kernel production
+              build xong (65/65 test), chờ quota 19/9 để push + nộp. Ver 9 (HOCT
+              veto mode 2) FAIL runtime
               hidden test (56261328 + gửi lại 56276434). Ver 7 (port
               notebook Reyhan — public LB 0.947) và Ver 6 (Kaggle 0.945
               deterministic) cho số GẦN NHAU trên cùng dữ liệu — đúng bằng

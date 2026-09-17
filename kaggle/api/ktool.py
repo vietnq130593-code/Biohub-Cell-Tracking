@@ -85,6 +85,13 @@ VER9_DATASETS = VER8_DATASETS + [
     "musculer/biohub-hoct-general-v0-official",
 ]
 VER9_SLUG = "biohub-ver9"
+# ver-10: Phase F — v3-fast + HOCT veto MODE 1 (division-safe) + guard mật độ chống TLE
+# (cap 300s/video, deadline 7.5h, est k·n·d_max ×3 khi d_max>550, abort giữa chunk).
+# KHÔNG RLF (Δ0.0000) + KHÔNG gate/validator replay (bài học TLE ver-9) — notebook
+# chỉ 1 code cell S1 (bỏ S2 eval cell). 9 input như ver-9 (7 ver-8 + 2 HOCT).
+VER10_NOTEBOOK = PROJECT / "download" / "ver10-cell-tracking.ipynb"
+VER10_DATASETS = VER9_DATASETS
+VER10_SLUG = "biohub-ver10"
 ACCELERATOR = "NvidiaTeslaT4"   # GPU T4 × 2 (giống notebook gốc 0.945) — enum theo kagglesdk
 DEFAULT_SLUG = "biohub-ver6"
 POLL_SECONDS = 60
@@ -106,6 +113,8 @@ def version_config(ver) -> tuple[Path, list[str], str]:
         return VER8_NOTEBOOK, VER8_DATASETS, VER8_SLUG
     if ver == "9":
         return VER9_NOTEBOOK, VER9_DATASETS, VER9_SLUG
+    if ver == "10":
+        return VER10_NOTEBOOK, VER10_DATASETS, VER10_SLUG
     return NOTEBOOK, DATASETS, DEFAULT_SLUG
 
 
@@ -454,7 +463,7 @@ def main() -> int:
     p.set_defaults(func=cmd_token)
 
     p = sub.add_parser("verify", help="kiểm tra token + input + quota")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9"], default="6",
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10"], default="6",
                    help="6: 3 dataset; 7: 6 dataset; 7b: 7 dataset; 8w1: 5 dataset CPU mini-kernel")
     p.set_defaults(func=cmd_verify)
 
@@ -462,27 +471,27 @@ def main() -> int:
     p.add_argument("--username", help="username Kaggle (tự phát hiện nếu có thể)")
     p.add_argument("--slug")
     p.add_argument("--public", action="store_true", help="để public (mặc định private)")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9"], default="6",
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10"], default="6",
                    help="6: ver-6; 7: ver-7 port 0.947; 7b: + divnet; 8w1: wave1 CPU (E0-E3)")
     p.set_defaults(func=cmd_push)
 
     p = sub.add_parser("status", help="xem trạng thái run hiện tại")
     p.add_argument("--username")
     p.add_argument("--slug")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9"], default="6")
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10"], default="6")
     p.set_defaults(func=cmd_status)
 
     p = sub.add_parser("watch", help="đợi chạy xong rồi tải output")
     p.add_argument("--username")
     p.add_argument("--slug")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9"], default="6")
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10"], default="6")
     p.add_argument("--poll", type=int, default=POLL_SECONDS)
     p.set_defaults(func=cmd_watch)
 
     p = sub.add_parser("output", help="tải output của run gần nhất")
     p.add_argument("--username")
     p.add_argument("--slug")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9"], default="6")
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10"], default="6")
     p.set_defaults(func=cmd_output)
 
     p = sub.add_parser("submit", help="nộp notebook version vào competition")
@@ -490,7 +499,7 @@ def main() -> int:
     p.add_argument("--slug")
     p.add_argument("--version", type=int)
     p.add_argument("--message")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9"], default="6",
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10"], default="6",
                    help="dùng khi không có --slug và chưa có state push")
     p.set_defaults(func=cmd_submit)
 
@@ -504,7 +513,7 @@ def main() -> int:
     p.add_argument("--username")
     p.add_argument("--slug")
     p.add_argument("--public", action="store_true")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9"], default="6")
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10"], default="6")
     p.add_argument("--poll", type=int, default=POLL_SECONDS)
     p.add_argument("--version", type=int)
     p.add_argument("--message")

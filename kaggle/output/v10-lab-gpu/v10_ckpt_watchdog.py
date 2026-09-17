@@ -24,7 +24,7 @@ import time
 from pathlib import Path
 
 # --- auth Kaggle (giống cell 2 — token nhúng; env được subprocess kế thừa) ---
-KAGGLE_API_TOKEN = "KGAT_14164511bf6b0ba6b14ed9050ffdea66"
+KAGGLE_API_TOKEN = "KGAT_DAN_TOKEN_VAO_DAY"
 os.environ["KAGGLE_API_TOKEN"] = KAGGLE_API_TOKEN
 
 WATCH_LOG = "/content/v10_ckpt.log"

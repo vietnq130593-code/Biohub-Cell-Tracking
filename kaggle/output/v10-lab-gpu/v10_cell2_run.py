@@ -18,7 +18,7 @@ _os_ba.environ.setdefault("V10_DRIVE", "off")
 _os_ba.environ.setdefault("V10_HEADLESS", "1")
 
 # --- token Kaggle KGAT_... — đã nhúng sẵn; nếu có Colab Secret KAGGLE_API_TOKEN thì ưu tiên secret ---
-KAGGLE_API_TOKEN = "KGAT_14164511bf6b0ba6b14ed9050ffdea66"
+KAGGLE_API_TOKEN = "KGAT_DAN_TOKEN_VAO_DAY"
 try:
     from google.colab import userdata  # noqa: E402
     _sec = (userdata.get("KAGGLE_API_TOKEN") or "").strip()

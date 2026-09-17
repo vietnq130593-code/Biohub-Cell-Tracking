@@ -170,6 +170,20 @@ continuation, 72 cạnh phân bào, 572 track) — không phải dự đoán:
 - **ver-7b (Phase C)** — DivNet RANK-ONLY W=15µm + nới gate tau 0.6→1.2 / diverge 2.25→1.0: div_tp 3→4 nhưng div_fp 1→21 → proxy 0.9511→0.9380 = regression → **KHÔNG nộp** (phán quyết `eval/reports/ver7b-phase-c-verdict.md`; hướng v2: giữ gate gốc + RANK-ONLY)
 - **Mục tiêu ver-8: ≥ 0.948** (cụm 40 đội hạng 66–105) — nghiên cứu đầy đủ `ver-8-planning/VER8-RESEARCH.md` (phát hiện chính: đỉnh 0.966+ là hoá thạch lỗi metric đã vá 17/7 — megayak; điều khoản division đáng +0.100, hiện 0 TP/12 FN; ràng buộc là RANKING không phải gates; cụm 0.948 là private tweaks)
 
+## ver 10 — PRODUCTION: v3-fast + HOCT veto MODE 1 + guard mật độ (17/9 · chờ quota 19/9)
+
+- **Lab 17/9** (kernel `v10-lab-gpu-t4` T4×2, 9 configs × 8 stems, replay khớp ver-9 gate
+  6 chữ số): veto MODE 1 là cấu hình duy nhất thắng cả adjEJ (+0.001828) LẪN proxy
+  (+0.001828) mà KHÔNG đụng division (4/1/8 nguyên vẹn). RLF chết (Δ 0.0000), tight
+  sweep toàn âm. Chi tiết: `ver-10-lab/V10-RESULTS.md` + `ver-10-lab/V10-LAB-PLAN.md`.
+- **Kernel production** `ver-10/`: v3-fast + veto mode 1 + guard mật độ chống TLE
+  (cap 300s/video · deadline 7.5h · est k·n·d_max hiệu chuẩn 8 stems · ×3 khi d_max>550
+  · abort giữa chunk) — strip RLF + gate replay + S2 eval → public ~2.0–2.2h.
+  Test 65/65 PASS. Hồ sơ đầy đủ: `ver-10/V10-PRODUCTION.md`.
+- Push 20:22 UTC 17/9 bị chặn quota (30.93/30h, refresh 19/9 00:00 UTC) — sau refresh
+  chạy `kaggle/api/v10-launch.sh` (push → watch → submit → score một lệnh).
+  Kỳ vọng: 0.948-0.949 → hạng ~89-143 → bạc chắc chắn.
+
 ## ver 9 — Nghiên cứu tri thức mới 15/9 (đang soạn)
 
 - Nguồn mới khai thác: 5 notebook public (pawanmali **divfix** 15/9 · zhincez

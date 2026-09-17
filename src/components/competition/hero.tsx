@@ -104,7 +104,7 @@ export function Hero() {
             className="border-teal-300/60 bg-teal-400/10 text-teal-200 backdrop-blur-sm"
           >
             <FlaskConical className="mr-1 h-3 w-3" aria-hidden />
-            Ver 10 LAB: veto1 +0.0018 — ứng viên 0.949
+            Ver 10 · kernel sẵn sàng — chờ quota 19/9
           </Badge>
         </motion.div>
 

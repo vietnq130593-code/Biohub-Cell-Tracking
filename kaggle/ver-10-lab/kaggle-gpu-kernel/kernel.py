@@ -50,7 +50,7 @@ for f in ["v10_cell2_run.py", "v10_cell3_run.py", "repair_deps.py", "v10_ckpt_wa
 # --- env roots (kernel: /kaggle/input read-only → input tree trong working, 20GB đủ) ---
 os.environ["V10_INPUT_ROOT"] = str(RUN / "v10input")
 os.environ["V10_WORKING_ROOT"] = str(RUN)
-os.environ["KAGGLE_API_TOKEN"] = "KGAT_14164511bf6b0ba6b14ed9050ffdea66"
+os.environ["KAGGLE_API_TOKEN"] = "KGAT_DAN_TOKEN_VAO_DAY"
 os.environ["V10_CKPT_CELL3_LOG"] = str(RUN / "v10_cell3.log")
 os.environ["V10_CKPT_CELL2_LOG"] = str(RUN / "v10_cell2.log")
 print("[kernel] V10_INPUT_ROOT =", os.environ["V10_INPUT_ROOT"], flush=True)

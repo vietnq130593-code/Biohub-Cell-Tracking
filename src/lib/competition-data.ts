@@ -355,6 +355,28 @@ export const KAGGLE_RESULTS: KaggleVersionResult[] = [
       "Raw graphs cache 27MB đã an toàn trên dataset biohub-v10-rawgraphs → mọi grid sweep sau replay được trên CPU 0 GPU; quota GPU tuần này còn ~1.5h — push kernel v10 production sau quota refresh 19/9",
     ],
   },
+  {
+    id: "ver10prod",
+    label: "Ver 10 · PRODUCTION kernel — veto mode 1 + guard mật độ",
+    kaggleRef: "vietnguyen130593/biohub-ver10 v1 (chờ push sau quota refresh) · GPU T4×2 · Internet OFF · 9 dataset",
+    lbScore: null,
+    submittedAt: "2026-09-17 20:22 UTC · build xong + test 65/65 — push bị chặn quota 30/30h, refresh 19/9 00:00 UTC",
+    status: "PENDING",
+    runSeconds: null,
+    submissionRows: null,
+    proxy: null,
+    adjEJ: null,
+    divJ: null,
+    notes: [
+      "★ KERNEL ĐÃ SẴN SÀNG THEO ĐÚNG KHUYẾN NGHỊ §6 V10-RESULTS.md: v3-fast (0.947) + HOCT veto MODE 1 (division-safe — cấu hình duy nhất thắng cả adjEJ +0.0018 LẪN proxy +0.0018 mà không đụng division 4/1/8) + guard mật độ chống TLE",
+      "GUARD MẬT ĐỘ (bài học TLE ver-9): cap 300s/video (từ 900) · deadline 7.5h (từ 10.5) · ước lượng k·n·d_max + 50s với k=2.2e-5 hiệu chuẩn từ 8 stems đo thật (est ≥ actual trên TẤT CẢ 8 video, thiên về an toàn 1.7-1.9×) · ×3 khi d_max > 550 nodes/frame (vùng ngoài hiệu chuẩn đã giết ver-9) · abort giữa video ở biên chunk (_hvDeadlineAbort — không retry, fail-safe giữ graph gốc)",
+      "★ HIỆU CHỈNH GUARD TRÊN DỮ LIỆU THẬT: 6/8 video validator được veto (gồm CẢ HAI stem sinh gain chính 6bba_09961292 est 279s + 6bba_07e24132 est 289s < cap 300) — 2 video 44b6 khổng lồ bị skip (est 576s/498s) đều vô hại: 44b6_12dfb391 delta ±0.0000, 44b6_2a2eff9f delta −0.0045 (skip còn GỠ thiệt hại)",
+      "ĐÃ STRIP theo khuyến nghị: RLF (Δ 0.000000 — chết hoàn toàn) · [ver9-gate] validator replay (~45' public ×5-7 hidden) · S2 eval cell → notebook chỉ còn 1 code cell; public ~2.0-2.2h → hidden ~4-5h < hạn 12h với dự phòng deadline 7.5h",
+      "BUILD ĐÃ KIỂM CHỨNG: phẫu thuật monolith ver-9 (đã chạy thật Kaggle) — xóa 207 dòng RLF+gate, chèn block [ver10-hoct] 609 dòng; py_compile PASS; test 65/65 PASS (veto mode 1/2, hiệu chuẩn 8 stems, budget, abort không-retry, strip sạch, thứ tự block); mấu gate production giữ nguyên (tau 0.6 / diverge 2.25 / re-parent 0.25)",
+      "PUSH 20:22 UTC 17/9 bị Kaggle chặn cứng: 'Maximum weekly GPU quota of 30.00 hours reached' (30.93/30h — v10-lab đã chạy vượt 3.6h khi quota gần cạn). Launcher một lệnh kaggle/api/v10-launch.sh (--wait tự poll quota) → push → watch → submit (kagglesdk create_code_submission) → score",
+      "KỲ VỌNG: pass hidden → 0.948-0.949 → vượt cụm 55 đội 0.948 (hạng 89-143) → bạc chắc chắn + mở đường 0.949; TLE (đã phòng bằng 3 lớp guard) → mất 1 lượt, v3-fast 0.947 vẫn là final — rủi ro giới hạn, deadline 29/9 còn 12 ngày",
+    ],
+  },
 ];
 
 /** Bối cảnh leaderboard cập nhật 16/9 10:39 UTC — 3602 đội */

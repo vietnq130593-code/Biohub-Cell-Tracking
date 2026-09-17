@@ -863,7 +863,7 @@ Stage Summary:
 ---
 Task ID: V10-CELL2-TOKEN
 Agent: main (Bio — AI engineer/system architect/algorithm expert)
-Task: User cung cấp Kaggle token KGAT_14164511bf6b0ba6b14ed9050ffdea66 — viết lại cell 2 (S2 SETUP) của v10-lab-colab.ipynb để copy-paste thẳng vào Google Colab không cần cấu hình gì thêm.
+Task: User cung cấp Kaggle token KGAT_1416…[REDACTED — token sống tại ~/.kaggle/access_token, ngoài repo] — viết lại cell 2 (S2 SETUP) của v10-lab-colab.ipynb để copy-paste thẳng vào Google Colab không cần cấu hình gì thêm.
 
 Work Log:
 - Inspect download/v10-lab-colab.ipynb: 4 cell (markdown + S2 SETUP + S3 LAB + S4 RESULTS); "cell 2" user nhắc = cell index 1 (S2 SETUP) chứa placeholder KAGGLE_API_TOKEN = "KGAT_DAN_TOKEN_VAO_DAY".
@@ -875,7 +875,7 @@ Work Log:
 - Xuất cell 2 hoàn chỉnh (9.416 ký tự) cho user copy-paste vào Colab (nguồn: /tmp/v10-cell2-final.txt + đã dán trong trả lời chat).
 
 Stage Summary:
-- Cell 2 (S2 SETUP) v10-lab-colab đã SẴN SÀNG copy-paste: token KGAT_14164511bf6b0ba6b14ed9050ffdea66 nhúng sẵn — user chỉ cần dán vào 1 cell code Colab (runtime T4 GPU) rồi Run; không cần tạo Secret (Secret vẫn được ưu tiên nếu đặt sau này).
+- Cell 2 (S2 SETUP) v10-lab-colab đã SẴN SÀNG copy-paste: token KGAT_1416…[REDACTED — token sống tại ~/.kaggle/access_token, ngoài repo] nhúng sẵn — user chỉ cần dán vào 1 cell code Colab (runtime T4 GPU) rồi Run; không cần tạo Secret (Secret vẫn được ưu tiên nếu đặt sau này).
 - Notebook download/v10-lab-colab.ipynb cũng đã rebuild với token tương tự (giữ nguyên 4 cell; monolith byte-for-byte giống ver-9 + patch v10-lab).
 - Bài học hạ tầng ghi nhận: output hiển thị của Bash tool có thể nuốt ký tự "[" trong chuỗi "[m for m ...]" → khi kiểm tra cú pháp code phải dùng ast.parse/py_compile + hexdump, không tin mắt thường vào output in ra.
 - 87/87 test PASS; không push Kaggle; không đụng app Next.js.
@@ -1151,3 +1151,27 @@ Stage Summary:
 - ★ PHÁN QUYẾT: KHÔNG nộp v10-RLF (≡ v3-fast) / v10-tight (tệ hơn). Ứng viên duy nhất: v3-fast + HOCT veto MODE 1 + guard thắt (MAX_VIDEO_S 900→300s, deadline 10→7.5h, dự đoán theo mật độ node/frame thay vì tổng node tuyến tính, strip validator replay). Push sau quota GPU refresh 19/9 (~còn 1.5h tuần này sau ver-9 2.4h + probe + v10-lab 3.6h), deadline 29/9 dư thời gian.
 - Rủi ro ghi nhận: HOCT cùng cơ chế TLE đã giết ver-9 (chi phí bậc 2 theo node/frame trên embryo-3 dày; guard hiện dự đoán TUYẾN TÍNH 9s/1000 nodes, thực đo 6.6s/1000 trên validator, không abort giữa video) — veto1 chỉ đáng đánh đổi vì div không đổi (toàn bộ delta là adjEJ thuần) + sjlee field +0.0040 CI-dương + 5 lượt/ngày còn dư.
 - Raw graphs cache 27MB trên dataset biohub-v10-rawgraphs → grid sweep sau chạy CPU 0 GPU nếu cần thêm bằng chứng trước khi tốn lượt.
+
+---
+Task ID: V10-PROD-BUILD
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: User yêu cầu (17/9 tối): tiến hành nộp bài v10 theo khuyến nghị V10-RESULTS §6, sau đó push code lên GitHub với toàn bộ tài liệu + phân tích.
+
+Work Log:
+- Kiểm tra hiện trạng: GPU quota 30.93/30h (0.00h còn) refresh 19/9 00:00 UTC; submissions xác nhận 56261360 (v3-fast) = 0.947 duy nhất có điểm, 56276434 resubmit COMPLETE không điểm (fail đúng dự báo).
+- XÂY KERNEL ver-10 theo đúng khuyến nghị: kaggle/ver-10/ = hoct-veto-block-v10.py (mode 1 mặc định + guard mật độ) + build-ver10-monolith.py (phẫu thuật monolith ver-9 đã chạy thật: xóa 207 dòng RLF+gate, chèn block [ver10-hoct] 609 dòng, đổi env VETO=1/DEADLINE=7.5/CAP=300, bỏ RLF + S2 eval cell → notebook 1 code cell) + make-ver10-ipynb.py + test-ver10-blocks.py.
+- ★ GUARD MẬT ĐỘ (trái tim của v10): est = k·n·d_max + 50s với k=2.2e-5 hiệu chuẩn từ 8 stems đo thật T4×2 (est ≥ actual TOÀN BỘ, tỷ số 1.02-1.94× thiên về an toàn); ×3 khi d_max > 550 nodes/frame (vùng ngoài hiệu chuẩn đã giết ver-9); cap 300s/video; deadline 7.5h; abort giữa video ở biên chunk qua class _hvDeadlineAbort (không retry — phân biệt solver-failure RuntimeError vẫn retry 1→2→4 chunk); counts aborted_deadline riêng trong HOCT_VETO_SUMMARY.
+- ★ MÔ PHỎNG GUARD TRÊN VALIDATOR: 6/8 video được veto GỒM CẢ HAI stem sinh gain chính (6bba_09961292 est 279s · 6bba_07e24132 est 289s < 300); 2 video 44b6 khổng lồ bị skip (est 576/498s) đều vô hại (12dfb391 ±0.0000 · 2a2eff9f −0.0045 — skip còn gỡ thiệt hại).
+- TEST 65/65 PASS (0 GPU): veto mode 1/2 · công thức + hiệu chuẩn 8 stems · budget (run/skip_video_cap/skip_deadline + ×3 ngoài vùng) · snap KD-tree 1-1 · abort nảy giữa chunk + không bị retry + _hv_veto_video bắt riêng giữ graph gốc · solver-failure vẫn retry 3 lần · mấu tích hợp strip sạch ver-9 · thứ tự block. py_compile PASS. Notebook verify cell khớp nguyên văn.
+- Incident hiển thị transport: các chuỗi '[h'/'[m' bị công cụ hiển thị ăn mất (grep/Read output) khiến tưởng _hv_log prefix lỗi — thực chất file gốc đúng '[hoct_veto'; lần fix mù bằng heredoc tạo '[h[hoct_veto' → sửa bằng mã ký tự (verify char-by-char) + tái build + test lại 65/65.
+- PUSH 20:22 UTC: Kaggle từ chối cứng "Maximum weekly GPU quota of 30.00 hours reached" (version chưa tạo). Xây hạ tầng nộp 1 lệnh: kaggle/api/v10-launch.sh (--wait poll quota 300s → push → watch 5h → submit → score) + submit-v10.py (kagglesdk create_code_submission — cuộc thi notebooks-only) + ktool.py thêm --ver 10 (9 dataset, T4×2, Internet OFF).
+- ★ BẢO MẬT TRƯỚC GITHUB: quét phát hiện token Kaggle đầy đủ KGAT_1416... nhúng trong 10 file được track (worklog, build-v10-lab.py, notebook Colab, colab-bridge ×2, kernel.py, output ×2, cell2-final) — repo GitHub là PUBLIC → REDACT toàn bộ (placeholder KGAT_DAN_TOKEN_VAO_DAY cho file chạy được, [REDACTED] cho worklog; token thật vẫn sống ~/.kaggle/access_token ngoài repo) + untrack tool-results/ + 35 file __pycache__ + .gitignore thêm pattern; verify 0 file track chứa token đầy đủ.
+- Tài liệu: kaggle/ver-10/V10-PRODUCTION.md (hồ sơ quyết định + guard + hiệu chuẩn + quy trình nộp) + README registry thêm mục ver 10 + V10-RESULTS.md (phiên trước).
+- APP CẬP NHẬT: competition-data.ts (thêm bản ver10prod PENDING — 7 notes: kernel sẵn sàng, guard, hiệu chuẩn, strip, push bị chặn quota, launcher, kỳ vọng) · hero.tsx (badge teal "Ver 10 · kernel sẵn sàng — chờ quota 19/9") · submission-lab.tsx (card emerald "ver 10 · PRODUCTION — kernel build xong, chờ quota GPU 19/9": 3 cột guard/mô phỏng/kỳ vọng + icon Rocket+Clock) · tracking-demo.tsx (mô tả cập nhật "kernel production build xong 65/65, chờ quota 19/9").
+- VERIFY: lint EXIT 0 · tsc src sạch (chỉ lỗi cũ examples/) · dev server HTTP 200 · agent-browser: 0 lỗi console/page, hero badge + card production (quota message + v10-launch.sh + 65/65) hiển thị, versions tab có hàng ver10prod, mobile 390px scrollWidth=390, footer đáy khi scroll cuối. Screenshots: kaggle/tools/e2e-ver10prod-{desktop,mobile}.png.
+
+Stage Summary:
+- ★ KERNEL v10 SẴN SÀNG 100%: build theo đúng khuyến nghị (v3-fast + veto MODE 1 division-safe + guard mật độ 3 lớp + strip RLF/gate/S2), test 65/65, notebook 324KB tại download/ver10-cell-tracking.ipynb, metadata staging đúng (9 dataset + competition, T4×2, OFF, private).
+- ★ PUSH BỊ CHẶN QUOTA (30.93/30h) — đúng kế hoạch khuyến nghị chờ refresh 19/9 00:00 UTC (~07:00 giờ VN). Sau refresh: MỘT LỆNH `bash kaggle/api/v10-launch.sh` (hoặc --wait) → tự push → watch → submit (kagglesdk) → score. Deadline 29/9 còn dư.
+- ★ Token Kaggle đã REDACT khỏi toàn bộ file được track trước khi chuẩn bị push GitHub (repo PUBLIC) — token thật sống ngoài repo tại ~/.kaggle/access_token, mọi chức năng giữ nguyên.
+- GitHub push cần token ghp_ từ user (token cũ mất sau sandbox rebuild lần trước) — đã chuẩn bị commit đầy đủ (code + tài liệu + phân tích: V10-PRODUCTION.md, V10-RESULTS.md, V10-LAB-PLAN.md, ver-10 full source, app cập nhật, worklog).
