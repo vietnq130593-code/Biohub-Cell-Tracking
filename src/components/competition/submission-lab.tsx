@@ -1303,16 +1303,18 @@ function VersionsTab() {
                 </p>
                 <ul className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
                   <li>
-                    v11 = ver-10 + 4 hằng số (parent 9→10.5-12 · diverge 2.25→1.0-1.5 · tau
-                    0.6→0.8-0.95 · W sweep 15-40) — không code mới
+                    v11 = ver-10 + 5-6 hằng số (parent 9→10.5-12 · diverge 2.25→1.0-1.5 · tau
+                    0.6→0.8-0.95 · W 15-40 · trục mới sau review: geo-sister 8.0→12/14) — không
+                    code mới
                   </li>
                   <li>
-                    Lab GPU 1 lần dump proposals gate rộng + p_div DivNet → grid CPU replay 81
-                    configs → chọn theo evaluator division ĐÃ VÁ (tracksdata nghi đọc ×2 official)
+                    Lab GPU 1 lần dump theo-node (p_div DivNet + verdict DeepCenter + proposals
+                    gate rộng + HOCT pre-snap) → grid CPU replay ~243 configs mô phỏng chuỗi
+                    (3)→(9) → chọn theo validator patched (đã có sẵn, đã verify rule aa65e90)
                   </li>
                   <li>
-                    Gates D1-D6: div_tp ≥ +2 AND adjEJ ≥ −0.0002 AND FP ≤ +2 AND node set giữ
-                    nguyên hệt ver-10
+                    Gates D1-D6 sau review: div_tp ≥ +2 AND adjEJ ≥ −0.0002 AND FP ≤ +2 AND
+                    cấm xóa node (chỉ được rescue-thêm)
                   </li>
                 </ul>
               </div>

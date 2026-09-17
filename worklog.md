@@ -1230,3 +1230,24 @@ Stage Summary:
 - ★ V11-RESEARCH.md hoàn chỉnh — hướng đi: ver-10 + mở VỪA 4 gate division + DivNet rerank giữ nguyên + cap FP, chấm bằng evaluator ĐÃ VÁ, grid CPU replay trên dump proposals (pattern v10-lab). Kỳ vọng +0.002..+0.006 → 0.951-0.955.
 - Điểm nghẽn nhận diện: validator chỉ 12 GT division → gate D3/D4 khắt khe + config bảo thủ nếu biên mờ; mô phỏng replay phải khớp base 4/1/8 + adjEJ 0.928665 (D2) trước khi tin grid.
 - Lộ trình chốt: 19/9 sau quota → (1) v10-launch.sh bank 0.949x → (2) v11-lab dump → (3) grid CPU → (4) nộp v11 ~20-21/9. Deadline 29/9 dư 8 ngày.
+
+---
+Task ID: V11-RESEARCH-REVIEW
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: User yêu cầu review kaggle/ver-11-planning/V11-RESEARCH.md với vai trò kỹ sư AI/kiến trúc sư/chuyên gia thuật toán — tìm chỗ cần chỉnh sửa, vấn đề, thiếu sót.
+
+Work Log:
+- REVIEW bằng đối chiếu CODE THẬT thay vì đọc lại tài liệu: ver-10/cell-monolith.py (chuỗi hậu xử lý dòng 3540-3600, hằng số 460-542, pdiv_of 3137) + ver-10-lab/cell-monolith-v10lab.py (validator dòng 4596-4670) + kiểm tra tracksdata cài trong sandbox (không có).
+- ★ PHÁT HIỆN 1 (tích cực — thu hẹp việc): validator lab ĐÃ cài "patched division matching" (anchor = GT parent/parent-of-parent + lineage-descendants phủ 2 nhánh phân biệt) → số liệu 4/1/8 của grid v10 là rule official MỚI, không bị thổi ×2 như lo ngại ban đầu. D1 thu hẹp từ "port evaluator từ đầu" thành "version-check tracksdata trên Kaggle + chạy chéo 1 graph".
+- ★★ PHÁT HIỆN 2 (nghiêm trọng — trục bị bỏ sót): division_geometry_filter (bước 5, dòng ~3552) có DIV_SISTER_MAX_UM=8.0 + DIV_DROP_TO_SINGLE_IF_BAD=1 — mọi cạnh chia với sister > 8.0µm bị GIẢM CẤP về 1 cạnh. GT sister median 10.4/p90 13.0/max 13.7 → gate này chặn ~50-70% division thật, chặt hơn mọi gate safe-div trong grid ban đầu. 4/12 TP (33%) khớp chẩn đoán. Trục mới 8.0→12/14 thêm vào grid (243 configs).
+- ★ PHÁT HIỆN 3 (sai cấu trúc): safe-div KHÔNG phải bước cuối — 5 bước sau phụ thuộc nó: reparent (tự query DivNet theo node — chicken-and-egg cho CPU replay) → geo-filter → prune_isolated → short-track (keep_division_components=1: cạnh chia mới CỨU node) → linefit (positions đổi theo edges). Grid sim phải mô phỏng chuỗi (3)→(9); giải pháp dump p_div THEO NODE (phủ cả ranking proposals + mọi query pdiv_of) + verdict DeepCenter theo node + HOCT pre-snap (mọi config = mili-giây) + npz KHÔNG truncate.
+- ★ PHÁT HIỆN 4 (gate bất khả thi): D6 "node set hash giống hệt ver-10" SAI — prune_isolated/short-track có thể rescue node bằng cạnh chia mới → node set được phép TĂNG (chỉ cấm xóa + cấm id ngoài vũ trụ node bước 2). D3 thêm tier-2 (+1 TP/0 FP = chỉ cược khi còn thời gian); D4 ghi nhận FP division mới được mode-1 veto BẢO VỆ → cap là hàng rào duy nhất; thêm rủi ro domain-shift embryo-3 + reparent phi tuyến vào §7.
+- SỬA TÀI LIỆU: TL;DR (thuật toán + rủi ro + 243 configs + evaluator đã giải quyết), §1.2 (bỏ suy đoán ×2), §3.1 viết lại (tích cực), §3.2 viết lại (chuỗi 9 bước + geo-filter ⚠️ + giá trị caps thật 0.008/0.004/DC 0.20), §3.3 viết lại (dump 6 mục theo-node), §3.4 (bảng grid mới + sister 14.0 dead axis), §5.1-5.3 (runners v11 riêng + verify top-3 in-lab + runtime lượng hóa), §6 (D1-D6 sửa), §7 (3 hàng mới), §8 + PHỤ LỤC A biên bản review 6 mục.
+- ĐỒNG BỘ APP: competition-data.ts ver11research notes 3 chỗ cập nhật (review note + D6 mới + 243 configs + 5-6 hằng số) — fix 1 lỗi cú pháp thừa '","' tự tạo khi edit; submission-lab.tsx card ver11: thuật toán + dump theo-node + D6 mới.
+- VERIFY: lint EXIT 0 · tsc sạch (chỉ examples/ cũ) · HTTP 200 · agent-browser: DOM có đủ REVIEW 17/9 + geo-sister + card, mobile 390 scrollWidth=390, 0 lỗi console/page. Screenshot kaggle/tools/e2e-ver11-review.png.
+
+Stage Summary:
+- ★ Review tìm ra 4 vấn đề thực chất (1 tích cực, 1 nghiêm trọng, 2 cấu trúc) — tất cả đã sửa vào V11-RESEARCH.md + phụ lục A biên bản; kế hoạch v11 giờ đối chiếu được từng dòng code.
+- ★ Trục geo-sister 8.0µm có thể là lever lớn nhất kênh division (chặn ~50-70% division thật) — nếu đúng, kỳ vọng +0.002..+0.006 còn bảo thủ.
+- Thiết kế dump theo-node biến grid CPU thành bài toán tra bảng (mili-giây/config) + verify top-3 bằng re-run thật trong lab → độ tin cậy mô phỏng khép kín.
+- Không thay đổi lộ trình: 19/9 nộp v10 → v11-lab → grid 243 configs → nộp v11 ~20-21/9.
