@@ -1175,3 +1175,21 @@ Stage Summary:
 - ★ PUSH BỊ CHẶN QUOTA (30.93/30h) — đúng kế hoạch khuyến nghị chờ refresh 19/9 00:00 UTC (~07:00 giờ VN). Sau refresh: MỘT LỆNH `bash kaggle/api/v10-launch.sh` (hoặc --wait) → tự push → watch → submit (kagglesdk) → score. Deadline 29/9 còn dư.
 - ★ Token Kaggle đã REDACT khỏi toàn bộ file được track trước khi chuẩn bị push GitHub (repo PUBLIC) — token thật sống ngoài repo tại ~/.kaggle/access_token, mọi chức năng giữ nguyên.
 - GitHub push cần token ghp_ từ user (token cũ mất sau sandbox rebuild lần trước) — đã chuẩn bị commit đầy đủ (code + tài liệu + phân tích: V10-PRODUCTION.md, V10-RESULTS.md, V10-LAB-PLAN.md, ver-10 full source, app cập nhật, worklog).
+
+---
+Task ID: V10-GITHUB-PUSH
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: User cung cấp token GitHub (ghp_...) + hỏi tại sao v10-lab-gpu-t4 chạy xong "Successfully ran in 13199.5s" mà không nộp bài được.
+
+Work Log:
+- TRẢ LỜI THẮC MẮC (3 lý do cấu trúc, không phải lỗi): (1) v10-lab-gpu-t4 là kernel LAB thí nghiệm — Internet ON để watchdog đẩy checkpoint realtime; cuộc thi notebooks-only yêu cầu kernel nộp Internet OFF; (2) kernel lab gắn 9 dataset ngoài cuộc thi (runners/filelist/heldout) — kernel nộp chỉ được dùng competition data → Kaggle ẩn/disable nút submit với kernel như vậy; (3) output của lab là báo cáo phân tích (v10_lab_report.json, rows.csv, raw_graphs 27MB), không phải submission.csv. 13199.5s ≈ 3h40m là thời gian lab chạy predict 8 stems + grid 9 configs — kết quả của nó ĐÃ được tiêu thụ: veto1 (+0.0018 adjEJ, division giữ nguyên 4/1/8) được chọn làm ứng viên duy nhất.
+- Kernel nộp thật = biohub-ver10 PRODUCTION (đã build + test 65/65, download/ver10-cell-tracking.ipynb): KHÔNG push được vì GPU quota 30.93/30h (0.00h còn, refresh 2026-09-19T00:00:00 UTC ≈ 07:00 VN 19/9) — xác nhận lại qua `python3 -m kaggle quota`. Sau refresh: 1 lệnh bash kaggle/api/v10-launch.sh tự push → watch → submit → score.
+- GITHUB PUSH (repo public vietnq130593-code/Biohub-Cell-Tracking): git ls-remote xác thực token OK; phát hiện remote (dừng ở ver-9) và local (sau sandbox rebuild) là 2 lịch sử KHÔNG liên quan — force push sẽ làm mất 1.280 file dự án thật trên remote (800 output ver8-v2/v3fast + 452 research v9 + LICENSE + agent-ctx cũ) → chọn merge --allow-unrelated-histories -X ours.
+- Merge: 193 conflict add/add (185 tự động + 8 kaggle/ver-9/ resolve thủ công bằng checkout --ours — bản local mới hơn đã redact token), dọn 18 file .pyc/__pycache__ remote track nhầm, COMMIT fa28cff "merge: hợp nhất lịch sử sau sandbox rebuild — giữ outputs/research ver-8/ver-9 từ remote + toàn bộ ver-10 từ local".
+- BẢO MẬT trước push: quét staged tree 3 vòng (KGAT_14164511 = 0 file; ghp_[A-Za-z0-9]{30,} = 0 file; pattern Google OAuth 4/0... = chỉ 4 file skills/design template boilerplate của môi trường, đã có sẵn trên GitHub từ trước, không phải credential user — xác minh bằng git grep mẫu). Token ghp_ user cấp CHỈ tồn tại trong .git/config (không bao giờ được push) — KHÔNG ghi vào worklog/file tracked nào.
+- PUSH THÀNH CÔNG 20:4x UTC 17/9: 0e1c017..fa28cff main -> main (~160MB local + 1.280 file revive, file lớn nhất 23.9MB < limit 100MB). Verify: git ls-remote = fa28cff7 ✓, HTTP repo 200 ✓.
+
+Stage Summary:
+- ★ GITHUB ĐÃ ĐỒNG BỘ ĐẦY ĐỦ: toàn bộ code ver-2→ver-10 (notebooks + build scripts + test 65/65), tài liệu phân tích (V10-PRODUCTION.md, V10-RESULTS.md, V10-LAB-PLAN.md, VER9-RESEARCH.md, README registry), outputs (ver8-v1/v2/v3fast, v9-research, v10-lab-gpu 28MB kết quả), app Next.js đầy đủ trạng thái — lịch sử cũ + mới hợp nhất không mất file nào.
+- ★ Vấn đề "không nộp được" KHÔNG phải lỗi hệ thống: kernel lab không đủ điều kiện nộp theo luật cuộc thi; kernel production thì chờ GPU quota refresh 19/9 00:00 UTC. Không có gì phải sửa — chỉ cần chạy v10-launch.sh sau refresh.
+- Bước tiếp theo duy nhất: sau 07:00 VN 19/9 chạy `bash kaggle/api/v10-launch.sh` (hoặc --wait để tự poll) → kernel chạy ~2-2.2h → submit tự động → kỳ vọng 0.9493-0.9497.
