@@ -66,7 +66,7 @@ def phase_url() -> None:
         "response_type": "code",
         "client_id": CLIENT_ID,
         "redirect_uri": REDIRECT_URI,
-        "scope": "+".join(SCOPES),
+        "scope": " ".join(SCOPES),  # dấu cách — urlencode tự mã thành '+' (space) trong query
         "state": state,
         "code_challenge": challenge,
         "code_challenge_method": "S256",
