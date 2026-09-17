@@ -94,8 +94,15 @@ def phase_swap(code: str) -> None:
     }).encode()
     req = urllib.request.Request(TOKEN_URI, data=data,
                                  headers={"Content-Type": "application/x-www-form-urlencoded"})
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        tok = json.loads(resp.read().decode())
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            tok = json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        try:
+            detail = e.read().decode()[:400]
+        except Exception:
+            detail = str(e)
+        raise SystemExit("Token exchange thất bại HTTP %d: %s\n→ Code có thể đã dùng / sai verifier / hết hạn — cần code mới (chạy lại 'url')." % (e.code, detail))
     if "refresh_token" not in tok:
         raise SystemExit("Token response không có refresh_token: " + json.dumps(tok)[:400])
     expiry = datetime.now(timezone.utc) + timedelta(seconds=int(tok.get("expires_in", 3600)))
