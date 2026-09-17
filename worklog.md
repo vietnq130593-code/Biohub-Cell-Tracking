@@ -1051,3 +1051,23 @@ Stage Summary:
 - Drive auth của user làm ĐÚNG (flow none+gsession không cần code); Drive giờ KHÔNG còn cần thiết cho data (dataset Kaggle là cache bền).
 - T4 chưa cấp lại (503×7) — chờ quota reset / user thử browser Colab register runtime; cputest giữ làm fallback grid CPU.
 - Artifacts mới: colab-bridge/v10_ckpt_watchdog.py (đã test), colab-bridge/v10_recovery_master.py, datasets vietnguyen130593/biohub-v10-checkpoints + biohub-v10-rawgraphs (bootstrap, đã verify roundtrip).
+
+---
+Task ID: V10-KEEPBUSY-PREP
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: User yêu cầu (1) giải quyết GCL tự dừng khi không tác động (lý thuyết T4 chạy 12h), (2) quota đã reset — tiếp tục v10, lấy kết quả cell 3.
+
+Work Log:
+- CHẨN ĐOÁN AUTO-STOP (f37bae chết 3h38m): cell 3 chạy subprocess.Popen nền → kernel Jupyter IDLE toàn bộ thời gian → idle-reaper giết VM dù keep-alive ping 200 OK mỗi 70s. Colab idle-detect đo KERNEL EXECUTION, không phải HTTP ping.
+- ★ FIX: v10_forever.py — chạy NGAY TRONG KERNEL qua `colab exec -f --timeout 43200`: launch recovery master (setsid — sống sót nếu kernel chết) rồi vòng sleep 60s + heartbeat trạng thái (master/cell3/watchdog sống?, artefact, GPU util, tail cell3 log mỗi 10') → kernel busy = không idle. Thoát khi master+cell3 kết thúc hoặc 10.5h (margin tường 12h).
+- Lớp phòng thủ 3 tầng: (1) keep-busy kernel, (2) subprocess setsid + keep-alive daemon của CLI, (3) watchdog push checkpoint Kaggle (đã test end-to-end phiên trước).
+- ★ SANDBOX REFRESH giữa 08:15→13:04 UTC: mất ~/.venv (colab CLI), ~/.config/colab-cli (token.json OAuth), /tmp — /home/z/my-project nguyên vẹn (mount riêng). Khôi phục: uv pip install google-colab-cli + kaggle>=2.2, ~/.kaggle/access_token ghi lại (verify stems8 status=ready).
+- REAPER MỚI: process nền chết sau ~2' (phiên trước FIFO sống qua nhiều turn) → FIFO auth cũ bất khả thi.
+- ★ GIẢI PHÁP AUTH DIY (colab_auth_diy.py): PKCE code_verifier nằm trong RAM process → tự sinh verifier + S256 challenge (lưu file /home/z/.v10_colab_verifier + /tmp), tự build auth URL phase A (url); phase B (swap <code>) tự POST token endpoint đổi code → ghép token.json format google-auth (from_authorized_user_file) → colab CLI load được không cần prompt. Client ID/secret lấy từ oauth_config.json nhúng trong package.
+- Tái tạo repair_deps.py (mất theo /tmp — content từ history f37bae, proven 13/13 import OK).
+- launch_v10lab3.sh: 1 lệnh sau auth — colab new T4 v10lab3 → upload 6 file (cell2/repair/watchdog/cell3/master/forever) → setsid nohup colab exec -f forever --timeout 43200.
+
+Stage Summary:
+- ★ Vấn đề auto-stop ĐÃ giải quyết về mặt thiết kế (keep-busy kernel + 3 lớp phòng thủ), chờ auth để triển khai.
+- Auth cần user duyệt lại 1 lần (URL đã sinh, verifier an toàn trong file — không phụ thuộc process sống).
+- Mọi artifacts sẵn sàng; chờ code auth từ user → chạy launch_v10lab3.sh → T4 chạy chuỗi cell2→repair→watchdog+cell3 với keep-busy.
