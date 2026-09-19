@@ -151,3 +151,9 @@ Số học: markdown họ ghi EJ 0.9247 + Node Recall 0.9816; 0.9247 + 0.0333 = 
 | 3 | Detector fine-tune V1327-W3 | train 256 bước + dataset riêng | Bỏ mùa này (giữ nguyên kết luận lượt 1) | rủi ro + còn ~10 ngày |
 
 Kết luận lượt 2: **lượt 1 không bỏ sót gì về hướng chiến lược (census + hidden 2–3 GT + purge-trước-mở-gate), nhưng bỏ sót (a) V1057 reconcile là port candidate, (b) fork count thật của mình = 188 (không phải ~90) → kỳ vọng gain purge cao hơn nhưng cũng rủi ro đốt TP reparent nhiều hơn, (c) 3 sai số chi tiết stack (gap2/bonus/ILP div), (d) cave fork ≠ divFP làm mọi phép phân rã điểm 0.947/0.9605 thành suy đoán.**
+
+---
+
+## 8. Điểm nối tiếp — lượt 3 (19/9 ~05:30)
+
+Diff CSV↔CSV trực tiếp giữa output v10 của mình và 2 submission của alfonso trên cùng hidden test (match node 1-1 bán kính 2 voxel, join guard jsonl, diff run_stats): node overlap 87,1% — gap node tập trung ở 44b6_0b24845f (76,8% match; 1.856 node = ~820 do blend mình under-detect 36 frame + ~683 do association keep-rate); primary_candidates GIỐNG HỆT nhau từng frame (adapted detector của họ không phải nguồn node thừa — họ fallback 98/100 frame về primary gốc); cạnh trên node chung đồng ý 99% → V1057 reconcile downgrade. Chi tiết đầy đủ: `kaggle/ver-11-planning/V11-RESEARCH.md` §2.3-ter + Phụ lục D (biến thể D "v10-primary0b24" mới).

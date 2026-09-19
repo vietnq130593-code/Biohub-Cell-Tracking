@@ -1326,3 +1326,23 @@ Work Log:
 Stage Summary:
 - Repo GitHub vietnq130593-code/Biohub-Cell-Tracking đồng bộ 100%: toàn bộ nghiên cứu top-3 alfonso V50 (§2.3/§2.3-bis/§5.4-bis + artifacts 26M) + output v10 banked (submit ref 56348119, 13M receipts) + fix submit-v10.py — đã loại 39M trùng lặp/cache, secret scan 3 vòng sạch.
 - Bước tiếp theo theo lộ trình: chờ điểm v10 (ref 56348119) → port Cell 2 alfonso làm lớp "v10-linear" (biến thể A/B/C, §5.4-bis) → A/B bằng LB 19-20/9 → v11-mở-gate theo §3-§6 kèm checklist B-1/B-2.
+
+---
+Task ID: V11-ALFONSO-RESEARCH-R3
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: Lượt nghiên cứu 3 (user gợi ý): khai thác nốt alfonso-v50 — diff TRỰC TIẾP đồ thị mình vs Top-3 trên hidden test, bổ sung V11-RESEARCH.md.
+
+Work Log:
+- PHƯƠNG PHÁP MỚI (chưa từng làm ở lượt 1-2): 2 submission.csv cùng format cùng hidden test → match node 1-1 greedy NN bán kính 2 voxel per (dataset, frame) → map cạnh qua bảng node → join retention_guard jsonl 2 bên theo (dataset, frame) → diff run_stats.csv theo cột → grep log kernel v10 cho HOCT stats.
+- Node overlap 87,1% (107.570/123.485); per-dataset 95,0/76,8/92,6/87,1% — gap tập trung 44b6_0b24845f (5.238 alf-only) + 6bba_05db0fb1 boundary-swap (8.971/9.742, tổng gần bằng).
+- ★ D-1 ĐẢO NGƯỢC lượt 1-2: primary_candidates GIỐNG HỆT nhau 400/400 frame (26.225/34.090/7.275/75.650) — fine-tune V1327-W3 của họ là adapted detector blend map-level phụ (12.397 = 36% primary trên 0b24), guard họ fallback 98/100 frame về primary GỐC → dataset khó nhất được Top-3 chở trên cùng detection với mình. "Moat detector" bị loại ở 0b24.
+- ★ D-2 gap 1.856 node trên 0b24 phân rã: ~820 do blend mình under-detect (35/36 frame retention 0.903–1.010, thiếu 754 candidates; yield primary 211,6 vs blend 188,8 node/frame) + ~683 do association keep-rate (64 frame cùng primary: 13.545 vs 14.228 node, thua 4,8%; đã loại ppsweep base + HOCT 36 cạnh; nghi phạm: edge-feature TTA/ILP/gap2). Keep-rate BẰNG NHAU 3 dataset kia → không hệ thống.
+- ★ D-3 cạnh trên node chung đồng ý 99% (97.946 chung, 1.171 me-only vs 934 alf-only, trong đó ~96 fork thừa) → V1057 reconcile DOWNGRADE (bounded ≤934) từ port candidate #2 xuống "nhỏ"; parity 99% xác nhận env parity ở mức OUTPUT.
+- ★ D-5 TRỤC MỚI: biến thể D "v10-primary0b24" — force primary 100/100 frame trên 0b24845f (per-dataset minimum_retention override ~5 dòng, ví dụ 1.1) → +~820 node recall, 1 GPU re-run 2.2h, stack với linearize (khác cơ chế node-recall vs edge-precision), kỳ vọng +0.003–0.008.
+- SỬA TÀI LIỆU: V11-RESEARCH.md — hàng TL;DR lượt 3, §2.3-ter đầy đủ (bảng node + D-1..D-5 + hàm ý), biến thể D vào §5.4-bis (variant list + roadmap (1d)), hàng mới §7 (node recall 0b24), kết luận ⭐⭐⭐ lượt 3 trong §8, PHỤ LỤC D biên bản 8 mục. ANALYSIS.md thêm §8 cross-ref. Fix typo trùng lặp TL;DR do MultiEdit giữa chừng + "Ironía"→"Nghịch lý".
+- Không đụng code pipeline; không đụng app; chờ điểm v10 (ref 56348119).
+
+Stage Summary:
+- ★ Lượt 3 đóng góp 3 giá trị mới: (1) biến thể D force-primary (receipt mạnh, rẻ, +~820 node — trục node-recall KHÔNG giao cơ chế với linearize); (2) V1057 downgrade (tiết kiệm port ~110 dòng); (3) keep-rate experiment 4,8% cho v11-lab (câu hỏi mở giá trị nhất).
+- Kế hoạch §5.4-bis: A/B/C/D 4 biến thể; lộ trình thêm (1d). Nếu cả linearize + primary0b24 + keep-rate đều dương → dải 0.949–0.955 không cần v11-mở-gate; v11-mở-gate vẫn là đòn kế trên.
+- Điểm chấm v10 (ref 56348119) vẫn đang chấm — mọi quyết định A/B chờ nó làm mốc.

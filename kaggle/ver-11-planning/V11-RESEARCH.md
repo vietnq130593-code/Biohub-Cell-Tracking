@@ -22,6 +22,7 @@
 | Lộ trình? | 19/9: nộp v10 trước (bank 0.949x) → chạy v11-lab (dump + funnel B-6) → grid CPU ~243 configs phase 1–2 + tier-2 → build theo checklist B-1 → nộp v11 ~20–21/9 → deadline 29/9 còn 8 ngày dư |
 | **MỚI 19/9 (lượt 1): Top-3 làm gì?** | alfonso1799 V50 (0.9605, cùng dòng dõi stack mình): **linearize 100% fork + rescue ≤2 division hyper-verify** + detector fine-tune 256 bước + **V1057 reconcile [lượt 2]**. Hidden ≈2–3 GT div → 0.9605 = edge 0.927 + 0.033 div. **Trục rẻ nhất cho mình: lớp post-link "v10-linear" (CPU-only, ~200 dòng, §5.4-bis) A/B ngay sau v10** |
 | **MỚI 19/9 (lượt 2 — verify):** | Fork mình trên hidden = **188** (gấp đôi 92 của alfonso; 127 safe-div DC 0.20 + ~80 reparent; v10 giữ nguyên 188 vì HOCT mode-1 bảo vệ fork) → volume purge ~186 cạnh. **Fork ≠ divFP theo rule scorer** (validator: 139 safe-div → chỉ 2 div_fp đếm được) → gain purge chủ yếu đến từ edge precision, ΔdivJ không đo được từ ngoài. **Env parity 36/37** (chỉ DC_SAFE_DIV 0.20 vs 0.25). V1057 reconcile = port candidate #2 (~110 dòng, ⚠️ interplay HOCT) |
+| **MỚI 19/9 (lượt 3 — diff CSV↔CSV):** | So đồ thị trực tiếp với Top-3 trên cùng hidden test: node overlap **87,1%**, trên node chung **cạnh đồng ý 99%** → linking parity gần tuyệt đối, khác biệt thật nằm ở TẬP NODE. Node gap **tập trung ở 44b6_0b24845f** (76,8% match): primary_candidates **GIỐNG HỆT nhau từng frame** (fine-tune của họ KHÔNG phải nguồn node thừa — họ fallback 98/100 frame về primary gốc giống mình) → gap 1.856 node = ~820 do blend mình under-detect 36 frame (trục MỚI rẻ: force-primary per-dataset) + ~683 do association keep-rate (driver chưa pin, để v11-lab). **V1057 reconcile downgrade** (bounded bởi 934 cạnh alf-only). Biến thể D mới: §2.3-ter + §5.4-bis |
 | **MỚI 19/9: v11 cũ còn đúng không?** | Còn — nhưng re-base: trần div trên hidden chỉ +0.01–0.04 (không phải +0.069 như validator ngụ ý); thứ tự đúng = **purge FP fork trước, mở gate sau** (hoặc gộp). Validator KHÔNG trọng tài được quyết định purge (sign validator âm, hidden dương) — cược domain-economy có receipt |
 
 ---
@@ -127,6 +128,35 @@ Toàn bộ là MỘT gia đình fork của stack harmonic (Pilkwang → nusrati 
 **Verify census + rescue (đếm trực tiếp CSV):** 92→2 forks, node set 123.485 bảo toàn 100%, edge 118.892→118.802 = đúng 90 = 92−2 ✓; 2 rescue events: P=20025 (t=24)→{20823, 20865} d=2.87/8.05µm (khớp markdown, sát biên gate 8.5) + P=32231 (t=39)→{32980, 33069} d=6.40/4.91µm; cả 2 giữa FOV [20,236]. Markdown họ tự ghi EJ 0.9247 + Node Recall 0.9816 — 0.9247+0.0333=0.958 ≠ 0.9605, khoảng chênh +0.0025 ≈ node-multiplier term của adjEJ → EJ 0.9247 là con số tự nhận, chưa verify được.
 
 **Ảnh hưởng đến kế hoạch**: (a) §5.4-bis kỳ vọng purge cập nhật 90 → 186 cạnh + rủi ro TP reparent (thêm biến thể "miễn trừ fork reparent" làm option C); (b) V1057 reconcile thành biến thể B của §5.4-bis; (c) GT hidden 2–3 sự kiện giữ nguyên (suy luận của alfonso vẫn hợp lý); (d) "Top-3 thắng bằng EDGE" vẫn là suy luận hợp lý nhưng phải ghi rõ độ không-certain (§2.3-bis.2).
+
+### 2.3-ter ⭐⭐⭐ LƯỢT 3 (19/9 ~05:30) — diff TRỰC TIẾP đồ thị mình vs Top-3 trên hidden test (CSV↔CSV, receipts không suy đoán)
+
+**Phương pháp**: 2 submission.csv cùng format, cùng hidden test → match node 1-1 bằng nearest-neighbor trong bán kính 2 voxel theo (t,z,y,x) từng frame; map cạnh mình sang node-id của họ qua bảng match; đối chiếu run_stats.csv + retention_guard jsonl 2 bên + log kernel v10. Toàn bộ đếm trực tiếp từ artifacts có sẵn.
+
+**Bảng node (final, so với V50 final — so foundation cho cạnh):**
+
+| dataset | myN | alfN | match | match% | me-only | alf-only |
+|---|---|---|---|---|---|---|
+| 44b6_0113de3b | 25.637 | 25.290 | 24.032 | 95,0% | 1.605 | 1.258 |
+| 44b6_0b24845f | 20.724 | 22.580 | 17.342 | **76,8%** | 3.382 | **5.238** |
+| 6bba_05b6850b | 6.151 | 6.086 | 5.638 | 92,6% | 513 | 448 |
+| 6bba_05db0fb1 | 70.300 | 69.529 | 60.558 | 87,1% | 9.742 | 8.971 |
+| **TOTAL** | 122.812 | 123.485 | 107.570 | **87,1%** | 15.242 | 15.915 |
+
+**★ D-1 (đảo ngược nhận định lượt 1–2): "primary detector fine-tune" KHÔNG phải nguồn node thừa của họ.** Receipt: `primary_candidates` trong retention-guard jsonl của 2 stack **GIỐNG HỆT NHAU từng frame trên cả 4 dataset** (26.225/34.090/7.275/75.650 — diff 0/400 frame). Cơ chế (đọc code v1329_runner dòng 1284–1290): detector fine-tuned V1327-W3 = "adapted detector" chạy song song, blend vào secondary **ở mức map logits** weight 0.80 sau calibration frame-local (mean/std align, scale clamp 0.5–2.0); retention-guard **đối chiếu và fallback về primary GỐC** (untouched_v1290_primary_d4) — fallback của họ = cùng detection với mình. Trên 0b24845f adapted của họ phát hiện ÍT hơn nhiều (12.397 candidates = 36% primary) → guard họ fallback **98/100 frame** (mình 64/100) → output của họ trên dataset này = primary-dominant.
+
+**★ D-2: toàn bộ gap node trên 0b24845f (1.856 node) phân rã được theo 2 nguồn (đều đo được):**
+- **~820 node do blend mình under-detect**: 35/36 frame blend của mình có retention 0.903–1.010 (trung vị 0.932; chỉ 1 frame >1.0) = thiếu **754 candidates** so với primary trên chính các frame đó. Quy đổi theo yield primary của chính mình (211,6 node/frame khi primary vs 188,8 khi blend) → **force-primary thu hồi ~820 node**;
+- **~683 node do association keep-rate**: trên 64 frame CẢ HAI cùng dùng primary (cùng candidates), mình giữ 13.545 node vs họ 14.228 (thua 4,8%). Đã loại 2 nghi phạm: ppsweep (chọn `base`, overrides rỗng), HOCT veto (chỉ xóa 36 cạnh trên dataset này). Nghi phạm còn lại: edge-feature TTA của họ (tag `edge_feature_tta_0946`), chi tiết ILP, gap2 — cần experiment v11-lab (§7 hàng mới);
+- Keep-rate 2 bên **BẰNG NHAU trên 3 dataset còn lại** (raw/input: 97,3 vs 97,3 · 85,6 vs 86,2 · 92,5 vs 92,2) → lệch KHÔNG phải hiện tượng hệ thống của stack mình, chỉ bộc lộ trên 0b24845f.
+
+**★ D-3: cạnh trên node chung đồng ý ~99%** (so foundation V1329): 97.946 cạnh chung, chỉ **1.171 me-only vs 934 alf-only** (trong 1.171 có ~96 cạnh fork thừa = 188−92). Hệ quả: **V1057 reconcile DOWNGRADE từ "delta thật thứ 3" (§2.3-bis.3) xuống "nhỏ"** — nó bị chặn trên bởi 934 cạnh alf-only giữa node chung (đã gồm 92 cạnh fork + chênh gap2 ~36 + borderline swaps) → contribution thật chỉ còn vài trăm cạnh, không còn xứng đứng port candidate #2. Linking parity 99% cũng xác nhận env parity 36/37 (§2.3-bis.4) ở mức OUTPUT, không chỉ env-var.
+
+**★ D-4: 6bba_05db0fb1 (dense) = boundary-swap noise**: 8.971 alf-only vs 9.742 me-only với tổng gần bằng (69.529 vs 70.300) — 2 blend khác nguồn (primary+secondary mình vs adapted+secondary họ) đổi nhau cell gần ngưỡng. Không có trục sửa rẻ; đây là noise-floor chấp nhận được (raw mình còn cao hơn: 70.687 vs 69.915).
+
+**D-5 (vụn có giá trị)**: report của MÌNH cũng có `leaderboard_feedback_used_for_configuration: true` (thừa hưởng family 0.946 public — minh bạch hóa provenance khi đối chiếu); `metric_hack_used: false` cả 2 bên ✓; của họ `organizer_labels_used_for_configuration: true` (fine-tune trên nhãn phát hành — receipt chính họ công bố).
+
+**Hàm ý — trục mới rẻ thứ 2 sau linearize: biến thể D "v10-primary0b24"** — force primary 100/100 frame trên 44b6_0b24845f (patch ~5 dòng: per-dataset `minimum_retention` override, ví dụ 1.1 > max retention 1.010). Kỳ vọng **+~820 node recall trên dataset khó nhất** (+0,65% node recall toàn cục). Nếu node này là GT (receipt gián tiếp: EJ 0.9247 của Top-3 đang chở trên primary-fed 98/100 frame của chính dataset đó) → tiềm năng +0.003–0.008 LB, CÙNG BẬC với linearize và KHÔNG giao cơ chế (node recall vs edge precision — stack được). Chi phí: 1 kernel GPU re-run ~2.2h (phải chạy lại detection+association, không CPU-only như linearize). Rủi ro thấp: mất tối đa vài cell của 1 frame blend giàu (retention 1.010) + rủi ro precision primary (đã được thành tích 98-frame-primary của Top-3 phủ nhận trên dataset này).
 
 ---
 
@@ -275,6 +305,7 @@ Nếu v11 âm → v10 vẫn là final. 5 lượt/ngày — dư.
 - **Biến thể A (mặc định)**: port nguyên văn Cell 2 (linearize ALL forks + rescue ≤2/dataset ≥30k). Volume 186 cạnh;
 - **[LƯỢT 2] Biến thể B**: A + **V1057 reconcile** (port ~110 dòng: re-add raw edge_prob ≥ 0.30 sau filter, trước HOCT veto — hoặc loại cạnh đã-veto khỏi pool để không hoàn tác v10). Cần raw edges + edge_prob trong scope cell — hiện có trong pipeline trước filter; đoạt tác bản CSV thuần KHÔNG đủ (CSV cuối không còn edge_prob) → phải modify build notebook (cell post-link nhận raw edges từ bước ILP — xem §5.3 pattern instrumentation). Rủi ro: thay cạnh (conflict resolution) có thể lật cạnh đúng → chỉ A/B khi biến thể A đã có Δ LB dương làm nền;
 - **[LƯỢT 2] Biến thể C (chỉ nếu A âm)**: linearize CHỈ fork safe-div (miễn trừ fork do reparent tạo — phân biệt được qua stats/edge-provenance nếu build ghi nguồn cạnh) — giữ 4 TP validator của Phase D, đổi lại ít gain. Ước volume: 127−2 = 125 cạnh.
+- **[LƯỢT 3] Biến thể D "v10-primary0b24" (stack được với mọi biến thể trên)**: force primary 100/100 frame trên 44b6_0b24845f (per-dataset `minimum_retention` override ~5 dòng — §2.3-ter D-2) rồi áp tiếp linearize như A. Kỳ vọng **+~820 node recall** (D-2) + gain linearize; cần 1 kernel GPU re-run ~2.2h (không CPU-only). Trục node-recall KHÔNG giao cơ chế với trục edge-precision của A/B/C → dùng khi còn lượt dư trong ngày (5 lượt/ngày đủ cho A + D + D+A).
 
 **Rủi ro & đối sách**: (a) gate rescue alfonso là LB-fit của họ — giữ nguyên làm baseline MẶC ĐỊNH vì đã chứng minh TP=1/FP=0 trên chính hidden test (không cần khớp validator); **(a-bis [lượt 2]) 80/188 fork của mình sinh từ reparent Phase D — layer A purge luôn cả chúng; validator không phán được (§2.3.2), LB là trọng tài — nếu A âm, biến thể C là đường lui giữ Phase D**; (b) rescue chỉ chạy trên dataset ≥30k node — output v10 chỉ có 6bba_05db0fb1 (70.300 node) ≥30k → tương thích ✓ (đã verify từ output thật, không còn "nếu census giữ nguyên"); (c) tốn 1-3 lượt submit/5 mỗi ngày — dư; (d) D2/D5/D6-style check: node set nguyên vẹn (layer chỉ BỎ cạnh + THÊM ≤2 cạnh), runtime +~2 phút CPU; **(e [lượt 2]) fork ≠ divFP (§2.3-bis.2) → nếu Δ LB của A nhỏ hơn kỳ vọng, đừng kết luận "purge vô dụng" — có thể divJ đã thấp sẵn và gain chỉ đến từ edge precision.**
 
@@ -283,7 +314,8 @@ Nếu v11 âm → v10 vẫn là final. 5 lượt/ngày — dư.
 19/9 07:00 VN  quota refresh
   ├─ (1) bash kaggle/api/v10-launch.sh        → bank 0.9493–0.9497      [2.2h GPU]  ← ✅ COMPLETE 04:14, SUBMITTED ref 56348119 (điểm đang chấm)
   ├─ (1b) v10-linear biến thể A: port Cell 2 + chạy local trên output v10 + build + push + submit   [0 GPU +~3 phút CPU]  ← fork thật 188 đã biết
-  ├─ (1c) nếu ΔA ≥ +0.003: biến thể B (+V1057 reconcile); nếu ΔA ≤ 0: biến thể C (miễn trừ reparent)
+  ├─ (1c) nếu ΔA ≥ +0.003: biến thể B (+V1057 reconcile [lượt 3: downgrade — bounded ≤934 cạnh, chỉ làm nếu còn dư]); nếu ΔA ≤ 0: biến thể C (miễn trừ reparent)
+  ├─ (1d) [LƯỢT 3] biến thể D "v10-primary0b24": force primary 0b24845f + linearize  → +~820 node recall   [2.2h GPU re-run]  ← trục node-recall, stack với A
   ├─ (2) v11-lab-gpu                            → dump proposals           [3–4h GPU]
   ├─ (3) grid CPU + chọn config + build v11     [0.5 ngày, 0 GPU]
   └─ (4) push + submit v11 (nếu thắng)          [2.2h GPU]  ~20–21/9
@@ -315,6 +347,7 @@ Nếu v11 âm → v10 vẫn là final. 5 lượt/ngày — dư.
 | **Domain shift embryo-3** (hidden ≠ 2 embryo validator): phân phối sister/diverge/symmetry có thể lệch | cap frame/global giữ nguyên triệt để; không chọn config ở biên thắng (margin < +1 TP); cân nhắc config an toàn giữa dải thắng |
 | Reparent (bước 4) phản ứng lại cạnh chia mới theo cách phi tuyến | Sim giữ nguyên logic reparent (dùng p_div node dump); D2 chấm cả reparent_added — lệch lớn → điều tra |
 | **HOCT pre-snap là xấp xỉ (B-5):** snap chạy trên FINAL node set + FINAL positions (post-linefit) — cả hai phụ thuộc config (node rescue mới, linefit dịch theo cạnh mới) | Gần như vô hại: mode-1 bảo vệ cạnh division (out_deg≥2), phần lệch chỉ chạm cạnh thường ở vùng dày; lưới an toàn = top-3 re-run thật (kể cả HOCT re-snap) phải khớp replay; lệch cạnh thường > 0.1% → trả giá re-snap per-config cho top-3 |
+| **[LƯỢT 3] Node recall 44b6_0b24845f**: blend under-detect 754 candidates trên 36 frame + association keep-rate thua 4,8% trên 64 frame cùng primary (driver chưa pin — ppsweep/HOCT đã loại) | Biến thể D force-primary (§2.3-ter D-2, +~820 node, 1 GPU re-run); keep-rate gap để v11-lab experiment riêng (so từng layer association trên dump 0b24 — nghi phạm: edge-feature TTA của họ, chi tiết ILP, gap2); KHÔNG đụng 3 dataset còn lại (parity 99% đã chứng minh bằng D-3) |
 
 ---
 
@@ -325,6 +358,8 @@ Ver-11 = **ver-10 + 5–7 hằng số env** (`SAFE_DIV_MAX_UM` ghép cặp `DIV_
 Trục division là trục duy nhất còn tín hiệu thật ở vùng 0.947+ (bằng chứng 3/3 của zhincez + audit gate của megayak + vật lý size-drop của zhincez). Trần thực dụng: 0.951–0.955.
 
 **⭐ Kết luận bổ sung 19/9 (sau nghiên cứu alfonso V50 0.9605):** trần thực dụng 0.951–0.955 trên kênh division đứng vững, NHƯNG thứ tự thực thi đổi: (1) **A/B v10-linear trước** (§5.4-bis — CPU-only, Receipt Top-3, kỳ vọng +0.003…+0.010 trên hidden nếu fork mình cùng bệnh ~90 FP); (2) v11-mở-gate giữ nguyên thiết kế nhưng mục tiêu re-base: đuổi phần div term còn lại trên hidden (≈ +0.01–0.02 tối đa, GT chỉ 2–3) với FP≈0 tuyệt đối — **validator 12 GT giờ hiểu là "bộ lọc sign" cho hướng mở gate, còn "kinh tế hidden" (2–3 GT) là la bàn cho hướng purge**. Cuộc đua hạng cao cuối mùa nằm ở trục EDGE (~0.927 của Top-3) — mọi thay đổi v11 phải chứng minh không làm hại adjEJ (D3 giữ nguyên).
+
+**⭐⭐⭐ Kết luận bổ sung LƯỢT 3 (19/9 ~05:30 — diff CSV↔CSV):** (1) "Top-3 thắng bằng EDGE" giờ có receipts cấu trúc: trên node chung 2 đồ thị đồng ý 99% cạnh — phần chênh điểm còn lại nằm ở TẬP NODE (87,1% overlap), tập trung gần hết ở 44b6_0b24845f; (2) fine-tune detector của họ KHÔNG phải moat trên 0b24 — chính primary GỐC (giống hệt mình) đang chở EJ 0.9247 của họ trên dataset khó nhất (98/100 frame fallback) → trục node-recall cho mình MỞ: biến thể D force-primary +~820 node (rẻ, stack với linearize, cùng bậc kỳ vọng +0.003–0.008); (3) V1057 reconcile downgrade (bounded 934 cạnh) — biến thể B hạ xuống "chỉ khi dư lượt"; (4) association keep-rate gap 4,8% trên 0b24 (identical candidates in, node count khác out) = câu hỏi mở giá trị nhất cho v11-lab — nếu pin được layer (edge-feature TTA / ILP / gap2) thì thêm ~683 node nữa. **Kế hoạch 5 biến thể A/B/C/D + experiment keep-rate; thứ tự đề xuất khi quota cho phép: A (CPU, nhanh nhất) → D (GPU re-run, trục mới receipt mạnh) → C/B theo Δ.**
 
 **⭐⭐ Kết luận bổ sung LƯỢT 2 (19/9 ~04:30):** (1) fork thật của mình trên hidden = **188** (127 safe-div DC 0.20 + ~80 reparent; v10 giữ nguyên) → kỳ vọng volume purge **~186 cạnh, gấp đôi alfonso** — triển vọng gain NHẬP cao hơn nhưng phải quản rủi ro đốt TP reparent (biến thể C là đường lui, §5.4-bis); (2) **fork ≠ divFP theo rule scorer** → giá trị tin cậy của purge là edge precision; mọi phân rã điểm 0.947/0.9605 thành edge+div từ bên ngoài là suy đoán — LB là trọng tài duy nhất; (3) **V1057 reconcile nâng lên port candidate #2** (~110 dòng, lớp hồi phục recall edge, độc quyền nhánh alfonso) — thêm biến thể B sau khi A có Δ dương; (4) env parity 36/37 (chỉ DC 0.25 vs 0.20) xác nhận "cùng dòng dõi" ở mức mạnh nhất — mọi phát hiện của họ transfer được cho stack mình, kể cả Lesson 2 (validator không trọng tài được purge). **Trạng thái thực thi: v10 COMPLETE 04:14 + SUBMIT ref 56348119 (điểm đang chấm); v10-linear biến thể A sẵn sàng thực thi trên output đã tải về.**
 
@@ -421,3 +456,38 @@ Pipeline v10-launch lỗi submit (kagglesdk API path `competitions.create_code_s
 
 ### Đánh giá tổng vòng 3
 Hướng chiến lược của lượt 1 (census hidden 2–3 GT, purge-trước-mở-gate, A/B bằng LB, re-base trần div) **ĐỨNG VẮNG** — không phát hiện nào của lượt 2 đảo ngược. Ba chỗ phải vá: (1) con số volume (90→186); (2) mức độ tin cậy các con số tự nhận (EJ/divJ alfonso, phân rã điểm mình) — hạ từ "receipt" xuống "suy luận hợp lý"; (3) thêm V1057 reconcile vào danh sách port. Kế hoạch §5.4-bis cập nhật 3 biến thể A/B/C + điều kiện nhánh. Kiến trúc 3-kernel của v11 không đổi.
+
+---
+
+## Phụ lục D — Biên bản lượt 3 (19/9 ~05:30 — diff CSV↔CSV trực tiếp với Top-3, 3 vai trò: kỹ sư AI / kiến trúc sư hệ thống / chuyên gia thuật toán)
+
+**Nhiệm vụ**: khai thác nốt phần chưa ai làm — đối chiếu TRỰC TIẾP 2 submission.csv (mình vs alfonso V50) trên cùng hidden test thay vì chỉ đọc doc/notebook của họ.
+
+**Phương pháp (đều đếm trực tiếp từ artifacts)**: (1) match node 1-1 bằng greedy nearest-neighbor bán kính 2 voxel theo (t,z,y,x) từng frame × từng dataset; (2) map cạnh mình sang node-id họ, so tập cạnh (cả foundation V1329 lẫn final V50); (3) join retention_guard jsonl 2 bên theo (dataset, frame); (4) diff run_stats.csv 2 bên theo cột; (5) grep log kernel v10 (HOCT stats per dataset). Lưu ý độ tin cậy: dense frames (05db0fb1, ~695 cell/frame) có thể sinh matching-error → số đồng ý cạnh là CẠN DƯỚI (true agreement ≥ đo được).
+
+### D-1. 🔴→🟢 Số liệu then chốt ĐẢO NGƯỢC lượt 1–2: primary detector fine-tune KHÔNG là nguồn node thừa của alfonso
+`primary_candidates` (guard reference) giống hệt 2 stack: 26.225/34.090/7.275/75.650, diff 0 trên 400/400 frame. Cơ chế (v1329_runner dòng 1284–1290): V1327-W3 = "adapted detector" phụ, blend map-level weight 0.80 với secondary sau calibration frame-local; guard đối chiếu + fallback về primary GỐC. Trên 0b24845f adapted phát hiện 12.397 (36% primary) → guard họ fallback 98/100 frame → dataset khó nhất được Top-3 chở trên primary GỐC = cùng detection với mình. "Moat detector" chỉ tồn tại trên 05db0fb1 (adapted 72.323 ≈ 96% primary) và đó lại là vùng boundary-swap vô định hướng (D-4).
+
+### D-2. 🔴 Gap node 1.856 trên 44b6_0b24845f phân rã 2 nguồn đo được
+(a) ~820 node: 36 frame blend của mình under-detect (35/36 frame retention 0.903–1.010, thiếu 754 candidates; yield primary 211,6 vs blend 188,8 node/frame); (b) ~683 node: 64 frame CÙNG primary, mình giữ 13.545 vs họ 14.228 (thua 4,8%) — đã loại ppsweep (base, overrides rỗng) + HOCT (36 cạnh); nghi phạm còn: edge-feature TTA / ILP chi tiết / gap2. Keep-rate BẰNG NHAU trên 3 dataset kia (97,3/97,3 · 85,6/86,2 · 92,5/92,2) → không phải lỗi hệ thống của stack mình.
+
+### D-3. 🟠 V1057 reconcile downgrade (sửa §2.3-bis.3)
+Cạnh giữa node chung: 97.946 chung, 1.171 me-only, 934 alf-only (so foundation). V1057 bị chặn trên bởi 934 (gồm 92 cạnh fork + ~36 gap2 chênh + borderline) → contribution thật vài trăm cạnh. Từ "delta thật thứ 3 / port candidate #2" → "nhỏ, chỉ làm khi dư lượt". Linking parity 99% = xác nhận env parity ở mức OUTPUT.
+
+### D-4. 🟡 6bba_05db0fb1 = boundary-swap noise
+8.971 alf-only vs 9.742 me-only, tổng gần bằng, raw mình cao hơn (70.687 vs 69.915). 2 blend khác nguồn đổi cell ngưỡng — không trục sửa rẻ, không đáng theo.
+
+### D-5. 🟢 Trục MỚI: biến thể D "v10-primary0b24" (force-primary per-dataset)
++~820 node recall (D-2a), patch ~5 dòng (per-dataset minimum_retention override 1.1), 1 GPU re-run 2.2h, stack với linearize (khác cơ chế), kỳ vọng +0.003–0.008 nếu node là GT. Receipt gián tiếp GT: EJ 0.9247 của Top-3 chở trên chính primary-fed này (98/100 frame).
+
+### D-6. 🟢 Cơ chế guard đọc từ code — bài học kiến trúc
+Nghịch lý: adapted detector của họ YẾU trên 0b24 (36% primary) chính là lý do họ primary-dominant ở đó — "detector tốt hơn" hóa ra không phải vũ khí của họ trên dataset khó; vũ khí là **rơi về primary khi secondary/blend yếu**. Guard của mình làm đúng hướng (fallback khi retention < 0.9) nhưng ngưỡng 0.9 để 36 frame blend 0.9–1.0 lọt qua — mỗi frame như vậy đốt 0–10% candidates. Per-dataset override = van chỉnh chuẩn xác nhất.
+
+### D-7. 🟢 Provenance flags 2 bên
+Mình: leaderboard_feedback=true (thừa hưởng family 0.946 public), metric_hack=false, organizer_labels=false. Họ: + organizer_labels=true (fine-tune trên nhãn phát hành — chính họ công bố). Không thay đổi đánh giá hợp lệ mùa này (labels đã phát hành hợp lệ để dùng).
+
+### D-8. ⚪ Vụn
+(1) me-only 1.171 cạnh gồm ~96 cạnh fork thừa (188−92) — phần còn ~1.075 ≈ cận trên matching-noise + borderline swaps; (2) tổng cạnh cuối gần nhau (118.401 vs 118.802) dù 21k cạnh lệch vị trí — đồ thị 2 bên "cùng kích thước, khác thành phần ở node set"; (3) kết luận C-2 (không phân rã điểm từ ngoài) KHÔNG đổi — lượt 3 cho STRUCTURE receipts, điểm vẫn chỉ LB phán.
+
+### Đánh giá tổng lượt 3
+Hướng chiến lược (purge-trước, A/B bằng LB, re-base trần div) đứng vững. Lượt 3 ĐÓNG GÓP: (1) trục node-recall 0b24845f + biến thể D (receipt mạnh, rẻ, stack được); (2) downgrade V1057 (tiết kiệm công port ~110 dòng cho giá trị nhỏ); (3) keep-rate experiment 4,8% cho v11-lab (câu hỏi mở giá trị nhất — pin được layer thì +683 node nữa); (4) xác nhận parity ở mức output (99% cạnh trên node chung). Không phát hiện nào đảo ngược kế hoạch; §5.4-bis mở rộng A/B/C → A/B/C/D, lộ trình thêm (1d). Ước tính tích lũy nếu cả 3 trục dương: linearize (+0.003–0.010) + primary0b24 (+0.003–0.008) + keep-rate nếu pin được (+~0.003) → dải 0.949–0.955 vẫn hiện thực không cần v11-mở-gate; v11-mở-gate vẫn là đòn kể trên.
