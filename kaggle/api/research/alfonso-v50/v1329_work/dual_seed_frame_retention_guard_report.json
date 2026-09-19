@@ -1,0 +1,189 @@
+{
+  "adapted_detector_checkpoint_sha256": "c0562f356250032eee7982f29cec7655e4d4c26acf683cdf25da794044bac00b",
+  "adapted_detector_config_sha256": "e9b4e396c58081bca08adf8275bd0bd1c2d3fd6eb091a1912a5116cb6de7b50a",
+  "adapted_detector_deployment": "single view; unique-frame CPU cache; B8 precomputed uncalibrated center maps held on CPU; first-use frame-local mean/std alignment; boundary replication; scale clamp [0.5,2.0]; detector logits only",
+  "adapted_detector_related_runtime_provenance": "matched V1288-style V1274-primary architecture with V1290 secondary and coordinate head; not exact V1290 weight identity",
+  "adapted_detector_related_runtime_qualification_sha256": "9433a2ae2a1403e3d1342d176eded1704425b17dc0c1b229b5c78db179062967",
+  "adapted_detector_related_runtime_ratio": 1.1330106216711562,
+  "adapted_detector_training": "256 released-data centered-W3 updates from exact V1274; frozen transformer and BN",
+  "candidate": "V1329",
+  "checkpoint_sha256": {
+    "deepcenter": "8040999a92f6b7bbd98fa8cf458141e045c0f9ad7c936bdb3b18e1f7edafe2a0",
+    "primary": "12f6881ee3620a831697ca098ff8f48e687a24225f4e048b538deec3562fe771",
+    "secondary": "9bac2fa0dadc4a6fc1899e0caf187f4b553e0a7cd90ba1261a68b35ffe9e305f"
+  },
+  "configuration": {
+    "bidirectional_primary_weight": 0.15,
+    "deepcenter_gap_confirm_min_span_um": 8.5,
+    "deepcenter_gap_threshold": 0.25,
+    "deepcenter_safe_div_threshold": 0.25,
+    "detector_threshold": 0.965,
+    "edge_candidate_threshold": 0.48,
+    "fallback_scope": "individual_frame",
+    "gap_close_um": 5.0,
+    "ilp_appearance_weight": 0.0,
+    "ilp_disappearance_weight": 2.0,
+    "minimum_candidate_retention": 0.9,
+    "safe_div_max_um": 9.0,
+    "safe_div_sister_max_um": 14.0,
+    "safe_div_sister_symmetry_tau": 0.6,
+    "secondary_detection_weight": 0.8,
+    "secondary_edge_weight": 0.15,
+    "secondary_link_mode": "low_margin_consensus",
+    "secondary_low_margin_max": 0.35
+  },
+  "diagnostics": {
+    "by_movie": {
+      "44b6_0113de3b": {
+        "fallback_frames": 0,
+        "frames": 100,
+        "median_retention": 1.0,
+        "minimum_retention": 0.9738805970149254
+      },
+      "44b6_0b24845f": {
+        "fallback_frames": 98,
+        "frames": 100,
+        "median_retention": 0.7585921943448826,
+        "minimum_retention": 0.2783882783882784
+      },
+      "6bba_05b6850b": {
+        "fallback_frames": 0,
+        "frames": 100,
+        "median_retention": 0.9870704037370703,
+        "minimum_retention": 0.9054054054054054
+      },
+      "6bba_05db0fb1": {
+        "fallback_frames": 0,
+        "frames": 100,
+        "median_retention": 1.0024570358307663,
+        "minimum_retention": 0.9430284857571214
+      }
+    },
+    "fallback_frames": 98,
+    "rows": 400
+  },
+  "dynamic_test_census": [
+    "44b6_0113de3b",
+    "44b6_0b24845f",
+    "6bba_05b6850b",
+    "6bba_05db0fb1"
+  ],
+  "exact_v1290_executed_predictor_sha256": "5c7535dba7b93ed7a094bc120dea44103e5333041670e2b4e6351c4bfabf9ffb",
+  "exact_v1327_parent_notebook_sha256": "74cc03e0c9d518b566d5863747078913a6084877f0f203b697e22cd5e24d5a5d",
+  "experiment": "V1329",
+  "guard_fallback": "untouched_v1290_primary_d4",
+  "guard_reference": "untouched_v1290_primary_d4",
+  "hardware": {
+    "visible_gpu_count": 2
+  },
+  "leaderboard_feedback_used_for_configuration": true,
+  "method_attribution": "0.933 fixed-90 dual-seed baseline -> 0.934 harmonic mutual-support fusion -> 0.939 wider divisions and calmer fusion -> 0.941 repair-threshold adaptation -> 0.946 edge-feature TTA",
+  "metric_hack_used": false,
+  "organizer_labels_used_for_configuration": true,
+  "parent_experiment": "repair_adaptation_0941_v1",
+  "parent_notebook_sha256": "79d8ac1bcccdcbb24b047ea114ca371e3b2227c0fc6ded585f33c2055c40a5d1",
+  "passed": true,
+  "primary_feature_tta": true,
+  "public_output_used": false,
+  "quality_promotion": {
+    "private_transfer": "unestablished",
+    "status": "unscored_candidate"
+  },
+  "raw_link_runtime_sha256": "13ac5c53e17a5c9ccad2de6d7b5563105f8b5a190e92bea2ebc14c4226239a1b",
+  "secondary_feature_tta": false,
+  "source_kernel": "raykkretzschmar/biohub-bidirectional-primary-union13-diagnostic-v1",
+  "source_notebook_sha256": "3e65ca691941949196bf417030ea84fccafe16baaec174b2a63540451bb937e8",
+  "source_notebook_url": "https://www.kaggle.com/code/reyhanksatria/biohub-cell-tracking-0-946-lb",
+  "status": "V1329_TERMINAL_CANDIDATE_PASS",
+  "submission": {
+    "datasets": [
+      "44b6_0113de3b",
+      "44b6_0b24845f",
+      "6bba_05b6850b",
+      "6bba_05db0fb1"
+    ],
+    "rows": 242377,
+    "sha256": "c8a3a0dc0686bd3a5c5e85df0b584f516a81d1884d86349df14eedb6e6964427"
+  },
+  "submission_api_called_inside_inference": false,
+  "topology": {
+    "44b6_0113de3b": {
+      "division_parents": 44,
+      "edges": 24604,
+      "max_indegree": 1,
+      "max_outdegree": 2,
+      "nodes": 25290
+    },
+    "44b6_0b24845f": {
+      "division_parents": 16,
+      "edges": 21179,
+      "max_indegree": 1,
+      "max_outdegree": 2,
+      "nodes": 22580
+    },
+    "6bba_05b6850b": {
+      "division_parents": 5,
+      "edges": 5898,
+      "max_indegree": 1,
+      "max_outdegree": 2,
+      "nodes": 6086
+    },
+    "6bba_05db0fb1": {
+      "division_parents": 27,
+      "edges": 67211,
+      "max_indegree": 1,
+      "max_outdegree": 2,
+      "nodes": 69529
+    }
+  },
+  "training_or_truth_read_inside_inference": false,
+  "training_provenance": "Released-label fine-tuning excluded eval8; exposed base initializer and adaptive development; no clean CV claim.",
+  "treatment": "exact V1327 adapted blend with retention measured against and falling back to untouched V1290 primary D4 map",
+  "treatment_by_movie": [
+    {
+      "accepted_actions": 435,
+      "anchor_edges": 24570,
+      "candidate_actions": 435,
+      "conflict_resolution": "descending raw probability; unique source and target",
+      "dataset": "44b6_0113de3b",
+      "final_edges": 24604,
+      "minimum_raw_edge_probability": 0.3,
+      "preserve_existing_divisions": true,
+      "training_or_truth_used": false
+    },
+    {
+      "accepted_actions": 151,
+      "anchor_edges": 21193,
+      "candidate_actions": 151,
+      "conflict_resolution": "descending raw probability; unique source and target",
+      "dataset": "44b6_0b24845f",
+      "final_edges": 21179,
+      "minimum_raw_edge_probability": 0.3,
+      "preserve_existing_divisions": true,
+      "training_or_truth_used": false
+    },
+    {
+      "accepted_actions": 38,
+      "anchor_edges": 5894,
+      "candidate_actions": 38,
+      "conflict_resolution": "descending raw probability; unique source and target",
+      "dataset": "6bba_05b6850b",
+      "final_edges": 5898,
+      "minimum_raw_edge_probability": 0.3,
+      "preserve_existing_divisions": true,
+      "training_or_truth_used": false
+    },
+    {
+      "accepted_actions": 1449,
+      "anchor_edges": 67415,
+      "candidate_actions": 1449,
+      "conflict_resolution": "descending raw probability; unique source and target",
+      "dataset": "6bba_05db0fb1",
+      "final_edges": 67211,
+      "minimum_raw_edge_probability": 0.3,
+      "preserve_existing_divisions": true,
+      "training_or_truth_used": false
+    }
+  ],
+  "treatment_checkpoint_sha256": "5c1f83c4290da2b0b20f60cc9857193ac0e643961d13fe4497d03d7b77c83cbe"
+}

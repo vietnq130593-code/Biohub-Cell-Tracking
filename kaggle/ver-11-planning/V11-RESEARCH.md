@@ -2,6 +2,10 @@
 
 > Ngày 17/9/2026 (sau cleanup + tổng hợp nghiên cứu đối thủ từ `api/research/`). **Cập nhật cuối 17/9 — review vòng 2 đối chiếu code thật (`ver-10/cell-monolith.py` 5089 dòng + `build-ver10-monolith.py`): 13 phát hiện, 5 sửa trực tiếp vào doc — xem Phụ lục B.**
 > Chuẩn bị TRƯỚC khi quota GPU refresh 19/9 00:00 UTC — mọi phân tích dưới đây chạy được trên CPU với cache sẵn có, GPU chỉ cần 1 lab kernel + 1 production kernel.
+>
+> **⭐ CẬP NHẬT LỚN 19/9 03:55 — nghiên cứu notebook Top-3 0.9605 của alfonso1799 (V50): hidden test chỉ có ≈2–3 GT division; giải pháp Top-3 = purge toàn bộ fork + hyper-verify ≤2 division — xem §2.3 (phát hiện làm thay đổi ngân sách & lộ trình §5.4, bản đầy đủ trong `kaggle/api/research/alfonso-v50/ANALYSIS.md`).**
+>
+> **⭐⭐ REVIEW LƯỢT 2 19/9 ~04:30 (tái nghiên cứu alfonso, deep-verify): 4 phát hiện mới — (1) fork count THẬT của mình trên hidden = 188 (gấp đôi alfonso 92, đếm từ CSV banked); (2) fork ≠ division prediction theo rule scorer → mọi phân rã 0.947/0.9605 thành edge+div là SUY ĐOÁN; (3) V1057 reconcile = delta thật thứ 3 mình chưa có (port candidate #2 sau Cell 2); (4) env parity 36/37 knobs — duy nhất DC_SAFE_DIV 0.20/0.25. Chi tiết §2.3-bis + §7 review trong ANALYSIS.md. Trạng thái: v10 kernel COMPLETE 04:14, ĐÃ SUBMIT ref 56348119 (điểm đang chấm).**
 
 ---
 
@@ -16,6 +20,9 @@
 | Cần GPU bao nhiêu? | 1 lab kernel ~3–4h (dump theo-node p_div + proposals + HOCT pre-snap + GT-attribution funnel) + 1 production ~2.2h. V11 riêng ~6h; gộp lượt bank v10 → ~8h/30h quota tuần mới |
 | Rủi ro lớn nhất? | (1) Validator chỉ 12 GT division — sign nhiễu, cần gate D3/D4 khắt khe; (2) FP division bị phạt thẳng VÀ được mode-1 veto bảo vệ (không thể dựa HOCT dọn) — cap phải chặt; (3) domain-shift embryo-3; (4) **bẫy build `_EXPECTED_NUMERIC` — quên vá guard = production crash ngay lúc khởi động (B-1)**. [Evaluator ×2: ĐÃ GIẢI QUYẾT sau review — validator lab dùng rule patched sẵn, xem §3.1] |
 | Lộ trình? | 19/9: nộp v10 trước (bank 0.949x) → chạy v11-lab (dump + funnel B-6) → grid CPU ~243 configs phase 1–2 + tier-2 → build theo checklist B-1 → nộp v11 ~20–21/9 → deadline 29/9 còn 8 ngày dư |
+| **MỚI 19/9 (lượt 1): Top-3 làm gì?** | alfonso1799 V50 (0.9605, cùng dòng dõi stack mình): **linearize 100% fork + rescue ≤2 division hyper-verify** + detector fine-tune 256 bước + **V1057 reconcile [lượt 2]**. Hidden ≈2–3 GT div → 0.9605 = edge 0.927 + 0.033 div. **Trục rẻ nhất cho mình: lớp post-link "v10-linear" (CPU-only, ~200 dòng, §5.4-bis) A/B ngay sau v10** |
+| **MỚI 19/9 (lượt 2 — verify):** | Fork mình trên hidden = **188** (gấp đôi 92 của alfonso; 127 safe-div DC 0.20 + ~80 reparent; v10 giữ nguyên 188 vì HOCT mode-1 bảo vệ fork) → volume purge ~186 cạnh. **Fork ≠ divFP theo rule scorer** (validator: 139 safe-div → chỉ 2 div_fp đếm được) → gain purge chủ yếu đến từ edge precision, ΔdivJ không đo được từ ngoài. **Env parity 36/37** (chỉ DC_SAFE_DIV 0.20 vs 0.25). V1057 reconcile = port candidate #2 (~110 dòng, ⚠️ interplay HOCT) |
+| **MỚI 19/9: v11 cũ còn đúng không?** | Còn — nhưng re-base: trần div trên hidden chỉ +0.01–0.04 (không phải +0.069 như validator ngụ ý); thứ tự đúng = **purge FP fork trước, mở gate sau** (hoặc gộp). Validator KHÔNG trọng tài được quyết định purge (sign validator âm, hidden dương) — cược domain-economy có receipt |
 
 ---
 
@@ -28,7 +35,8 @@
 ### 1.2 Ngân sách còn treo
 - Validator (8 stems): division **4 TP / 1 FP / 8 FN** → 8/12 GT bị bỏ lở hoàn toàn. divJ 0.3076 — **đã xác minh sau review: số liệu theo rule PATCHED** (validator lab cài anchor + lineage-descendants, xem §3.1).
 - Trần lý thuyết: divJ → 1.0 tức +0.069 điểm tổng. Thực tế (DivNet hits@5 = 56.9% của GT, top-2 sim divJ 0.226): kỳ vọng hợp lý +0.02–0.04 divJ = **+0.002–0.004 điểm tổng**; tươi hơn nếu gate mở đúng chỗ.
-- LB: cụm 0.948 = 55 đội (hạng 89–143); 0.950 = hạng ~32 (zhincez); 0.952 = hạng ~31–32. → mỗi +0.001 ~ leo 5–25 hạng ở vùng này.
+- **⚠️ CẬP NHẬT 19/9 (§2.3): ngân sách trên tính theo validator (12 GT) — nhưng hidden test chỉ ≈2–3 GT division → trần div trên hidden thực dụng chỉ +0.01–0.04 (0.1 × tăng divJ từ ~0.03 lên tối đa 1.0 là không tưởng với FP≈0). Ngân sách điểm thật của mùa giải nằm ở trục EDGE (~0.927 của Top-3).**
+- LB: cụm 0.948 = 55 đội (hạng 89–143); 0.950 = hạng ~32 (zhincez); 0.952 = hạng ~31–32; **0.9605 (alfonso V50) = Top ~5–7 theo LB 16/9 (top1 0.970, top3 0.966)**. → mỗi +0.001 ~ leo 5–25 hạng ở vùng này.
 
 ### 1.3 D5 đã chôn (giữ nguyên phán quyết ver-10)
 - RLF (repeat-lineage filter): Δ 0.000000 trên stack mình (21 cạnh vô hại) — dead.
@@ -78,6 +86,47 @@ Toàn bộ là MỘT gia đình fork của stack harmonic (Pilkwang → nusrati 
 **Cảnh báo metric (megayak, NGHIÊM TRỌNG):** 6 notebook public 0.963–0.966 cũ là exploit "hub + fork giả" (nối mọi track vào 1 node t=−1000 ngoài volume + chuỗi fork giả → thỏa weakly-connected rule cũ của division metric). Kaggle **patch ngày 17/7/2026** (`aa65e90`): fork phải là parent được match HOẶC successor trực tiếp; 2 daughters phải trên 2 nhánh con trực tiếp phân biệt. Exploit chết — điểm cũ không thu hồi nhưng không tái tạo được. **Hệ quả gián tiếp: bản offline division metric trong tracksdata/public stack vẫn dùng rule weakly-connected → đọc GẤP ĐÔI official.** Tune gate theo la bàn đó = lái theo kim chỉ ×2.
 
 **Phạt bất đối xứng (zhincez):** xóa node gần như free trên trục edge nhưng ĐẮT trên trục division (thử xóa node → 15 FP division mới → divJ −0.0409 = −0.0041 tổng). FP division bị phạt thẳng, unmatched predicted edge chỉ bị drop khỏi consideration. → v11 KHÔNG đụng node set; chỉ thêm cạnh chia.
+
+### 2.3 ⭐ MỚI 19/9 — alfonso1799 "Top 3 Push V50" (LB 0.9605): nghịch lý kênh division trên hidden test
+
+**Nguồn**: notebook public `alfonso1799/biohub-top-3-push-v50-streamlined-sota` (pull + output tải 19/9 03:44, tái verify 04:08–04:35; bản đầy đủ: `kaggle/api/research/alfonso-v50/ANALYSIS.md` + artifacts: notebook, v1329_runner.py 3.092 dòng giải nén, 2 submission CSV, guard report, run_stats, retention_guard jsonl).**
+
+**Tin tình báo quan trọng nhất — census hidden test (từ receipts của kernel, không phỏng đoán):**
+
+| dataset | node | div_parents V1329 → final | ghi chú |
+|---|---|---|---|
+| `44b6_0113de3b` | 25.290 | 44 → 0 | ~221–294 cell/frame |
+| `44b6_0b24845f` | 22.580 | 16 → 0 | harmonic fusion fallback 98/100 frame (min_ret 0.278) |
+| `6bba_05b6850b` | 6.086 | 5 → 0 | ~55–95 cell/frame |
+| `6bba_05db0fb1` | 69.529 | 27 → **2** | dense ~695/frame; rescue sống sót ở đây |
+
+- Hidden test = 4 phim × 100 frame, ~123k node, **GT division ≈ 2–3 SỰ KIỆN** (div jaccard 0.3333, TP=1, FP=0). So validator mình 12 GT / megayak 151 GT → **mật độ division hidden thưa gấp 4–50 lần**.
+- 0.9605 = **edge ~0.927 + 0.1×0.333** → Top-3 thắng bằng EDGE, không phải division. **[Cave lượt 2: đây là suy luận từ số học (0.9605−0.0333); EJ 0.9247 + Node Recall 0.9816 là con số TỰ NHẬN trong markdown họ — 0.9247+0.0333=0.958≠0.9605, chênh +0.0025 ≈ node-multiplier term của adjEJ. Mình không phân rã được 0.947 của mình (fork ≠ divFP, §2.3-bis.2) → so sánh trục edge 2 bên là SUY ĐOÁN]**.
+
+**Kiến trúc V50 (2 lớp):**
+1. **Foundation V1329** = cùng gia đình harmonic stack mình (env run-config trùng ver-10 gần như tuyệt đối: DET 0.965, ILP 0.0/2.0, SAFE_DIV 9/14/τ0.6, gap 5.0, bidir 0.15; chỉ DC safe-div 0.25 vs 0.20 của mình) — đã có đủ: D4 TTA 8-view, low_margin_consensus, retention guard, linefit, short-track, gap-refine. **Delta thật: primary detector fine-tune V1327-W3 (256 bước, frozen transformer+BN, dataset riêng sha-verify)** — cần train, không sao chép mùa này. V1284 coordinate-refinement tồn tại nhưng TẮT (`V1284_MODE='zero'`).
+2. **Lớp post-link V50 (Cell 2) — thứ mình CHƯA có, ~200 dòng CPU thuần, đầy đủ trong notebook:**
+   - **Fork linearization**: mọi node 2 cạnh out → giữ con gần hơn (µm, scale (1.625, 0.40625, 0.40625)), bỏ cạnh còn lại → **0 division theo thiết kế**;
+   - **Cytokinesis recovery** (chỉ dataset ≥30k node, cap **2/divataset**): mutual-NN bắt buộc + parent→con ≤8.5µm (cả 2) + sister ∈[8.5,13.5]µm + biên FOV x,y∈[20,236] + track_len ≥12 + divergence cháu ≥1.2µm + góc ≥140° + COM-dev ≤3.2µm + sister xy ≥9.6µm/dz ≤4.0µm + fitness = ang/180 + (1−com_dev/2.8) + div/5 + persistence/30 → greedy top-2;
+   - Assert DAG (out≤2, in≤1, t+1).
+
+**Đọc chiến lược (3 bài học):**
+1. **Purge 92 fork FP ≈ phần lớn trong +0.0145** (0.946→0.9605): fork FP vừa hủy div jaccard VỪA hủy edge precision (mỗi cạnh fork sai = 1 FP edge). Bản chất = "phạt bất đối xứng" (zhincez) nhưng ở quy mô lớn — xóa sạch cả cụm 92 fork mới dương. **[Lượt 2: trong +0.0145 còn có fine-tune detector + V1057 reconcile — không tách được; "phần lớn từ purge" là ước lượng]**
+2. **Validator không trọng tài được quyết định purge**: linearize giết 4/12 TP validator (divJ 0.31→~0.03, −0.028 tổng) nhưng trên hidden (3 GT, ~90 FP fork) lại DƯƠNG — **sign ngược nhau giữa 2 domain kinh tế division**. Đây là cược domain-economy có receipt (guard report top-3 tự nhận `leaderboard_feedback_used_for_configuration: true` — gate rescue của họ đã tune bằng feedback LB).
+3. **Trật tự ưu tiên bị đảo**: trục rẻ nhất mùa giờ không phải mở gate — mà là **lớp post-link v10-linear** áp lên output v10 (CPU-only, không đụng pipeline bank, code có sẵn trong notebook alfonso, A/B bằng chính LB). Kế hoạch v11-mở-gate (§3–§6) vẫn giữ nhưng re-base mục tiêu: đuổi phần div còn lại +0.01–0.02, FP phải ≈0.
+
+### 2.3-bis ⭐⭐ VERIFY LƯỢT 2 (19/9 ~04:30 — deep-verify toàn bộ claims §2.3, chi tiết `kaggle/api/research/alfonso-v50/ANALYSIS.md` §7)
+
+**4 phát hiện mới + 3 sửa sai:**
+
+1. **Fork count THẬT của mình trên hidden = 188, không phải "ước ~90"** (đếm trực tiếp từ CSV banked ver-8 v3fast + output v10 — 64/41/13/70). Phân rã theo run_stats: `safe_divisions_added` 127 (DC 0.20 chấp 317 proposals vs alfonso DC 0.25 chấp 213 → thêm 92) + `reparent_added` 80 (Phase D — lớp alfonso không có). v10 giữ nguyên 188 fork vì HOCT mode-1 bảo vệ node ≥2 con (đúng thiết kế). → **Volume purge của v10-linear = ~186 cạnh, GẤP ĐÔI alfonso** — kỳ vọng gain edge-precision cao hơn, nhưng cũng đốt nhiều hơn nếu fork reparent chứa TP hidden.
+2. **⚠️ Cave nền tảng — fork ≠ division prediction theo rule scorer patched**: validator production mình: 139 `safe_divisions_added` trên 8 stems nhưng scorer chỉ đếm **2 div_fp** (4 TP/2 FP/8 FN). Phần lớn fork không đạt cấu trúc "parent matched + 2 nhánh con phân biệt" để được tính là division prediction. Hệ quả: (a) đọc census alfonso "44→0, 16→0" như "purge 92 FP division" chỉ là xấp xỉ — giá trị TIN CẬN của purge là **edge precision** (mỗi fork sai ≥ 1 cạnh FP edge); (b) **không phân rã được 0.947 của mình thành edge+div** từ ngoài → mọi so sánh "edge mình ~0.945 vs edge họ 0.927" là SUY ĐOÁN, không receipt; (c) divJ 0.3333/TP=1/FP=0 của alfonso là suy luận từ LB feedback của họ (guard report `leaderboard_feedback_used_for_configuration: true`) — tin ở mức hướng, không tin ở mức con số.
+3. **V1057 reconcile — delta THẬT thứ 3 (port candidate #2, lượt 1 bỏ sót)**: `_v1057_reconcile_in_memory` (runner dòng 2654–2760, chạy SAU linefit TRƯỚC CSV): lặp raw edges (ILP output, kèm edge_prob) KHÔNG có trong final, source không fork + owner không fork + prob ≥ 0.30 → greedy theo prob, mỗi source/target 1 lần, **được phép thay cạnh yếu hơn**. Bản chất = **lớp hồi phục recall trục EDGE**. Đã kiểm: KHÔNG có trong ver-8/9/10 mình VÀ không có trong public 0.947/0.948 family (zhincez runnable, cloudssdut, zhuzhenghaomax) → độc quyền nhánh alfonso. ⚠️ Interplay khi port: có thể trả lại cạnh HOCT veto đã giết → chạy TRƯỚC veto hoặc loại cạnh đã-veto khỏi pool (alfonso không có HOCT, không có hướng dẫn). Gain không đo offline (stats không nằm trong output tải về) → A/B bằng LB.
+4. **Env parity 36/37 knobs** (regex toàn bộ env trên 2 file): chỉ `DEEPCENTER_SAFE_DIV_THRESHOLD` khác (0.20 mình / 0.25 họ). Lượt 1 nêu 3 khác biệt chi tiết đều SAI (đã sửa trong ANALYSIS.md): gap2 **ON** không phải off; learned bonus **1.0** không phải 0.75; ILP div **1.2** không phải 1.0. Knobs mình có mà họ không = các lớp riêng (DIVNET_*, REPARENT_*, HOCT_*, per-prefix tight, PPSWEEP_*) — không phải thiếu.
+
+**Verify census + rescue (đếm trực tiếp CSV):** 92→2 forks, node set 123.485 bảo toàn 100%, edge 118.892→118.802 = đúng 90 = 92−2 ✓; 2 rescue events: P=20025 (t=24)→{20823, 20865} d=2.87/8.05µm (khớp markdown, sát biên gate 8.5) + P=32231 (t=39)→{32980, 33069} d=6.40/4.91µm; cả 2 giữa FOV [20,236]. Markdown họ tự ghi EJ 0.9247 + Node Recall 0.9816 — 0.9247+0.0333=0.958 ≠ 0.9605, khoảng chênh +0.0025 ≈ node-multiplier term của adjEJ → EJ 0.9247 là con số tự nhận, chưa verify được.
+
+**Ảnh hưởng đến kế hoạch**: (a) §5.4-bis kỳ vọng purge cập nhật 90 → 186 cạnh + rủi ro TP reparent (thêm biến thể "miễn trừ fork reparent" làm option C); (b) V1057 reconcile thành biến thể B của §5.4-bis; (c) GT hidden 2–3 sự kiện giữ nguyên (suy luận của alfonso vẫn hợp lý); (d) "Top-3 thắng bằng EDGE" vẫn là suy luận hợp lý nhưng phải ghi rõ độ không-certain (§2.3-bis.2).
 
 ---
 
@@ -211,6 +260,35 @@ Tổng GPU ~8h/30h. Nếu v11 dương → còn 8 ngày iterate (DivNet W, caps, 
 Nếu v11 âm → v10 vẫn là final. 5 lượt/ngày — dư.
 ```
 
+### 5.4-bis ⭐ MỚI 19/9 — kế hoạch A/B "v10-linear" (từ nghiên cứu §2.3, chen giữa bước 1 và 2) — [cập nhật số liệu lượt 2]
+
+**Nguyên lý**: lớp post-link của alfonso V50 (linearize + cytokinesis rescue, ~200 dòng CPU) áp lên output v10 — KHÔNG đụng pipeline bank, không GPU thêm (chỉ modify build notebook thêm 1 cell cuối). Mục tiêu: bắt phần gain lớn nhất của 0.946→0.9605 (purge fork FP).
+
+**[LƯỢT 2] Số liệu THẬT thay ước lượng**: output v10 (COMPLETE 04:14, đã submit ref 56348119) có **188 forks** (64/41/13/70) = 127 safe-div + ~80 reparent → purge volume **~186 cạnh (gấp đôi alfonso)**; kỳ vọng dropped_forks/rescued = 186/2 (rescue chỉ chạy trên 6bba_05db0fb1 70.300 node — dataset duy nhất ≥30k, đúng như census alfonso). Gain kỳ vọng vì thế CAO hơn giả thiết ban đầu nhưng rủi ro cũng lớn hơn (xem rủi ro a-bis).
+
+**Thiết kế (3 lớp an toàn):**
+1. **Code**: port Cell 2 alfonso về ver-11-planning (giữ nguyên logic + gate gốc làm baseline; thêm flag config); chạy trên submission.csv v10 ĐÃ CÓ SẴN trong `kaggle/api/output/latest/` — kiểm chứng DAG + đếm dropped_forks/rescued per dataset (kỳ vọng 186/2);
+2. **Sanity validator (không phải quyết định — chỉ cảnh báo)**: chạy lớp này trên output validator ver-10 → divJ validator chắc chắn TỤT (4 TP → ~0-1) — kỳ vọng, KHÔNG dùng số này để vetò (sign ngược domain, §2.3); mục đích duy nhất: xác nhận layer không làm hỏng topology (DAG assert, node set nguyên vẹn, cạnh tuyến tính giữ đủ);
+3. **A/B bằng LB (trọng tài thật)**: 19–20/9 so Δ LB giữa `biohub-ver10` (bank, có division) → `biohub-ver10-linear` (cùng kernel + cell post-link). Δ LB giữa 2 phiên bản = giá trị thật của purge trên hidden. Nếu Δ ≥ +0.003 → giữ hướng linear làm final, v11-mở-gate tiếp lên nó; nếu Δ ≤ 0 → rút ra fork mình không phải FP như alfonso (hữu ích ngang) và v11-mở-gate giữ kế hoạch cũ.
+
+**Ba biến thể (đúng 1 lượt mỗi biến thể, đủ 5 lượt/ngày):**
+- **Biến thể A (mặc định)**: port nguyên văn Cell 2 (linearize ALL forks + rescue ≤2/dataset ≥30k). Volume 186 cạnh;
+- **[LƯỢT 2] Biến thể B**: A + **V1057 reconcile** (port ~110 dòng: re-add raw edge_prob ≥ 0.30 sau filter, trước HOCT veto — hoặc loại cạnh đã-veto khỏi pool để không hoàn tác v10). Cần raw edges + edge_prob trong scope cell — hiện có trong pipeline trước filter; đoạt tác bản CSV thuần KHÔNG đủ (CSV cuối không còn edge_prob) → phải modify build notebook (cell post-link nhận raw edges từ bước ILP — xem §5.3 pattern instrumentation). Rủi ro: thay cạnh (conflict resolution) có thể lật cạnh đúng → chỉ A/B khi biến thể A đã có Δ LB dương làm nền;
+- **[LƯỢT 2] Biến thể C (chỉ nếu A âm)**: linearize CHỈ fork safe-div (miễn trừ fork do reparent tạo — phân biệt được qua stats/edge-provenance nếu build ghi nguồn cạnh) — giữ 4 TP validator của Phase D, đổi lại ít gain. Ước volume: 127−2 = 125 cạnh.
+
+**Rủi ro & đối sách**: (a) gate rescue alfonso là LB-fit của họ — giữ nguyên làm baseline MẶC ĐỊNH vì đã chứng minh TP=1/FP=0 trên chính hidden test (không cần khớp validator); **(a-bis [lượt 2]) 80/188 fork của mình sinh từ reparent Phase D — layer A purge luôn cả chúng; validator không phán được (§2.3.2), LB là trọng tài — nếu A âm, biến thể C là đường lui giữ Phase D**; (b) rescue chỉ chạy trên dataset ≥30k node — output v10 chỉ có 6bba_05db0fb1 (70.300 node) ≥30k → tương thích ✓ (đã verify từ output thật, không còn "nếu census giữ nguyên"); (c) tốn 1-3 lượt submit/5 mỗi ngày — dư; (d) D2/D5/D6-style check: node set nguyên vẹn (layer chỉ BỎ cạnh + THÊM ≤2 cạnh), runtime +~2 phút CPU; **(e [lượt 2]) fork ≠ divFP (§2.3-bis.2) → nếu Δ LB của A nhỏ hơn kỳ vọng, đừng kết luận "purge vô dụng" — có thể divJ đã thấp sẵn và gain chỉ đến từ edge precision.**
+
+**Update lộ trình (thay §5.4):**
+```
+19/9 07:00 VN  quota refresh
+  ├─ (1) bash kaggle/api/v10-launch.sh        → bank 0.9493–0.9497      [2.2h GPU]  ← ✅ COMPLETE 04:14, SUBMITTED ref 56348119 (điểm đang chấm)
+  ├─ (1b) v10-linear biến thể A: port Cell 2 + chạy local trên output v10 + build + push + submit   [0 GPU +~3 phút CPU]  ← fork thật 188 đã biết
+  ├─ (1c) nếu ΔA ≥ +0.003: biến thể B (+V1057 reconcile); nếu ΔA ≤ 0: biến thể C (miễn trừ reparent)
+  ├─ (2) v11-lab-gpu                            → dump proposals           [3–4h GPU]
+  ├─ (3) grid CPU + chọn config + build v11     [0.5 ngày, 0 GPU]
+  └─ (4) push + submit v11 (nếu thắng)          [2.2h GPU]  ~20–21/9
+```
+
 ---
 
 ## 6. GATES D1–D6 cho v11 (định trước, không nới sau)
@@ -245,6 +323,10 @@ Nếu v11 âm → v10 vẫn là final. 5 lượt/ngày — dư.
 Ver-11 = **ver-10 + 5–7 hằng số env** (`SAFE_DIV_MAX_UM` ghép cặp `DIV_PARENT_MAX_UM`, `SAFE_DIV_DIVERGE_UM`, `SYMMETRY_TAU`, `W`, `DIV_SISTER_MAX_UM` geo-filter 8.0 → 12/14, có thể `SAFE_DIV_MIN_PDIV` +3 dòng) chọn bằng grid replay ~243 configs phase 1–2 + tier-2 trên dump theo-node (p_div DivNet + verdict DeepCenter + HOCT pre-snap), chấm bằng validator patched (đã có sẵn, đã verify), cap FP giữ nguyên tuyệt đối. Toàn bộ hạ tầng (DivNet tích hợp, pattern lab/watchdog/dataset, build phẫu thuật monolith, launcher 1-lệnh) đã tồn tại và đã được chứng minh qua v10. Công việc mới thực sự: (1) instrumentation dump theo node + proposals, (2) grid sim (3)→(9) + verify top-3, (3) tracksdata version-check trên lab.
 
 Trục division là trục duy nhất còn tín hiệu thật ở vùng 0.947+ (bằng chứng 3/3 của zhincez + audit gate của megayak + vật lý size-drop của zhincez). Trần thực dụng: 0.951–0.955.
+
+**⭐ Kết luận bổ sung 19/9 (sau nghiên cứu alfonso V50 0.9605):** trần thực dụng 0.951–0.955 trên kênh division đứng vững, NHƯNG thứ tự thực thi đổi: (1) **A/B v10-linear trước** (§5.4-bis — CPU-only, Receipt Top-3, kỳ vọng +0.003…+0.010 trên hidden nếu fork mình cùng bệnh ~90 FP); (2) v11-mở-gate giữ nguyên thiết kế nhưng mục tiêu re-base: đuổi phần div term còn lại trên hidden (≈ +0.01–0.02 tối đa, GT chỉ 2–3) với FP≈0 tuyệt đối — **validator 12 GT giờ hiểu là "bộ lọc sign" cho hướng mở gate, còn "kinh tế hidden" (2–3 GT) là la bàn cho hướng purge**. Cuộc đua hạng cao cuối mùa nằm ở trục EDGE (~0.927 của Top-3) — mọi thay đổi v11 phải chứng minh không làm hại adjEJ (D3 giữ nguyên).
+
+**⭐⭐ Kết luận bổ sung LƯỢT 2 (19/9 ~04:30):** (1) fork thật của mình trên hidden = **188** (127 safe-div DC 0.20 + ~80 reparent; v10 giữ nguyên) → kỳ vọng volume purge **~186 cạnh, gấp đôi alfonso** — triển vọng gain NHẬP cao hơn nhưng phải quản rủi ro đốt TP reparent (biến thể C là đường lui, §5.4-bis); (2) **fork ≠ divFP theo rule scorer** → giá trị tin cậy của purge là edge precision; mọi phân rã điểm 0.947/0.9605 thành edge+div từ bên ngoài là suy đoán — LB là trọng tài duy nhất; (3) **V1057 reconcile nâng lên port candidate #2** (~110 dòng, lớp hồi phục recall edge, độc quyền nhánh alfonso) — thêm biến thể B sau khi A có Δ dương; (4) env parity 36/37 (chỉ DC 0.25 vs 0.20) xác nhận "cùng dòng dõi" ở mức mạnh nhất — mọi phát hiện của họ transfer được cho stack mình, kể cả Lesson 2 (validator không trọng tài được purge). **Trạng thái thực thi: v10 COMPLETE 04:14 + SUBMIT ref 56348119 (điểm đang chấm); v10-linear biến thể A sẵn sàng thực thi trên output đã tải về.**
 
 ---
 
@@ -309,3 +391,33 @@ Production tự tính p_div trên GPU (batch/algorithm pick) — khác chữ cu�
 **Chưa "hoàn toàn chặt":** 2 lỗ đỏ (B-1 crash kernel; B-2 trục dominated) + 2 lỗ cam (B-3 caps sai → D2 fail ngầm; B-4 thiếu GT → grid local mù) + 1 xấp xỉ cần ghi rõ (B-5). Cả 5 đã vá thẳng vào các mục tương ứng của doc này.
 
 **Phát triển mạnh hơn (xếp theo giá trị/chi phí):** B-6 funnel (quyết định trục + trần Δdiv_tp trước khi grid) > B-7 p_div floor (van FP chi phí 0) > B-8 DC raw score (trục free) > B-9 mutual-NN tier-2 (cửa unlock nếu funnel chỉ ra gate này) > B-11 existing-child. Toàn bộ nằm gọn trong hạ tầng đã thiết kế — không thay đổi kiến trúc, chỉ thêm instrumentation + trục grid.
+
+---
+
+## Phụ lục C — Biên bản review vòng 3 / lượt 2 alfonso (19/9 ~04:30 — 3 vai trò: kỹ sư AI / kiến trúc sư hệ thống / chuyên gia thuật toán)
+
+Đối tượng: toàn bộ claims §2.3 + ANALYSIS.md lượt 1 + chính kế hoạch §5.4-bis. Phương pháp: đếm trực tiếp CSV (cả 2 phía), regex toàn bộ env 2 file, đọc nguyên văn Cell 1/Cell 2 + `_v1057_reconcile_in_memory`, đối chiếu run_stats/validator_results của chính mình. Mọi phát hiện có receipts.
+
+### C-1. 🔴 Số liệu then chốt sai: "fork mình ~90" → THẬT = 188 (đếm trực tiếp)
+Lượt 1 ghi "ước ~90 (cùng env)" trong bảng §4 ANALYSIS.md. Đếm lại từ CSV banked ver-8 v3fast + output v10: **188 forks** (64/41/13/70). Nguồn gốc gấp đôi: (a) DC 0.20 (mình) vs 0.25 (họ) → funnel receipts: họ 763 geom candidates → DC chấp 213 → 92 added; mình DC chấp 317 → 127 added; (b) reparent Phase D của mình thêm 80 (họ không có lớp này). **Đã vá §2.3-bis.1 + §5.4-bis (volume purge 186 cạnh) + bảng ANALYSIS.md §4.**
+
+### C-2. 🔴 Cave nền tảng bỏ sót: fork ≠ division prediction (rule scorer patched)
+Validator production: 139 `safe_divisions_added` nhưng chỉ 2 `div_fp` được scorer đếm → phần lớn fork không tính là division prediction. Lượt 1 (và cả §2.3 gốc) đọc census "44→0/16→0/5→0/27→2" như "purge 92 FP division" và suy "0.9605 = edge 0.927 + 0.033" rồi suy tiếp "edge mình 0.945 > edge họ 0.927" — chuỗi suy luận này KHÔNG kiểm chứng được vì mình không phân rã được 0.947 của mình (divJ hidden không suy ra từ fork count). **Đã vá cave vào §2.3 + §2.3-bis.2 + rủi ro (e) §5.4-bis.** Gía trị thực của purge vẫn đứng vững qua kênh edge precision (mỗi fork sai ≥ 1 FP edge) — hướng chiến lược không đổi, chỉ độ tin cậy của từng con số được ghi đúng mức.
+
+### C-3. 🟠 Delta bỏ sót: V1057 reconcile (port candidate #2)
+`_v1057_reconcile_in_memory` — lớp re-add raw edge (prob ≥ 0.30, conflict-resolve theo prob, không đụng fork) chạy sau linefit trước CSV. Không có trong mình + không có trong public family (đã grep 5 notebook). Lượt 1 nhắc tên trong chuỗi pipeline nhưng KHÔNG liệt kê vào bảng so sánh §4 và không vào kế hoạch port. **Đã vá: bảng §4 ANALYSIS.md + §2.3-bis.3 + biến thể B §5.4-bis + §8.** ⚠️ Điều kiện port: cần raw edges + edge_prob (chỉ có trong pipeline trước filter — CSV cuối không còn); interplay HOCT veto (chạy trước veto hoặc loại cạnh đã-veto).
+
+### C-4. 🟠 3 sai số chi tiết stack (ANALYSIS.md §2 lượt 1)
+gap2 "off" → env `OUTPUT_GAP2_RECOVERY=1` (ON); motion relink learned bonus "0.75" → env 1.0; ILP div "1.0" → env 1.2. Nguyên nhân lỗi: lượt 1 đọc internal defaults thay vì env run-config. **Đã sửa in-place với tag [sửa lượt 2].**
+
+### C-5. 🟢 Env parity 36/37 — receipts mạnh nhất cho transferability
+Regex toàn bộ env knobs cả 2 file: 36/37 giá trị GIỐNG HỆT (kể cả các cụm phức GAP_DENSITY_ADAPTIVE, ADAPTIVE_SHORT_TRACK_RESCUE, DC_GAP_VETO 0.25/8.5, DUAL_SEED 0.90…). Duy nhất `DEEPCENTER_SAFE_DIV_THRESHOLD` 0.20/0.25. Knobs mình-thêm (DIVNET/REPARENT/HOCT/per-prefix-tight) là lớp riêng, không phải thiếu. **Đã ghi §2.3-bis.4.**
+
+### C-6. 🟢 Verify census + rescue events (đóng sổ "tin ở mức receipt")
+92→2 forks, node 123.485 bảo toàn, edge 118.892→118.802 = 90 = 92−2 ✓ hoàn hảo nhất quán; 2 rescue events P=20025→{20823,20865} (d=2.87/8.05µm, sát gate 8.5) + P=32231→{32980,33069} (d=6.40/4.91µm), cả 2 giữa FOV. Markdown EJ 0.9247 không self-consistent (0.958 vs 0.9605 — chênh ≈ node-multiplier) → ghi rõ là con số tự nhận.
+
+### C-7. ⚪ Trạng thái thực thi song song (không thuộc review nhưng phát hiện trong lúc verify)
+Pipeline v10-launch lỗi submit (kagglesdk API path `competitions.create_code_submission` → đúng: `competitions.competition_api_client.create_code_submission`) — kernel đã COMPLETE 04:14 mà chưa nộp. **Đã vá submit-v10.py + submit tay ref 56348119 (04:2x)** — bank v10 không mất lượt. PM2 v10-launch đã dọn (nhiệm vụ xong).
+
+### Đánh giá tổng vòng 3
+Hướng chiến lược của lượt 1 (census hidden 2–3 GT, purge-trước-mở-gate, A/B bằng LB, re-base trần div) **ĐỨNG VẮNG** — không phát hiện nào của lượt 2 đảo ngược. Ba chỗ phải vá: (1) con số volume (90→186); (2) mức độ tin cậy các con số tự nhận (EJ/divJ alfonso, phân rã điểm mình) — hạ từ "receipt" xuống "suy luận hợp lý"; (3) thêm V1057 reconcile vào danh sách port. Kế hoạch §5.4-bis cập nhật 3 biến thể A/B/C + điều kiện nhánh. Kiến trúc 3-kernel của v11 không đổi.

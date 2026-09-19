@@ -1292,3 +1292,22 @@ Stage Summary:
 - Repo GitHub vietnq130593-code/Biohub-Cell-Tracking đã đồng bộ 100% tại 57f57c0: toàn bộ ver-10 (lab + production + launch script) + V11-RESEARCH.md sau 2 vòng review đối chiếu code (Phụ lục A + B) + app đồng bộ.
 - Bảo mật: sạch token, chỉ placeholder + breadcrumb 4 ký tự.
 - Bước tiếp theo theo lộ trình: 19/9 07:00 VN (quota refresh) chạy bash kaggle/api/v10-launch.sh → nộp v10 (kỳ vọng 0.9493-0.9497) → sau đó v11-lab theo §5 V11-RESEARCH.md (vá B-1 guard + B-2 ghép cặp DIV_PARENT trước khi build).
+
+---
+Task ID: V11-ALFONSO-PUSH
+Agent: main (Bio — AI engineer/system architect/algorithm expert)
+Task: Nghiên cứu notebook Top-3 alfonso1799 V50 (LB 0.9605) lượt 1+2 (deep-verify) + nộp v10 lên Kaggle + user yêu cầu push toàn bộ code lên GitHub.
+
+Work Log:
+- NGHIÊN CỨU TOP-3 (19/9 03:44–04:35): pull kernel alfonso1799/biohub-top-3-push-v50-streamlined-sota + output → giải nén v1329_runner.py 3.092 dòng → phân tích 2 lớp (foundation V1329 harmonic + post-link V50: fork linearization + cytokinesis rescue ≤2/dataset + assert DAG). Census hidden test từ receipts: 4 phim ~123.485 node, GT division ≈2–3 sự kiện (thưa gấp 4–50× validator); 0.9605 = edge ~0.927 + 0.1×0.333 → Top-3 thắng bằng EDGE. Verify đếm trực tiếp CSV: 92→2 forks, node set bảo toàn 100%, 2 rescue events khớp markdown.
+- LƯỢT 2 DEEP-VERIFY 4 phát hiện: (1) fork count THẬT của mình trên hidden = 188 (gấp đôi alfonso; 127 safe-div DC 0.20 + ~80 reparent, đếm từ CSV banked + output v10); (2) fork ≠ division prediction theo rule scorer patched → mọi phân rã 0.947/0.9605 thành edge+div là SUY ĐOÁN; (3) V1057 reconcile = delta thật thứ 3 mình chưa có (port candidate #2, ~110 dòng, interplay HOCT); (4) env parity 36/37 knobs — chỉ DC_SAFE_DIV 0.20/0.25 (sửa 3 sai sót lượt 1: gap2 ON, bonus 1.0, ILP div 1.2).
+- TÍCH HỢP V11-RESEARCH.md: §2.3 (nghiên cứu lượt 1) + §2.3-bis (verify lượt 2) + §5.4-bis (kế hoạch A/B "v10-linear": port Cell 2 ~200 dòng CPU áp lên output v10 bank, 3 biến thể A/B/C, trọng tài = LB) + cập nhật TL;DR/§1.2/§7. Bản đầy đủ: kaggle/api/research/alfonso-v50/ANALYSIS.md + artifacts (notebook, runner, 2 submission CSV, receipts v1329_work).
+- V10 PRODUCTION: kernel biohub-ver10 COMPLETE 04:14 (13.199s), push version 1 lúc 02:57, ĐÃ SUBMIT ref 56348119 (điểm đang chấm) — state.json + submit-v10.py (fix API client create_code_submission) cập nhật; xóa push-staging/ver9-cell-tracking.ipynb lỗi thời.
+- PUSH GITHUB: git status có 4 thay đổi + 5 untracked → rà trùng lặp: latest/secondary_seed_weights (32M) trùng md5 ABSOLUT ver8-v3fast → BỎ (convention giữ 1 bản weights); latest/tracking_repo (7.1M) cache → BỎ (convention cleanup 2b46a3f); *.log tự chặn bởi .gitignore. Stage còn lại ~39M: output v10 (submission.csv 12M + receipts jsonl/state/ppsweep/run_stats) + research alfonso-v50 (26M) + 3 e2e screenshot.
+- SECRET SCAN 3 vòng theo quy trình push trên staged tree (41 file): ghp_/github_pat_ = 0 match; KGAT_[A-Za-z0-9]{20,} = 0 match; Google OAuth 4/0... = 0 match → SẠCH.
+- Commit 41 file (+732.003/−5.724 dòng; 3 CSV submission ~123k dòng mỗi file chiếm phần lớn) — push sẽ thực hiện ngay khi có token GitHub của user (token cũ mất sau sandbox rebuild, pattern như worklog dòng 821/1177).
+
+Stage Summary:
+- Kế hoạch v11 re-base chiến lược: thứ tự đúng = purge FP fork TRƯỚC, mở gate SAU; trục rẻ nhất mùa = lớp post-link "v10-linear" CPU-only áp lên output v10 bank (§5.4-bis); trần div trên hidden chỉ +0.01–0.04; validator KHÔNG trọng tài được quyết định purge (sign ngược domain).
+- V10 đã nộp Kaggle ref 56348119 — chờ điểm; output v10 + toàn bộ nghiên cứu alfonso + V11-RESEARCH.md cập nhật đã commit Git.
+- Loại 39M trùng lặp/cache khỏi commit (weights md5 trùng ver8-v3fast + tracking_repo cache) — repo pack ~108M + ~39M nội dung thật mới.

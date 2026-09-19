@@ -56,7 +56,7 @@ def main() -> int:
     req.kernel_version = version
     req.file_name = "submission.csv"
     req.submission_description = args.message
-    res = client.competitions.create_code_submission(req)
+    res = client.competitions.competition_api_client.create_code_submission(req)
     print(f"\nĐÃ NỘP {KERNEL_OWNER}/{KERNEL_SLUG} version {version}: {res}")
     print("Xem điểm: python3 ktool.py score")
     return 0
