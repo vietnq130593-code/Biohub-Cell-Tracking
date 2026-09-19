@@ -1311,3 +1311,18 @@ Stage Summary:
 - Kế hoạch v11 re-base chiến lược: thứ tự đúng = purge FP fork TRƯỚC, mở gate SAU; trục rẻ nhất mùa = lớp post-link "v10-linear" CPU-only áp lên output v10 bank (§5.4-bis); trần div trên hidden chỉ +0.01–0.04; validator KHÔNG trọng tài được quyết định purge (sign ngược domain).
 - V10 đã nộp Kaggle ref 56348119 — chờ điểm; output v10 + toàn bộ nghiên cứu alfonso + V11-RESEARCH.md cập nhật đã commit Git.
 - Loại 39M trùng lặp/cache khỏi commit (weights md5 trùng ver8-v3fast + tracking_repo cache) — repo pack ~108M + ~39M nội dung thật mới.
+
+---
+Task ID: V11-ALFONSO-PUSH-VERIFY
+Agent: main (Bio)
+Task: User cung cấp PAT GitHub (ghp_...) — hoàn tất push commit da1959f lên GitHub và khép trạng thái.
+
+Work Log:
+- Push one-off bằng token trong URL lệnh push (GIT_TERMINAL_PROMPT=0): df3e482..da1959f main -> main — THÀNH CÔNG.
+- Verify ls-remote: origin/main = da1959f459a329199f23df612d2c116b2925372a = local main (0 ahead, 0 behind).
+- Token chỉ tồn tại trong lệnh push one-off: .git/config giữ URL sạch (0 match ghp_), không ghi vào worklog/file tracked nào — sẽ commit entry verify này như commit cuối.
+- Commit này (worklog verify) được push cùng token để khép trạng thái.
+
+Stage Summary:
+- Repo GitHub vietnq130593-code/Biohub-Cell-Tracking đồng bộ 100%: toàn bộ nghiên cứu top-3 alfonso V50 (§2.3/§2.3-bis/§5.4-bis + artifacts 26M) + output v10 banked (submit ref 56348119, 13M receipts) + fix submit-v10.py — đã loại 39M trùng lặp/cache, secret scan 3 vòng sạch.
+- Bước tiếp theo theo lộ trình: chờ điểm v10 (ref 56348119) → port Cell 2 alfonso làm lớp "v10-linear" (biến thể A/B/C, §5.4-bis) → A/B bằng LB 19-20/9 → v11-mở-gate theo §3-§6 kèm checklist B-1/B-2.
