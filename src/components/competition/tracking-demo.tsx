@@ -402,7 +402,7 @@ interface RuntimeState {
 type Mode = 'ver10' | 'ver9' | 'ver8' | 'ver6' | 'ver7' | 'custom'
 
 const MODE_LABEL: Record<Mode, string> = {
-  ver10: 'Ver 10 · LAB veto1 +0.0018',
+  ver10: 'Ver 10 · PRODUCTION 0.947 (veto1)',
   ver9: 'Ver 9 · FAIL runtime',
   ver8: 'Ver 8 · 0.947 · Hạng 165 · BẠC',
   ver7: 'Ver 7 · Kaggle 0.947',
@@ -422,7 +422,8 @@ const VERSION_INFO: Record<Exclude<Mode, 'custom'>, string[]> = {
     'ref tái lập v3-fast chính xác 6 chữ số (deterministic ✓)',
     'RLF & tight sweep: CHẾT (Δ 0.0000 / toàn âm)',
     'veto1: adjEJ +0.0018 · proxy +0.0018 · div 4/1/8 nguyên vẹn',
-    'chưa nộp — ứng viên v3-fast + veto1 + guard thắt',
+    'PRODUCTION ref 56348119 — COMPLETE 1h17m · LB 0.947 (20/9)',
+    'veto1 +0.0018 validator KHÔNG transfer — ±0.001 coi là noise',
   ],
   ver9: [
     'HOCT consensus veto mode 2 — linker thứ hai độc lập',
@@ -480,6 +481,10 @@ const STATUS_BADGE: Record<KaggleRunStatus, { label: string; cls: string }> = {
   RESEARCH: {
     label: 'NGHIÊN CỨU',
     cls: 'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300',
+  },
+  BUILD: {
+    label: 'BUILD — SẮP NỘP',
+    cls: 'border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300',
   },
   FAILED: {
     label: 'FAIL RUNTIME HIDDEN',
@@ -1024,9 +1029,10 @@ export default function TrackingDemo() {
               thể tích 3D tổng hợp của phôi zebrafish, rồi chấm điểm đúng metric
               cuộc thi. Ver 8 v3-fast CHẤM XONG 16/9: 0.947 — HẠNG 165/3602
               — HUY CHƯƠNG BẠC (top 5%, vị trí 22/525 đầu cụm 0.947).
-              Ver 10 LAB (17/9): veto mode 1 +0,0018 adjEJ — kernel production
-              build xong (65/65 test), chờ quota 19/9 để push + nộp. Ver 9 (HOCT
-              veto mode 2) FAIL runtime
+              Ver 10 PRODUCTION CHẤM XONG 20/9: 0.947 (ref 56348119 —
+              COMPLETE 1h17m; veto1 +0.0018 validator không transfer).
+              Ver 10-LINEAR purge fork: 0.911 THẤT BẠI — KHÔNG phải
+              ver-10. Ver 9 (HOCT veto mode 2) FAIL runtime
               hidden test (56261328 + gửi lại 56276434). Ver 7 (port
               notebook Reyhan — public LB 0.947) và Ver 6 (Kaggle 0.945
               deterministic) cho số GẦN NHAU trên cùng dữ liệu — đúng bằng
@@ -1227,8 +1233,8 @@ export default function TrackingDemo() {
                 aria-label="Chọn phiên bản thuật toán"
                 className="flex-wrap"
               >
-                <ToggleGroupItem value="ver10" aria-label="Ver 10, lab grid 9 cấu hình trên 8 stems validator — veto mode 1 thắng mọi chỉ số: adjEJ +0.0018, proxy +0.0018, division nguyên vẹn — chưa nộp">
-                  Ver 10 · LAB veto1 +0.0018
+                <ToggleGroupItem value="ver10" aria-label="Ver 10, production v3-fast + HOCT veto mode 1 (division-safe) + guard mật độ — thắng mọi chỉ số lab: adjEJ +0.0018, proxy +0.0018, division nguyên vẹn — ref 56348119 COMPLETE 1h17m, LB 0.947 (veto1 không transfer)">
+                  Ver 10 · PRODUCTION 0.947 (veto1)
                 </ToggleGroupItem>
                 <ToggleGroupItem value="ver9" aria-label="Ver 9, HOCT consensus veto mode 2 + repeat-lineage filter — submission 56261328 FAIL runtime hidden test, gửi lại 56276434 cũng fail như dự báo">
                   Ver 9 · FAIL runtime
@@ -1360,7 +1366,7 @@ export default function TrackingDemo() {
                       `[v10-lab·runtime] HOCT thực đo 6.6s/1000 nodes (1249s/189k, dưới slope 9s) — nhưng bậc 2 theo node/frame: embryo-3 dày đã giết ver-9 (TLE)`,
                       `[v10-vs-ver8] nếu +0.0018 transfer: 0.9475-0.9479 + 0.0018 → 0.9493-0.9497 → vượt cụm 0.948 (55 đội hạng 89-143) → hạng ~89-120, bạc chắc (hiện 165, cắt 180, dư 15 chỗ)`,
                       `[phán-quyết] KHÔNG nộp v10-RLF/v10-tight · ứng viên DUY NHẤT: v3-fast + veto1 + guard thắt (MAX_VIDEO_S 300s · deadline 7.5h · dự đoán theo mật độ node/frame · strip validator replay)`,
-                      `[kế-hoạch] push kernel v10 production sau quota refresh 19/9 (~2h public) → submit → kỳ vọng 0.948-0.949 · fallback vẫn là v3-fast 0.947`,
+                      `[kết-quả] v10 production ref 56348119 COMPLETE 1h17m → LB 0.947 (verify 20/9) — veto1 +0.0018 validator KHÔNG transfer (±0.001 = noise) · ver-10 = nền banked cho v11/v12`,
                     ].join('\n')
                   }
                   if (mode === 'ver9') {

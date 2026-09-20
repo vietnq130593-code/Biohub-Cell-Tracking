@@ -13,7 +13,6 @@ import {
   CircleAlert,
   CircleCheck,
   ClipboardPaste,
-  Clock,
   Database,
   FileSearch,
   FlaskConical,
@@ -1152,7 +1151,7 @@ function VersionsTab() {
                   <ListChecks className="mt-0.5 h-4 w-4 shrink-0 text-teal-600 dark:text-teal-300" aria-hidden />
                   <span>
                     <span className="font-mono font-semibold">[runtime-guard]</span>{" "}
-                    HOCT thực đo 6.6s/1000 nodes (T4, 1249s/189k nodes — dưới slope 9s) nhưng chi phí bậc 2 theo node/frame — embryo-3 dày nhất đã giết ver-9 (hidden ≈ 5-7× public). Kế hoạch: push kernel v10 production (v3-fast + veto1 + guard thắt, strip validator replay) sau quota GPU refresh 19/9 (~2h public) → submit → kỳ vọng 0.948-0.949 · fallback vẫn là v3-fast 0.947.
+                    HOCT thực đo 6.6s/1000 nodes (T4, 1249s/189k nodes — dưới slope 9s) nhưng chi phí bậc 2 theo node/frame — embryo-3 dày nhất đã giết ver-9 (hidden ≈ 5-7× public). ĐANG CHẠY: kernel v10 production v1 (v3-fast + veto1 + guard thắt, strip validator replay) push 02:57 UTC 19/9 — pipeline tự submit khi COMPLETE (~2h public) → kỳ vọng 0.948-0.949 · fallback vẫn là v3-fast 0.947.
                   </span>
                 </p>
               </div>
@@ -1160,17 +1159,17 @@ function VersionsTab() {
           </CardContent>
         </Card>
 
-        {/* ver 10 — PRODUCTION kernel: build xong, chờ quota push */}
+        {/* ver 10 — PRODUCTION kernel: COMPLETE 1h17m · LB 0.947 (ref 56348119, verify 20/9) */}
         <Card className="border-emerald-500/50 bg-emerald-500/[0.04] md:col-span-2">
           <CardHeader>
             <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
               <span className="flex items-center gap-2">
                 <Rocket className="h-4 w-4 text-emerald-600 dark:text-emerald-300" aria-hidden />
-                ver 10 · PRODUCTION — kernel build xong, chờ quota GPU 19/9
+                ver 10 · PRODUCTION — COMPLETE · LB 0.947
               </span>
               <Badge className="gap-1 bg-emerald-600 text-[10px] leading-4 text-emerald-50 hover:bg-emerald-600 sm:text-xs">
-                <Clock className="h-3 w-3" aria-hidden />
-                SẴN SÀNG · 65/65 TEST · QUOTA 30/30h
+                <CircleCheck className="h-3 w-3" aria-hidden />
+                COMPLETE 1h17m · LB 0.947 · ref 56348119
               </Badge>
             </CardTitle>
             <CardDescription>
@@ -1179,23 +1178,19 @@ function VersionsTab() {
                 biohub-ver10 v1
               </code>{" "}
               (T4×2 · Internet OFF · 9 dataset · 1 code cell): v3-fast + HOCT veto
-              MODE 1 + guard mật độ — build theo đúng khuyến nghị §6 V10-RESULTS.
-              Push 20:22 UTC 17/9 bị chặn{" "}
-              <span className="font-mono text-[0.85em]">
-                &quot;Maximum weekly GPU quota of 30.00 hours reached&quot;
+              MODE 1 + guard mật độ — push 02:57 UTC 19/9 → pipeline tự submit →
+              <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                {" "}COMPLETE 1h17m → LB 0.947 (verify 20/9)
               </span>{" "}
-              (30.93/30h) — quota refresh 19/9 00:00 UTC, một lệnh{" "}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
-                v10-launch.sh
-              </code>{" "}
-              tự push → watch → submit → score.
+              — KHÔNG phải 0.949 như kỳ vọng: veto1 (+0.0018 validator) KHÔNG
+              transfer lên hidden.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               <div className="space-y-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Guard mật độ chống TLE (3 lớp)
+                  Guard mật độ chống TLE (3 lớp) — đã pass hidden
                 </p>
                 <ul className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
                   <li>
@@ -1210,7 +1205,7 @@ function VersionsTab() {
                   </li>
                   <li>
                     <span className="font-mono font-semibold text-foreground">abort giữa video</span> ở biên chunk
-                    (_hvDeadlineAbort — không retry, fail-safe giữ graph gốc) — kernel LUÔN hoàn tất trong hạn 12h
+                    (_hvDeadlineAbort — không retry, fail-safe giữ graph gốc) — hidden hoàn tất 1h17m ≪ hạn 12h
                   </li>
                 </ul>
               </div>
@@ -1227,73 +1222,271 @@ function VersionsTab() {
                     2 video 44b6 khổng lồ bị skip (est 576s / 498s) đều vô hại — một cái
                     delta ±0.0000, một cái −0.0045 (skip còn gỡ thiệt hại)
                   </li>
-                  <li>ĐÃ STRIP: RLF (Δ 0.0000) · gate replay (~45&apos;/lần) · S2 eval cell → public ~2.0-2.2h</li>
+                  <li>ĐÃ STRIP: RLF (Δ 0.0000) · gate replay (~45&apos;/lần) · S2 eval cell → public ~2h → hidden 1h17m thực tế</li>
                 </ul>
               </div>
               <div className="space-y-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Kỳ vọng &amp; rủi ro
+                  Kết quả thực tế &amp; bài học transfer
                 </p>
                 <ul className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
                   <li>
-                    Pass hidden: 0.9475-0.9479 + 0.0018 →{" "}
-                    <span className="font-semibold text-foreground">0.948-0.949</span> → vượt cụm 55 đội
-                    0.948 (hạng 89-143) → bạc chắc chắn
+                    <span className="font-semibold text-foreground">LB 0.947</span> (submit 19/9 04:23 UTC ·
+                    ref 56348119 · chạy 1h17m) — cùng mức ver-8/ver-7, KHÔNG vượt cụm 0.948
                   </li>
-                  <li>TLE dù guard: mất 1 lượt — v3-fast 0.947 vẫn là final (rủi ro giới hạn)</li>
-                  <li>Deadline 29/9 còn 12 ngày · quota về 19/9 00:00 UTC (~07:00 giờ VN)</li>
+                  <li>
+                    veto1 +0.0018 validator <span className="font-semibold text-rose-600 dark:text-rose-300">KHÔNG transfer</span>:
+                    dưới ngưỡng hiển thị 0.001 hoặc bị guard bù (2 video skip vốn gỡ thiệt hại) — ±0.001 coi là noise
+                  </li>
+                  <li>ver-10 = NỀN banked 0.947 cho v11/v12 — giữ nguyên veto1 + guard (pass hidden an toàn)</li>
                 </ul>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* ver 11 — RESEARCH: kênh division, nghiên cứu hoàn thành */}
+        {/* ver 10-linear — variant A purge fork: THẤT BẠI 0.911 (không phải ver-10!) */}
+        <Card className="border-rose-500/40 bg-rose-500/[0.03] md:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+              <span className="flex items-center gap-2">
+                <OctagonAlert className="h-4 w-4 text-rose-600 dark:text-rose-300" aria-hidden />
+                ver 10-LINEAR · variant A purge fork — THẤT BẠI 0.911
+              </span>
+              <Badge className="gap-1 bg-rose-500 text-[10px] leading-4 text-rose-50 hover:bg-rose-500 sm:text-xs">
+                <OctagonAlert className="h-3 w-3" aria-hidden />
+                LB 0.911 · Δ −0.036 · PURGE FORK CHẾT VĨNH VIỄN
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              <span className="font-semibold text-foreground">Làm rõ quan trọng:
+              0.911 KHÔNG phải ver-10</span>{" "}
+              — là thí nghiệm{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                biohub-ver10-linear-gpu v1
+              </code>{" "}
+              (ref 56373784, submit 20/9 00:00 UTC) áp post-link Cell 2 alfonso
+              (linearize 188 fork + rescue ≤2) lên output v10;
+              <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                {" "}ver-10 thật = 0.947 COMPLETE (ref 56348119)
+              </span>
+              . Nếu bạn thấy 0.911 trên Kaggle — đó là bản thí nghiệm này,
+              không phải bản production.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="space-y-3">
+              <p className="text-sm font-medium">Root cause — khớp số học từ LB-replica:</p>
+              <ul className="space-y-1.5 text-sm text-muted-foreground">
+                <li>
+                  • <span className="font-semibold text-rose-600 dark:text-rose-300">divJ_LB 0.333 → 0 = −0.033</span> —
+                  purge 188 fork giết division TP duy nhất trên hidden: fork
+                  của mình CÓ CHỨA division TP thật
+                </li>
+                <li>
+                  • <span className="font-semibold text-foreground">edge −0.003</span> — không cách nào xóa
+                  186/118.401 cạnh lại mất −0.036 điểm bằng đếm cạnh thuần →
+                  phải là trục division
+                </li>
+                <li>
+                  • Replica MÙ với biến thể A (Δreplica +0.0008 khi ΔLB −0.036) —
+                  chỉ LB weigh được quyết định xoá/xữ fork
+                </li>
+              </ul>
+              <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm">
+                <p className="font-mono font-semibold">
+                  PHÁN QUYẾT — HƯỚNG LINEARIZE/PURGE FORK KHÉP VĨNH VIỄN
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Fork chỉ được THÊM, không được XÓA (luật D6/F2 giữ nguyên cho
+                  v11/v12). Thí nghiệm theo alfonso “purge 188 fork” đã có
+                  receipt phủ định trên LB thật — không lặp lại dưới bất kỳ hình
+                  thức nào (kể cả “rescue ≤2”).
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Vận hành 5 lần submit (20/9)
+              </p>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">lần</TableHead>
+                      <TableHead className="text-xs">kết quả</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="py-1.5 font-mono text-[11px]">1-4</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px]">
+                        FAIL format / totalBytes — iterate submission CSV 4 vòng
+                      </TableCell>
+                    </TableRow>
+                    <TableRow className="bg-rose-500/10 font-semibold">
+                      <TableCell className="py-1.5 font-mono text-[11px]">5 (ref 56373784)</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px]">
+                        COMPLETE → LB 0.911 — THẤT BẠI LỚN (Δ −0.036 vs v10)
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                Tốn 1 ngày quota (5/5 submission) cho receipt phủ định — bài
+                học vận hành: thí nghiệm thay đổi topology lớn phải qua
+                LB-replica + funnel trước khi đốt lượt submit.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ver 11 — LAB: dump v2 xong + grid v4 mutual_nn đang chạy (20/9) */}
+        <Card className="border-teal-500/50 bg-teal-500/[0.04] md:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+              <span className="flex items-center gap-2">
+                <FlaskConical className="h-4 w-4 text-teal-600 dark:text-teal-300" aria-hidden />
+                ver 11 · LAB — dump thành công + grid mutual_nn đang chạy
+              </span>
+              <Badge className="gap-1 bg-teal-600 text-[10px] leading-4 text-teal-50 hover:bg-teal-600 sm:text-xs">
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                KERNEL v4 GRID RUNNING GPU ~5h · CHƯA NỘP
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              Kernel{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                biohub-v11-lab
+              </code>{" "}
+              — v2 (19/9 19:31) dump THÀNH CÔNG TRỌN VẸN; v4 (20/9) = GRID 6
+              configs mutual_nn×floor đang chạy GPU (~5h). Mỏ neo D2 tái lập
+              adjEJ{" "}
+              <span className="font-mono font-semibold text-foreground">0.930492 EXACT</span>{" "}
+              (div 4/1/8) — replay deterministic tiếp tục giữ cho mọi config grid.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="space-y-3">
+              <p className="text-sm font-medium">Dumps kernel v2 (đầy đủ cho grid CPU replay):</p>
+              <ul className="space-y-1.5 text-sm text-muted-foreground">
+                <li>
+                  • <span className="font-mono font-semibold text-foreground">193.841</span> node p_div DivNet
+                  (theo-node — giải chicken-and-egg của reparent)
+                </li>
+                <li>
+                  • DC raw + <span className="font-mono font-semibold text-foreground">17.699</span> wide
+                  proposals (gate rộng) +{" "}
+                  <span className="font-mono font-semibold text-foreground">183.338</span> HOCT pairs
+                </li>
+                <li>
+                  • Funnel B-6 (8 stems · 12 GT division):{" "}
+                  <span className="font-semibold text-foreground">9 FN = 7 no_proposal + 2 mutual_nn</span>
+                </li>
+              </ul>
+              <div className="rounded-lg border border-teal-500/30 bg-teal-500/10 p-3 text-sm">
+                <p className="font-mono font-semibold">TRẦN VALIDATOR +2 TP</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Chỉ 2/9 FN mutual_nn hồi phục được (7/9 do thiếu proposal —
+                  không cứu được bằng gate). Pool gate rộng 319 proposals → 46/39
+                  theo p_div floor 0.5/0.85. Kỳ vọng khiêm tốn hơn nghiên cứu
+                  ban đầu: +0.001..+0.003 hiển thị nếu 1 FN thật 05db hồi phục.
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                GRID v4 — 6 configs mutual_nn × p_div floor (~5h GPU)
+              </p>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">config</TableHead>
+                      <TableHead className="text-xs">thay đổi so v11_base</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="py-1.5 font-mono text-[11px]">v11_base</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px]">tham chiếu — giữ gate hiện tại</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="py-1.5 font-mono text-[11px]">mn_off</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px]">tắt mutual_nn</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="py-1.5 font-mono text-[11px]">mn_pdiv50 / mn_pdiv85</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px]">+ MIN_PDIV floor 0.5 / 0.85</TableCell>
+                    </TableRow>
+                    <TableRow className="bg-teal-500/10 font-semibold">
+                      <TableCell className="py-1.5 font-mono text-[11px]">★ mn_p85_geo14</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px]">floor 0.85 + geo-sister 8→14µm — đúng trục GT div 05db (sister 12.5µm)</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="py-1.5 font-mono text-[11px]">mn_p85_div05</TableCell>
+                      <TableCell className="py-1.5 font-mono text-[11px]">floor 0.85 + DC_SAFE_DIV 0.20→0.25 (hội tụ nguồn thứ 4)</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                Chạy xong → chọn config thắng → build+submit production{" "}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">biohub-ver11</code>{" "}
+                hôm nay 20/9 (xem thẻ BUILD bên dưới).
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ver 11 — BUILD: production biohub-ver11 submit 20/9 sau grid v4 */}
         <Card className="border-fuchsia-500/50 bg-fuchsia-500/[0.04] md:col-span-2">
           <CardHeader>
             <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
               <span className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-fuchsia-600 dark:text-fuchsia-300" aria-hidden />
-                ver 11 · RESEARCH — kênh division: mở gate vừa + DivNet rerank
+                <Rocket className="h-4 w-4 text-fuchsia-600 dark:text-fuchsia-300" aria-hidden />
+                ver 11 · BUILD — kênh division: mutual_nn + p_div floor
               </span>
               <Badge className="gap-1 bg-fuchsia-600 text-[10px] leading-4 text-fuchsia-50 hover:bg-fuchsia-600 sm:text-xs">
-                <FlaskConical className="h-3 w-3" aria-hidden />
-                NGHIÊN CỨU XONG · CHỜ QUOTA
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                BUILD · SUBMIT PRODUCTION HÔM NAY 20/9 SAU GRID
               </Badge>
             </CardTitle>
             <CardDescription>
-              Sau khi dọn cây thư mục (xóa ver-1..7b + output trùng, tiết kiệm 245MB), tổng hợp 30+
-              notebook nghiên cứu đối thủ trong{" "}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
-                api/research/
-              </code>{" "}
-              → kế hoạch đầy đủ tại{" "}
+              Kế hoạch đầy đủ tại{" "}
               <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
                 kaggle/ver-11-planning/V11-RESEARCH.md
-              </code>
-              . Trục division là trục DUY NHẤT còn tín hiệu thật ở vùng 0.947+ (zhincez 0.952 = hạng
-              ~32 leo thuần bằng kênh này, offline sign 3/3).
+              </code>{" "}
+              + dump v11-lab v2 ✅. Trục division là trục DUY NHẤT còn tín hiệu
+              thật ở vùng 0.947+ (zhincez 0.952 = hạng ~32 leo thuần bằng kênh
+              này, offline sign 3/3). Production{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                biohub-ver11
+              </code>{" "}
+              build + submit ngay khi grid v4 chấm xong.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               <div className="space-y-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Bằng chứng quyết định
+                  Funnel receipt (lab v2 — 8 stems · 12 GT division)
                 </p>
                 <ul className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
                   <li>
+                    <span className="font-semibold text-foreground">9 FN = 7 no_proposal + 2 mutual_nn</span>{" "}
+                    → chỉ 2/9 FN hồi phục được ={" "}
+                    <span className="font-semibold text-foreground">trần validator +2 TP</span>
+                  </li>
+                  <li>
+                    Pool division gate rộng 319 proposals →{" "}
+                    <span className="font-mono font-semibold text-foreground">46/39</span> theo
+                    p_div floor 0.5/0.85
+                  </li>
+                  <li>
                     Sổ cái zhincez: trục division sign khớp LB{" "}
-                    <span className="font-semibold text-foreground">3/3</span> (trục edge 0/3) —
-                    0.948→0.950 bằng raising division gate
-                  </li>
-                  <li>
-                    Audit megayak (151 GT): gate mình đang ở parent 9µm (reach 71%) · diverge 2.25
-                    = MEDIAN thật (giết ~50%) · symmetry 0.6 ≈ p60
-                  </li>
-                  <li>
-                    Mở gate KHÔNG kèm evidence → −0.017 (FP nổ) — nên mở VỪA + DivNet W=15 giữ
-                    nguyên làm ranker
+                    <span className="font-semibold text-foreground">3/3</span> (trục edge 0/3)
                   </li>
                 </ul>
               </div>
@@ -1303,36 +1496,216 @@ function VersionsTab() {
                 </p>
                 <ul className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
                   <li>
-                    v11 = ver-10 + 5-6 hằng số (parent 9→10.5-12 · diverge 2.25→1.0-1.5 · tau
-                    0.6→0.8-0.95 · W 15-40 · trục mới sau review: geo-sister 8.0→12/14) — không
-                    code mới
+                    v11 = ver-10 + config division thắng từ grid v4 (mutual_nn
+                    OFF + MIN_PDIV floor + geo-sister 8→14) — DivNet W=15 giữ
+                    nguyên làm ranker, không code mới
                   </li>
                   <li>
-                    Lab GPU 1 lần dump theo-node (p_div DivNet + verdict DeepCenter + proposals
-                    gate rộng + HOCT pre-snap) → grid CPU replay ~243 configs mô phỏng chuỗi
-                    (3)→(9) → chọn theo validator patched (đã có sẵn, đã verify rule aa65e90)
-                  </li>
-                  <li>
-                    Gates D1-D6 sau review: div_tp ≥ +2 AND adjEJ ≥ −0.0002 AND FP ≤ +2 AND
+                    Gates D1-D6: div_tp ≥ +2 AND adjEJ ≥ −0.0002 AND FP ≤ +2 AND
                     cấm xóa node (chỉ được rescue-thêm)
+                  </li>
+                  <li>
+                    Audit megayak (151 GT): parent 9µm (reach 71%) · diverge 2.25
+                    = MEDIAN thật · symmetry 0.6 ≈ p60 — mở gate KHÔNG kèm
+                    evidence → −0.017 (FP nổ)
                   </li>
                 </ul>
               </div>
               <div className="space-y-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Kỳ vọng &amp; lộ trình
+                  Kỳ vọng (sau funnel) &amp; lộ trình
                 </p>
                 <ul className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
                   <li>
-                    +0.002..+0.006 LB →{" "}
-                    <span className="font-semibold text-foreground">0.951-0.955</span> (hạng ~32-60
-                    vùng này) — nếu âm, v10 vẫn là final
+                    Trần +2 TP validator →{" "}
+                    <span className="font-semibold text-foreground">+0.001..+0.003 hiển thị</span>{" "}
+                    (divJ 0.333→0.5 nếu 1 FN thật 05db hồi phục) — khiêm tốn hơn
+                    ước tính 0.951-0.955 ban đầu
                   </li>
                   <li>
-                    19/9: nộp v10 (bank 0.949x) → v11-lab (3-4h GPU) → grid CPU → nộp v11 ~20-21/9
+                    20/9: grid v4 xong (~5h GPU) → chọn config → build + submit{" "}
+                    <span className="font-semibold text-foreground">biohub-ver11</span> hôm nay
                   </li>
-                  <li>Tổng ~8h GPU/30h quota · deadline 29/9 còn 8 ngày dư sau lộ trình</li>
+                  <li>Nếu âm → v10 0.947 vẫn là final (nền banked) · deadline 29/9 còn 9 ngày</li>
                 </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ver 12 — ARCH: portfolio 4 trục + 2 phòng lab (V12-RESEARCH.md, 20/9) */}
+        <Card className="border-fuchsia-500/50 bg-fuchsia-500/[0.06] md:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+              <span className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-fuchsia-600 dark:text-fuchsia-300" aria-hidden />
+                ver 12 · ARCH — node-recall + association + division-real (mục tiêu 0.948+)
+              </span>
+              <Badge className="gap-1 bg-fuchsia-600 text-[10px] leading-4 text-fuchsia-50 hover:bg-fuchsia-600 sm:text-xs">
+                <BookOpenCheck className="h-3 w-3" aria-hidden />
+                ARCH XONG 20/9 · 4 TRỤC + 2 PHÒNG LAB
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              Kiến trúc đầy đủ tại{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+                kaggle/ver-12-planning/V12-RESEARCH.md
+              </code>{" "}
+              (phiên V12-ARCH): v12 = v10 (0.947 banked — nguyên vẹn veto1 +
+              guard + config division thắng của v11 nếu PASS) +{" "}
+              <span className="font-semibold text-foreground">portfolio 4 trục có receipt</span>{" "}
+              + 2 phòng lab. Nguồn: 22 notebook nghiên cứu mới (3 batch) + LB-replica
+              hiệu chuẩn 4 điểm + giải phẫu 3 GT division thật trên 05db0fb1.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {/* 4 trục */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border border-fuchsia-500/30 bg-fuchsia-500/10 p-3">
+                <p className="flex items-center gap-1.5 text-xs font-semibold">
+                  <GitFork className="h-3.5 w-3.5 text-fuchsia-600 dark:text-fuchsia-300" aria-hidden />
+                  TRỤC 1 · DIVISION-REAL
+                </p>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                  mutual_nn + geo14 + reparent mở gate —{" "}
+                  <span className="font-semibold text-foreground">3 GT div thật 05db đo local được</span>{" "}
+                  (1/3 mồ côi geo-filter · 2/3 sai-gán-cha)
+                </p>
+              </div>
+              <div className="rounded-lg border border-fuchsia-500/30 bg-fuchsia-500/10 p-3">
+                <p className="flex items-center gap-1.5 text-xs font-semibold">
+                  <Target className="h-3.5 w-3.5 text-fuchsia-600 dark:text-fuchsia-300" aria-hidden />
+                  TRỤC 2 · NODE-RECALL
+                </p>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                  READMIT + GAPFILL — receipt hidden{" "}
+                  <span className="font-mono font-semibold text-foreground">+1.014 node / +1.002 cạnh</span>{" "}
+                  (thtennant — hiệu ứng đơn lẻ lớn nhất từng thấy)
+                </p>
+              </div>
+              <div className="rounded-lg border border-fuchsia-500/30 bg-fuchsia-500/10 p-3">
+                <p className="flex items-center gap-1.5 text-xs font-semibold">
+                  <Workflow className="h-3.5 w-3.5 text-fuchsia-600 dark:text-fuchsia-300" aria-hidden />
+                  TRỤC 3 · ASSOCIATION
+                </p>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                  SEF_TTA 0.75→1.0 (1 knob) — keep-rate 0b24{" "}
+                  <span className="font-mono font-semibold text-foreground">67.5% vs 71.2%</span>{" "}
+                  không-SEF (E-7 + mtoshidesu gốc)
+                </p>
+              </div>
+              <div className="rounded-lg border border-fuchsia-500/30 bg-fuchsia-500/10 p-3">
+                <p className="flex items-center gap-1.5 text-xs font-semibold">
+                  <TrendingUp className="h-3.5 w-3.5 text-fuchsia-600 dark:text-fuchsia-300" aria-hidden />
+                  TRỤC 4 · DENSITY-GROUPS
+                </p>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                  motion-relink 3 nhóm mật độ (LOW/MID/HIGH theo node/frame) —
+                  port ~40 dòng từ haideptry claim 0.948+
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              {/* 2 phòng lab */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  2 phòng lab
+                </p>
+                <ul className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
+                  <li>
+                    • <span className="font-semibold text-foreground">v12-lab GPU (~4h)</span> —
+                    extend v11-lab: grid 8-10 configs (4 trục + combo) + replay
+                    validator + hidden raw graph + đo trực tiếp 3 GT div 05db
+                  </li>
+                  <li>
+                    • <span className="font-semibold text-foreground">LB-replica offline (0 GPU)</span> —
+                    engine{" "}
+                    <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">scorer2code</code>{" "}
+                    port metric chính thức,{" "}
+                    <span className="font-semibold text-foreground">verify 100%: tái tạo receipt
+                    alfonso 0.9605 EXACT 4 chữ số</span>; nhãn rõ
+                    &quot;trong-cửa-sổ&quot;/&quot;3-division&quot; — KHÔNG phải proxy LB
+                  </li>
+                  <li>
+                    • ĐÃ CHẾT (không đụng lại): purge fork/linearize (0.911) ·
+                    hub/fork augmentation hack (patch aa65e90) · DivNet
+                    verify-gate no-op · noisyislands ML ×3
+                  </li>
+                </ul>
+                <div className="rounded-lg border bg-muted/40 p-3">
+                  <p className="flex items-start gap-2">
+                    <ListChecks className="mt-0.5 h-4 w-4 shrink-0 text-fuchsia-600 dark:text-fuchsia-300" aria-hidden />
+                    <span className="text-xs leading-relaxed text-muted-foreground">
+                      <span className="font-mono font-semibold text-foreground">[gates F1-F6]</span>{" "}
+                      F1 division (Δdiv_tp &gt; 0 · 3 GT div 05db không giảm) ·
+                      F2 node set chỉ TĂNG (fork/node cấm xóa) · F3 mỗi trục Δ
+                      proxy ≥ +0.0005 mới được stack, ≤ 2 trục mới/lượt · F4
+                      runtime ≤ 2.5h · F5 mọi config ghi receipt · F6 LB là
+                      trọng tài cuối (±0.001 = noise)
+                    </span>
+                  </p>
+                </div>
+              </div>
+              {/* lộ trình 20-29/9 */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Lộ trình 20-29/9 (deadline 29/9 · quota GPU 21h + 30h từ 26/9)
+                </p>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">ngày</TableHead>
+                        <TableHead className="text-xs">việc</TableHead>
+                        <TableHead className="text-right text-xs">GPU / submit</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell className="py-1.5 font-mono text-[11px]">20/9</TableCell>
+                        <TableCell className="py-1.5 text-[11px]">grid v4 xong → build + submit ver-11</TableCell>
+                        <TableCell className="py-1.5 text-right font-mono text-[11px] tabular-nums">~2.2h / 1</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="py-1.5 font-mono text-[11px]">20-21/9</TableCell>
+                        <TableCell className="py-1.5 text-[11px]">port READMIT+GAPFILL+SEF_TTA vào v12-lab</TableCell>
+                        <TableCell className="py-1.5 text-right font-mono text-[11px] tabular-nums">0 / 0</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="py-1.5 font-mono text-[11px]">21/9</TableCell>
+                        <TableCell className="py-1.5 text-[11px]">v12-lab GPU — grid 8-10 configs</TableCell>
+                        <TableCell className="py-1.5 text-right font-mono text-[11px] tabular-nums">~4h / 0</TableCell>
+                      </TableRow>
+                      <TableRow className="bg-fuchsia-500/10 font-semibold">
+                        <TableCell className="py-1.5 font-mono text-[11px]">22/9</TableCell>
+                        <TableCell className="py-1.5 text-[11px]">chọn cụm thắng (F1-F6) → build + submit ver-12</TableCell>
+                        <TableCell className="py-1.5 text-right font-mono text-[11px] tabular-nums">~2.2h / 1-2</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="py-1.5 font-mono text-[11px]">23-24/9</TableCell>
+                        <TableCell className="py-1.5 text-[11px]">LB feedback → 1 vòng iterate</TableCell>
+                        <TableCell className="py-1.5 text-right font-mono text-[11px] tabular-nums">~2.2h / 1-2</TableCell>
+                      </TableRow>
+                      <TableRow className="bg-muted/50 font-semibold">
+                        <TableCell className="py-1.5 font-mono text-[11px]">25/9</TableCell>
+                        <TableCell className="py-1.5 text-[11px]">CHỌN 2 SUBMISSION CUỐI: v10 0.947 + tốt nhất v11/v12</TableCell>
+                        <TableCell className="py-1.5 text-right font-mono text-[11px] tabular-nums">0 / final</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="py-1.5 font-mono text-[11px]">26-28/9</TableCell>
+                        <TableCell className="py-1.5 text-[11px]">dự phòng iterate cuối (quota refresh 26/9)</TableCell>
+                        <TableCell className="py-1.5 text-right font-mono text-[11px] tabular-nums">≤4h / ≤2</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  Kỳ vọng thực dụng: mỗi trục +0.001..+0.003 độc lập → đạt{" "}
+                  <span className="font-semibold text-foreground">0.948-0.955</span> = mục tiêu
+                  (&gt;0.955 = bạc an toàn); rủi ro tương tác giữa 4 trục —
+                  stack tối đa 2 trục mới mỗi lượt submit.
+                </p>
               </div>
             </div>
           </CardContent>

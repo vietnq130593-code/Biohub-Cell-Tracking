@@ -92,6 +92,11 @@ VER9_SLUG = "biohub-ver9"
 VER10_NOTEBOOK = PROJECT / "download" / "ver10-cell-tracking.ipynb"
 VER10_DATASETS = VER9_DATASETS
 VER10_SLUG = "biohub-ver10"
+# ver-11: Phase G — ver-10 + mở gate division theo grid v11-lab v3 (20/9):
+# SAFE_DIV_REQUIRE_MUTUAL_NN=0 + SAFE_DIV_MIN_PDIV floor (B-7) + tuỳ chọn diverge/geo.
+VER11_NOTEBOOK = PROJECT / "download" / "ver11-cell-tracking.ipynb"
+VER11_DATASETS = VER10_DATASETS
+VER11_SLUG = "biohub-ver11"
 ACCELERATOR = "NvidiaTeslaT4"   # GPU T4 × 2 (giống notebook gốc 0.945) — enum theo kagglesdk
 DEFAULT_SLUG = "biohub-ver6"
 POLL_SECONDS = 60
@@ -115,6 +120,8 @@ def version_config(ver) -> tuple[Path, list[str], str]:
         return VER9_NOTEBOOK, VER9_DATASETS, VER9_SLUG
     if ver == "10":
         return VER10_NOTEBOOK, VER10_DATASETS, VER10_SLUG
+    if ver == "11":
+        return VER11_NOTEBOOK, VER11_DATASETS, VER11_SLUG
     return NOTEBOOK, DATASETS, DEFAULT_SLUG
 
 

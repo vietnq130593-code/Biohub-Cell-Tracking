@@ -5,11 +5,12 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import {
   ArrowDown,
-  BookOpen,
   ExternalLink,
   FlaskConical,
   Globe2,
   Medal,
+  OctagonAlert,
+  Rocket,
   Timer,
   Trophy,
   Users,
@@ -102,17 +103,24 @@ export function Hero() {
           </Badge>
           <Badge
             variant="outline"
-            className="border-teal-300/60 bg-teal-400/10 text-teal-200 backdrop-blur-sm"
+            className="border-emerald-300/60 bg-emerald-400/10 text-emerald-200 backdrop-blur-sm"
           >
-            <FlaskConical className="mr-1 h-3 w-3" aria-hidden />
-            Ver 10 · kernel sẵn sàng — chờ quota 19/9
+            <Rocket className="mr-1 h-3 w-3" aria-hidden />
+            Ver 10 · PRODUCTION 0.947 COMPLETE (veto1)
           </Badge>
           <Badge
             variant="outline"
-            className="border-fuchsia-300/60 bg-fuchsia-400/10 text-fuchsia-200 backdrop-blur-sm"
+            className="border-rose-400/40 bg-rose-400/10 text-rose-200 backdrop-blur-sm"
           >
-            <BookOpen className="mr-1 h-3 w-3" aria-hidden />
-            Ver 11 · nghiên cứu xong — kênh division
+            <OctagonAlert className="mr-1 h-3 w-3" aria-hidden />
+            Ver 10-linear purge fork · 0.911 THẤT BẠI
+          </Badge>
+          <Badge
+            variant="outline"
+            className="border-amber-300/60 bg-amber-400/10 text-amber-200 backdrop-blur-sm"
+          >
+            <FlaskConical className="mr-1 h-3 w-3" aria-hidden />
+            Ver 11 · grid chạy — v12 kiến trúc 0.948+
           </Badge>
         </motion.div>
 
@@ -181,7 +189,7 @@ export function Hero() {
             <StatItem
               icon={Trophy}
               value={LB_CONTEXT.ourScore.toFixed(3)}
-              label="Public LB · ver-8 v3-fast (ver-7: 0.947 · ver-6: 0.945)"
+              label="Public LB · ver-10 prod & ver-8 (ver-7: 0.947 · linear-A purge: 0.911)"
               delay={0.4}
             />
             <StatItem
