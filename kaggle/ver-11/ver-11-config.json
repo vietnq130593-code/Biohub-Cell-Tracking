@@ -1,8 +1,15 @@
 {
-  "label": "PLACEHOLDER",
+  "label": "mn_p85_div05",
   "mutual_nn": false,
   "min_pdiv": 0.85,
-  "diverge_um": null,
-  "div_sister_max_um": null,
-  "grid_receipt": {"status": "CHUA_CO_KET_QUA_GRID"}
+  "diverge_um": 0.5,
+  "div_sister_max_um": 14.0,
+  "grid_receipt": {
+    "kernel": "vietnguyen130593/biohub-v11-lab v4 (2026-09-20)",
+    "ref": "v11_base adjEJ 0.930492 div 4/1/8",
+    "result": "adjEJ 0.931790 (+0.001298) div 6/2/6 (dtp +2, dfp +1)",
+    "proxy": "0.974647 (+0.013386)",
+    "d_gates": "PASS all (dtp>0, dadjEJ>=-0.0002, dfp<=+2)",
+    "seconds_per_config": 2245
+  }
 }

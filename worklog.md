@@ -1599,3 +1599,44 @@ Stage Summary:
 - Card v12 mới (fuchsia) truyền tải đủ kiến trúc V12-RESEARCH.md: 4 trục có receipt (division-real 3 GT div 05db · READMIT+GAPFILL +1.014 node hidden · SEF_TTA 1.0 · density-groups) + 2 phòng lab (v12-lab GPU + LB-replica verify alfonso 0.9605 exact) + gates F1-F6 + lộ trình 20-29/9
 - Registry KAGGLE_RESULTS giờ có 10 entries (thêm BUILD status type) — bảng "Số liệu Kaggle thật" trong tracking-demo tự hiển thị các dòng mới (0.911 FAIL, ver11lab RUNNING, ver11 BUILD, v12 RESEARCH)
 - lint EXIT 0 · tsc 0 lỗi src/ · browser verify pass (renders, tab đúng, 0 console errors, mobile 390px không tràn) · artifacts: kaggle/tools/e2e-v12-arch.png + e2e-v12-arch-full.png
+
+---
+Task ID: V11-GRID-PROD-SUBMIT
+Agent: main (Bio — AI engineer / system architect / algorithm expert)
+Task: Grid v11-lab v3 xong → chọn config theo D-gates → build + push biohub-ver11 production → submit (lệnh user 20/9).
+
+Work Log:
+- GRID v11-lab v4 COMPLETE 15:59 UTC (4h9m, 6 configs × 8 stems, cache replay):
+  * v11_base (ref): adjEJ 0.930492 div 4/1/8 — tái lập mỏ neo D2 EXACT lần 2 (chứng minh replay deterministic)
+  * mn_off: 5/1/7 (+1 TP +0 FP!) adjEJ +0.000012 — tắt mutual_nn thuần không nổ FP validator
+  * mn_pdiv50/85, mn_p85_geo14: 5/1/7 (+1 TP) — geo14 riêng không thêm gì; floor không đổi validator
+  * **mn_p85_div05 THẮNG: div 6/2/6 (Δtp +2 = đúng trần funnel, Δfp +1 trong budget), adjEJ +0.001298 (DƯƠNG), proxy +0.013386** — PASS toàn bộ D-gates
+- Config thắng = mutual_nn OFF + SAFE_DIV_MIN_PDIV 0.85 + SAFE_DIV_DIVERGE_UM 0.5 + DIV_SISTER_MAX_UM 14.0 — khớp giải phẫu funnel (FN#2 chỉ cần mutual_nn; FN#1 cần thêm diverge 0.646 + sister 13.979).
+- Build ver-11: build-ver11-monolith.py (8 thay đổi, must_count, AST + py_compile PASS; guard _EXPECTED_NUMERIC nguyên vẹn — 2 mấu chốt verify 9.0/0.20) → cell-monolith.py 5.107 dòng; make-ver11-ipynb.py → download/ver11-cell-tracking.ipynb 325KB (14 mấu [ver11] đủ mặt, verify cell == source).
+- Push biohub-ver11 VERSION 1 (GPU T4×2, Internet OFF, 9 dataset + competition) 16:10 UTC — ktool.py đã patch choices ver 11 (7 chỗ).
+- Next: watch ~2.0-2.2h → verify output (submission.csv + run_stats receipt + fork census kỳ vọng ~190+) → submit-v11.py → poll điểm.
+
+Stage Summary:
+- ★★ Grid receipt hoàn chỉnh: trần funnel +2 TP ĐẠT ĐƯỢC với fp +1 và adjEJ +0.0013 — lần đầu một trục division cho Δ dương ĐỒNG THỜI trên cả 3 chỉ số validator.
+- ★ ver-11 production = ver-10 (LB 0.947 đã field) + 4 env gate (0 code mới ngoài floor 4 dòng).
+- ★ Kỳ vọng LB: divJ 0.333→0.5-0.67 nếu 2/3 GT div hidden hồi phục → +0.017-0.033 → 0.964-0.981 (TỐI ĐA); thực dụng (transfer 1/2 + fp hidden): 0.948-0.955; kém nhất: +0 (như veto1) — v10 vẫn banked 0.947.
+
+---
+Task ID: V11LAB-NOSUBMIT-DIAG-R2
+Agent: main (Bio)
+Task: User phàn nàn "v11-lab tới phiên bản 4 mà không phiên bản nào submit được, lãng phí GPU" — chẩn đoán lại nguyên nhân + cam kết ngừng đốt GPU.
+
+Work Log:
+- Kiểm tra live: chỉ biohub-ver11 RUNNING (production, đẩy 16:10 UTC 20/9); mọi kernel khác COMPLETE — không có GPU chảy ngầm.
+- Quota: 13.78h/30h đã dùng, 16.22h còn (refresh 26/9).
+- Tái dựng sổ GPU từ log kernel: v11-lab v1 (buggy 19/9) ~2.5-3h · v11-lab v2 (dump OK 19:31 19/9) 3.02h · v11-lab v4 (grid 20/9) 4.13h · ver10 production 1.28h (0.947 banked) · v10-linear-gpu ~2.2h (A/B −0.036) · ver11 ~2h đang chạy.
+- Xác minh output v11-lab v4: KHÔNG có submission.csv (LAB_MODE replay 8 stems validator — pipeline lab kết thúc tại [v10-lab-grid], không chạy hidden test, không ghi submission).
+- Chẩn đoán: 4/4 phiên bản v11-lab KHÔNG submittable THEO THIẾT KẾ — output thiếu submission.csv → Kaggle chặn "Did not find provided Notebook Output File" (tiền lệ 400 đã kiểm chứng với v10-lab-gpu-t4). Kernel nộp là kernel RIÊNG: biohub-ver11 (đang chạy, watcher nền tự verify+submit sau COMPLETE + 20' persist).
+- Lãng phí thật: v1 lab ~3h (3 bug của phiên bị mất). Đáng tiếc: grid v4 4.13h GPU trong khi kế hoạch gốc §5.2 là CPU replay 0 GPU — đánh đổi zero-port-risk lấy 4h GPU (trách nhiệm main).
+- CAM KẾT từ giờ: (1) KHÔNG kernel lab GPU nữa — mọi thí nghiệm CPU-only bằng cache local (raw_graphs 27MB + dumps 41MB + GT 4 phim + replica + output v10 predictions); (2) v12-lab tái thiết kế CPU-only; (3) GPU chỉ dành cho production submit 2.2h/lần — kế hoạch ≤6.6h GPU còn lại (ver12 + 1 iterate + buffer); (4) mọi ý tưởng phải qua cổng CPU + receipt trước khi chạm GPU.
+- Watcher tự trị ver11-submit-watch.sh chạy nền (PID 9694): poll → COMPLETE → +20' persist → pull verify submission.csv → submit v1 → log ver11-submit.log.
+
+Stage Summary:
+- ★ Root-cause: v11-lab = kernel lab theo kiến trúc 3-kernel (đo → chọn → production) — không sinh submission.csv nên 4/4 không submit được; submission đến từ biohub-ver11 (production, đang chạy, tự submit khi xong).
+- ★ Sổ GPU trung thực: ~3h lãng phí thật (v1 buggy) + 4.13h có thể tránh (grid trên GPU thay CPU replay) + phần còn lại là tài sản (dump replay vĩnh viễn, 0.947 banked, A/B quy đổi).
+- ★ Ngân sách GPU còn 16.22h khóa cho: tối đa 3 lần production (6.6h) + 9.6h dự phòng đến refresh 26/9.
