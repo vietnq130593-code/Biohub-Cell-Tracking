@@ -48,7 +48,7 @@ Mọi run GPU ngoài kế hoạch này → VI PHẠM §0, phải dừng và báo
 | **L6** | **Purge 188 forks** → giết division TP duy nhất trên LB → 0.911 (−0.036 so 0.947) | 1 slot + hướng chết | §3.3 "forks > 0" + KY ÁN: div TP nằm TRONG forks |
 | **L7** | Tin receipt validator (+0.0018 veto1) là sẽ transfer LB → KHÔNG transfer (0.947 giữ nguyên) | 1 slot | §3.3 replica + kỳ vọng thực dụng; LB là chân lý duy nhất |
 | **L8** | Chạy grid trên GPU trong khi kế hoạch gốc (§5.2) là **CPU replay 0 GPU** | 4.13h GPU | §0 + phải hỏi "cách CPU nào?" TRƯỚC mọi run GPU |
-| **L9** | Watcher chạy trong bash session → session kết thúc là watcher chết → kernel COMPLETE mà không ai submit (ver11 20/9, may mắn cứu kịp) | rủi ro mất slot/ngày | §3.6 watcher phải nohup + state file + check `ps aux` đầu mỗi session |
+| **L9** | Watcher chạy nền chết → kernel COMPLETE mà không ai submit (ver11 20/9, may mắn cứu kịp). **Root-cause thật (xác minh 20/9 18:22): sandbox này KILL mọi tiến trình nền (kể cả nohup + disown) ngay khi lệnh Bash tool kết thúc** — watcher không thể sống qua các lần gọi tool | rủi ro mất slot/ngày | §3.6 poll ĐỒNG BỘ trong lệnh Bash (sleep trong lệnh), hoặc cron job; sau mỗi batch phải kiểm tra lại |
 | **L10** | Đọc code/log bằng `cat` trong Bash → ăn mất chuỗi `[m` → kết luận sai notebook lỗi cú pháp | ~30' lừa mình | §3.6 dùng Read tool cho file chứa subscript |
 | **L11** | Pull output (51MB) timeout 180s trong lệnh foreground → tưởng hỏng, thực tế vẫn tải được file chính | ~5' | §3.6 pull nền / timeout ≥600s, kiểm file thay vì tin exit code |
 | **L12** | Bỏ qua bước verify census đúng cột (đếm ID trùng liên dataset → 28,540 "forks" ảo) | rủi ro kết luận sai | §3.4 census LUÔN partition theo dataset |
@@ -113,7 +113,7 @@ EOF
 - kaggle CLI: `/home/z/.venv/bin/kaggle`, token từ `~/.kaggle/access_token` (export KAGGLE_ACCESS_TOKEN)
 - Pull output ~51MB: chạy nền hoặc timeout ≥600s; file chính (submission.csv) tải xong là dùng được — kiểm nội dung thay vì tin exit code
 - Đọc code/log chứa subscript (`[...]`) → **Read tool**, không dùng cat
-- **Watcher**: `nohup ... &` + state file + log riêng; đầu MỌI session mới: `ps aux | grep watch` + đọc log watcher trước khi làm gì khác
+- **Watcher/polling**: sandbox này KILL tiến trình nền khi lệnh Bash tool kết thúc (nohup cũng chết — L9) → poll ĐỒNG BỘ trong 1 lệnh Bash (`sleep N; query`), hoặc dùng cron job hệ thống; script watcher vẫn giữ làm one-shot; sau mỗi batch `ps aux | grep watch` để xác nhận
 - Lệnh quan trọng (push/submit) không được nằm "chờ cuối session" (L5, L9)
 
 ### 3.7 PERSISTENCE — không mất việc nữa (chống L5)
