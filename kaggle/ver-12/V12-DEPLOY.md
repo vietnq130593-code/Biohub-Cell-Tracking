@@ -1,5 +1,50 @@
 # V12-DEPLOY — Triển khai ver-12 (portfolio 4 trục)
 
+## 🚀 RUN 2 — v12.1 KNOCKOUT biohub-ver12 v2 (21/9 tối — user: "tiếp tục công việc đang dở")
+
+**[GPU WASTE CHECK]** ✅ Chạy này là production (sinh submission.csv cho đợt submit
+tiếp theo) — không phải thí nghiệm. Vượt cần (necessary): E1 CSV surgery KHÔNG nộp
+được trực tiếp (submission phải là output kernel — tiền lệ L1/400 "Did not find
+provided Notebook Output File") → knockout cấp kernel là con đường ĐÚNG duy nhất.
+CPU thay thế: KHÔNG CÓ. GPU ước 0.77h (RUN 1 receipt; giảm thêm chút vì không dump
+lowdet). Sổ: 15.14h → ước ≤15.91h/30h.
+
+**Cơ sở quyết định (đáp ứng kỷ luật user "tốt hơn mới nộp")**: E1 receipt composite
+**0.9173 > v12 0.9128 > v11 baseline 0.9010** — knockout READMIT/GAPFILL giải quyết
+tension HOLD của RUN 1 (adjEJ −0.0025 nhưng composite +0.0118): bỏ node thêm giữ
+nguyên TP+1 division (t=24 05db) + BỚT 1 division FP (1/2/2 → 1/1/2) + hết hại 3
+stem thưa.
+
+**Config v12.1 = RUN 1 giữ nguyên 4 trục, chỉ tắt node-addition (env-gated có sẵn
+từ lúc viết v12 — không đụng code):**
+
+| env | RUN 1 | RUN 2 (ko) | hiệu ứng trong monolith |
+|---|---|---|---|
+| `BIOHUB_READMIT_RADIUS_UM` | 4.0 | **0.0** | line 3178/3949 gate `<= 0` → readmit idle |
+| `BIOHUB_GAPFILL_MAX_GAP` | 3 | **0** | line 3224 gate `< 1` → gapfill idle |
+| `BIOHUB_LOWDET_THRESHOLD` | 0.5 | **0.0** | predict dump `_LOWDET_THRESHOLD > 0` → không dump |
+| (pool load) | — | — | line 3123 early-return khi cả 2 off → không đọc pool |
+
+Giữ: reparent EP=0.4 · orphan-adopt=1 floor=0.5 · diverge=−2.0 · SEF_TTA w=0.75 ·
+DC=0.2 · validator=OFF. Tag: `…reparent_hoct_v12_portfolio_d2_divm2_ko` (tiền tố
+v12 giữ cho submit-v12.py PASS).
+
+**Receipt build local (0 GPU)**: diff monolith RUN 1 ↔ RUN 2 = đúng 6 dòng (3 env +
+tag + guard-report + receipt print) — submission-path code byte-identical ·
+determinism 3× rebuild md5 `8ee517bcdae7c4ea92aa88f70afa9f7b` · selftest v12lab
+PASS (readmit 1 / gapfill 3n+4e / orphan 1·1 / INT/DAG — selftest tự override env
+4/3 cho đồ thị tổng hợp nên vẫn đo được hàm) · notebook regenerate 355KB 23 mấu +
+guard 9 hằng · config RUN 1 lưu `ver-12-config.run1.json`.
+
+⚠ **Kỳ vọng vs đo thật**: v12.1 (kernel-level) ≠ E1 (CSV surgery) ở hiệu ứng bậc 2 —
+node thêm của RUN 1 từng hiện diện trong safe-div/reparent processing; kỳ vọng ≈ E1
+± nhỏ. Lab replica không re-run: trong lab READMIT/GAPFILL đã no-op từ draft-2 (thiếu
+dump hidden) → cấu hình này đã đo 0.8990/0.9053 — không thông tin mới. Sự thật do
+**replica-gate trên output GPU** phán.
+
+**TRẠNG THÁI: push v2 → poll đồng bộ → pull → replica-gate → bảng so sánh cuối
+v11/v12/v12.1 → CHỜ LỆNH SUBMIT TRỰC TIẾP.**
+
 ## 🚀 RUN 1 — production biohub-ver12 v1 (21/9 — PAT mới của user, lệnh "triển khai v12 lên GPU")
 
 **COMPLETE ~53 phút wall · GPU sổ 14.37h → 15.14h = 0.77h/run** — VALIDATOR=OFF (port
