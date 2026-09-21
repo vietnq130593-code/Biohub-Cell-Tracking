@@ -348,6 +348,7 @@ def main() -> int:
         csv_path = cand
     if not csv_path.is_file():
         raise SystemExit(f"[replica-gate] không tìm thấy {csv_path}")
+    csv_path = csv_path.resolve()   # v12lab chạy cwd=kaggle/ver-12 — path tương đối sẽ hỏng
 
     log(f"chấm replica: {csv_path}")
     rep = run_replica(csv_path)

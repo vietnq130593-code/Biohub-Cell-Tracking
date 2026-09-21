@@ -13,7 +13,7 @@
     "ilp_disappearance_weight": 2.0,
     "minimum_candidate_retention": 0.9,
     "reparent": {
-      "edge_prob": 0.25,
+      "edge_prob": 0.4,
       "max_um": 12.0,
       "min_pdiv": 0.5,
       "tau": 1.0
@@ -58,7 +58,7 @@
     "fallback_frames": 65,
     "rows": 400
   },
-  "experiment": "secondary_deepcenter_tta_0947_reparent_hoct_v10",
+  "experiment": "secondary_deepcenter_tta_0947_reparent_hoct_v12_portfolio_d2_divm2",
   "hardware": {
     "visible_gpu_count": 2
   },
@@ -68,14 +68,14 @@
   "organizer_labels_used_for_configuration": false,
   "parent_experiment": "edge_feature_tta_0946_v1",
   "phase_c": {
-    "divnet_mode": "RANK-ONLY (gate production gi\u1eef nguy\u00ean tau 0.6 / diverge 2.25)",
+    "divnet_mode": "RANK-ONLY (v12 gates: reparent EP=0.4 \u00b7 orphan-adopt=ON floor=0.5 \u00b7 READMIT r=4.0 \u00b7 GAPFILL gap<=3 \u00b7 SEF_TTA w=0.75 \u00b7 DC=0.2)",
     "divnet_rank": true,
     "divnet_rank_w_um": 15.0
   },
   "phase_d": {
     "reparent_current_far_um": 7.5,
     "reparent_diverge_um": 2.25,
-    "reparent_edge_prob": 0.25,
+    "reparent_edge_prob": 0.4,
     "reparent_enable": true,
     "reparent_frame_frac_cap": 0.0076,
     "reparent_global_frac_cap": 0.00375,
@@ -98,6 +98,30 @@
       "fallback_um": 5.5
     }
   },
+  "phase_g": {
+    "div_sister_max_um": 14.0,
+    "grid_label": "mn_p85_div05",
+    "mutual_nn_required": false,
+    "safe_div_diverge_um": 0.5,
+    "safe_div_min_pdiv": 0.85,
+    "source": "v11-lab v3 grid (kernel v4, 2026-09-20)"
+  },
+  "phase_h": {
+    "config_label": "portfolio_d2_divm2",
+    "dc_safe_div_threshold": 0.2,
+    "gapfill_max_added_frac": 0.03,
+    "gapfill_max_gap": 3,
+    "lowdet_threshold": 0.5,
+    "orphan_adopt": true,
+    "orphan_min_pdiv": 0.5,
+    "readmit_min_score": 0.965,
+    "readmit_radius_um": 4.0,
+    "reparent_current_far_um": 7.5,
+    "reparent_edge_prob": 0.4,
+    "reparent_min_pdiv": 0.5,
+    "sef_tta_weight": 0.75,
+    "source": "V12-RESEARCH.md 4-truc portfolio (build-ver12-monolith.py, 2026-09-21)"
+  },
   "public_output_used": false,
   "quality_promotion": {
     "required_condition": "none",
@@ -106,7 +130,7 @@
   },
   "source_kernel": "raykkretzschmar/biohub-bidirectional-primary-union13-diagnostic-v1",
   "source_notebook_sha256": "3e65ca691941949196bf417030ea84fccafe16baaec174b2a63540451bb937e8",
-  "status": "phase_f_hoct_veto1_v10",
+  "status": "phase_h_v12_portfolio",
   "submission": {
     "datasets": [
       "44b6_0113de3b",
@@ -114,37 +138,37 @@
       "6bba_05b6850b",
       "6bba_05db0fb1"
     ],
-    "rows": 241213,
-    "sha256": "b3318575a29bd899ace05aad540db0cd886135cd9ff5b58eedaf0d3562660faf"
+    "rows": 244004,
+    "sha256": "ef3cb91ede31ad738e5831b0074aa3f77fe869935bac440c80f021c862b08f47"
   },
   "topology": {
     "44b6_0113de3b": {
-      "division_parents": 64,
-      "edges": 24845,
+      "division_parents": 45,
+      "edges": 24915,
       "max_indegree": 1,
       "max_outdegree": 2,
-      "nodes": 25637
+      "nodes": 25733
     },
     "44b6_0b24845f": {
-      "division_parents": 41,
-      "edges": 19411,
+      "division_parents": 34,
+      "edges": 20063,
       "max_indegree": 1,
       "max_outdegree": 2,
-      "nodes": 20724
+      "nodes": 21367
     },
     "6bba_05b6850b": {
       "division_parents": 13,
-      "edges": 5938,
+      "edges": 6044,
       "max_indegree": 1,
       "max_outdegree": 2,
-      "nodes": 6151
+      "nodes": 6261
     },
     "6bba_05db0fb1": {
-      "division_parents": 70,
-      "edges": 68207,
+      "division_parents": 97,
+      "edges": 68788,
       "max_indegree": 1,
       "max_outdegree": 2,
-      "nodes": 70300
+      "nodes": 70833
     }
   }
 }

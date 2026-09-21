@@ -1,5 +1,5 @@
 {
-  "base_postprocess_signature": "4f02a5992ee709a35863f842e2fb5ae416ee0dc99e286da22c8425ca3bf3c61f",
+  "base_postprocess_signature": "c70fc4f240ac05a627bff1f7dedfef16f78ece937d138efdce7c6c98b290f24f",
   "preview_records": [
     {
       "dataset": "44b6_0113de3b",
@@ -99,11 +99,11 @@
     }
   ],
   "resume_schema": "biohub_0947_live_resume_v1",
-  "rows": 241213,
+  "rows": 244004,
   "selected_config": {},
   "selected_label": "base",
-  "sha256": "b3318575a29bd899ace05aad540db0cd886135cd9ff5b58eedaf0d3562660faf",
-  "signature": "0fca95eb369907638040cfe0054d61b51a4ae7b2ef603fa43881678724ca6f4e",
+  "sha256": "ef3cb91ede31ad738e5831b0074aa3f77fe869935bac440c80f021c862b08f47",
+  "signature": "7c8a2af461f13764796dacdf7aaecf51127249842ed1654ad4a28764a81b59ae",
   "status": "complete",
-  "test_prediction_signature": "1f8f4094cea71dc82cfd4f71f1dc70ab19a7f4d5fae5e0975c6e24b533d6e43f"
+  "test_prediction_signature": "8549795cfc1524e5cb5c18e23329a10dc809c6c244db0b50dd104dee415252ec"
 }

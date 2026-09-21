@@ -1752,3 +1752,38 @@ Stage Summary:
 - ★ DivNet veto = dead code lần 2 (andnyu trùng haideptry) — củng cố quyết định giữ divnet RANK-ONLY; density-group = data point âm thứ 2 (0.945) — giữ backlog A/B đơn-knob, không default-on.
 - ★ Cổng replica pre-submit (replica-gate.py) hiện thực hoá kỷ luật user "tốt hơn mới nộp": baseline v11 replica 0.9010 + division 05db 0/3 + census 122.787n/118.332e/144 forks; v11 retrospective: replica bẳng baseline → dự đoán đúng LB bẳng 0.947 (đáng lẽ tiết kiệm 1 quota).
 - Trạng thái chờ: (1) user cấp lại token Kaggle → khôi phục test-gt + pull output + poll điểm; (2) lệnh push kernel biohub-ver12; (3) lệnh submit trực tiếp. v10 banked 0.947 vẫn selectable; quota 3/5 còn lại.
+
+---
+Task ID: V12-RUN-1
+Agent: main (Bio — AI engineer / system architect / algorithm expert)
+Task: User cấp PAT Kaggle mới (KGAT_…) kèm lệnh "triển khai v12 lên GPU" → push kernel biohub-ver12, chạy production, kéo output, chạy TRỌN BỘ cổng pre-submit (replica + INT/DAG/census/TAG), đối chiếu v11 theo kỷ luật "tốt hơn mới nộp". KHÔNG submit (chờ lệnh trực tiếp).
+
+Work Log:
+- Khôi phục môi trường sandbox lần 3: kaggle CLI 2.2.4 + kagglesdk 0.1.37 còn nguyên; cài thêm zarr 3.4.0 (replica cần đọc GT zarr v3); lưu token user cấp vào ~/.kaggle/access_token (ngoài repo — secret scan git grep SẠCH).
+- ktool verify --ver 12 PASS toàn bộ: token hợp lệ · GPU 14.37h/30h (15.63h còn) · competition · đủ 9 dataset · username vietnguyen130593.
+- PUSH biohub-ver12 version 1 (T4×2, Internet OFF, 9 dataset) → poll ĐỒNG BỘ L9 (không watcher nền) → **COMPLETE ~53 phút wall; sổ GPU 14.37h → 15.14h = 0.77h/run** — VALIDATOR_ENABLE=0 (port andnyu, REVIEW-3) hiện thực: 2.2h → 0.77h.
+- Receipt log production: `[ver12] Phase H portfolio: reparent EP=0.4 | orphan-adopt=1 floor=0.5 | READMIT r=4.0um s>=0.965 | GAPFILL gap<=3 | lowdet>=0.5 | SEF_TTA w=0.75 | DC=0.2 | validator=OFF | diverge=-2.0` · experiment_tag secondary_deepcenter_tta_0947_reparent_hoct_v12_portfolio_d2_divm2 · LOWDET dump stage chạy (lowdet/*.npz 4 stem) · validator artifacts VẮNG trong output (ppsweep_results/validator_results bị xoá — đúng như port).
+- Output 244.004 dòng (v11: 241.119): READMIT 82/335/64/385 = 866 node · GAPFILL 131 node + 189 cạnh · census 124.194n/119.810e/189 fork (v11 122.787/118.332/144) = +1,15% node · +1,25% cạnh · +45 fork — KHÔNG purge (L6 an toàn).
+- FIX replica-gate.py ×2 (commit riêng 9dc29d1 + commit này): (1) paging CLI 2.x — token trang nằm ở DÒNG HEADER "Next Page Token = …" TRƯỚC mảng JSON, không phải field JSON → trước fix chỉ thấy 200 file/page-1; sau fix manifest 12.200 file, khôi phục test-gt 4 stem × 21/21 = 84 file OK; (2) csv path resolve() tuyệt đối (v12lab chạy cwd=kaggle/ver-12).
+- **CỔNG REPLICA (GT khôi phục, engine verify 100% receipt alfonso)**: chấm lại v11 = 0.9010 EXACT (đúng baseline — engine + GT khôi phục tin cậy). Kết quả v12:
+
+| chỉ số | v11 (56403231) | v12 | Δ |
+|---|---|---|---|
+| adjEJ | 0.9010 | 0.8985 | −0.0025 |
+| divJ | 0.0000 | 0.1429 | +0.1429 |
+| COMPOSITE (metric LB) | 0.9010 | **0.9128** | **+0.0118** |
+| div 05db TP/FP/FN | 0/0/3 | **1/2/2** | TP+1, FN−1 |
+
+  Per-stem adjEJ v11→v12: 0113 0.8683→0.8680 · 0b24 0.9372→0.9353 · 05b6 0.9636→0.9621 (div FP 1→2) · 05db 0.8590→0.8559.
+  VERDICT gate theo tiêu chí adjEJ (như thiết kế): **HOLD** (0.8985 < 0.9010−0.0005). TENSION trình bày thẳng: baseline 0.9010 là COMPOSITE v11 (divJ=0 nên adj=composite); LB metric = adjEJ+0.1·divJ → so composite-với-composite thì v12 **+0.0118 TỐT HƠN**. Không đổi semantics cổng sau khi thấy kết quả — user là trọng tài.
+- CSV diff v11↔v12: +1.563/−156 node · +3.282/−1.804 cạnh (~2% churn: reparent EP 0.4 + diverge −2.0 + READMIT/GAPFILL) · fork +45 (05db +25). Config delta đầy đủ: reparent EP 0.25→0.4 · orphan-adopt ON · diverge 0.5→−2.0 · READMIT · GAPFILL · LOWDET · **DC 0.25→0.2** · SEF_TTA w giữ 0.75.
+- **E1 KNOCKOUT (0 GPU — CSV dựng local: v12 bỏ 1.563 node thêm + 2.198 cạnh chạm)**: composite E1 = **0.9173** (adj 0.8973 · divJ 0.2000 · 05db 1/1/2 — FP ÍT HƠN cả v12). Kết luận: (a) **division TP+1 KHÔNG phụ thuộc node thêm**; (b) node thêm hại 3 stem thưa (−0.0003/−0.0021/−0.0028) NHƯNG giúp stem dày duy nhất 05db (+0.0039) — khớp hướng receipt thtennant (+1.014n/+1.002e GT dày) → trên LB (GT dày) khả năng DƯƠNG; hình phạt ở cửa sổ thưa khả năng artefact GT thưa (node đúng bị đếm spurious khi GT không annotate). Artefact: /home/z/v11-recovery/gate-out/e1-v12-noadditions.csv.
+- PRE-SUBMIT dry-run submit-v12.py: INT PASS (244.004 dòng nguyên) · DAG PASS (119.810 cạnh t→t+1) · CENSUS per-dataset L12 PASS · TAG PASS (prefix v12 + 5 counters mới) → **submit được luôn khi có lệnh** (persist ≥20' đã thoả).
+- Cập nhật V12-DEPLOY.md: + section RUN 1 + sổ GPU 0.77h + trạng thái cổng. Commit + push GitHub (token ngoài repo, scan sạch).
+
+Stage Summary:
+- ★ v12 production RUN 1 thành công: 0.77h GPU (tiết kiệm 1.4h/run nhờ VALIDATOR=0), toàn bộ 4 trục chạy đúng config, output lành (INT/DAG/census/TAG PASS, không purge).
+- ★ Cổng replica hoạt động đúng nghĩa "so sánh với bản trước": v11 tái chấm 0.9010 EXACT trên GT khôi phục; v12 = adjEJ −0.0025 nhưng COMPOSITE +0.0118 nhờ division TP+1 (t=24 05db — ground-truth TRONG phim test thật, sẽ chuyển vào LB).
+- ★ E1 knockout tách được 2 hiệu ứng: division-axis (tốt, độc lập node thêm) vs node-addition (hại cửa sổ thưa / giúp GT dày — hướng LB khả năng dương).
+- Decision pending user — 2 phương án: (A) submit v12 nguyên bản (khuyến nghị: composite track LB +0.0118, TP+1 chuyển giao, rủi ro bị chặn vì 0.947 banked selectable, quota 5/ngày còn nguyên, deadline 29/9 còn 8 ngày); (B) v12.1 knockout READMIT/GAPFILL (env-gated, +0.75h GPU, kỳ vọng replica ≈ E1 0.9173) rồi mới submit. KHÔNG submit khi chưa có lệnh trực tiếp.
+- Sổ GPU: 15.14h/30h tiêu thụ (14.86h còn ≈ 19 run × 0.77h).

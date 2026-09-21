@@ -1,5 +1,42 @@
 # V12-DEPLOY — Triển khai ver-12 (portfolio 4 trục)
 
+## 🚀 RUN 1 — production biohub-ver12 v1 (21/9 — PAT mới của user, lệnh "triển khai v12 lên GPU")
+
+**COMPLETE ~53 phút wall · GPU sổ 14.37h → 15.14h = 0.77h/run** — VALIDATOR=OFF (port
+andnyu REVIEW-3) hiện thực hoá: 2.2h → 0.77h. Core log ~46 phút, experiment_tag
+`secondary_deepcenter_tta_0947_reparent_hoct_v12_portfolio_d2_divm2`.
+
+Config live (receipt log): reparent EP=0.4 · orphan-adopt=1 floor=0.5 · READMIT r=4.0µm
+s≥0.965 (866 node: 82/335/64/385) · GAPFILL gap≤3 (131n + 189e) · LOWDET dump stage
+chạy (lowdet/*.npz) · SEF_TTA w=0.75 · DC=0.2 · validator=OFF · diverge=−2.0.
+Validator artifacts VẮNG trong output (ppsweep_results/validator_results bị xoá — đúng).
+
+### Kết quả cổng replica (GT 84 file khôi phục lại — fix paging CLI 2.x commit 9dc29d1)
+
+| chỉ số | v11 baseline (ref 56403231) | v12 RUN 1 | Δ |
+|---|---|---|---|
+| replica adjEJ | 0.9010 | 0.8985 | −0.0025 |
+| replica divJ | 0.0000 | 0.1429 | +0.1429 |
+| **COMPOSITE (metric LB = adj+0.1·divJ)** | **0.9010** | **0.9128** | **+0.0118** |
+| census n/e/fork | 122.787/118.332/144 | 124.194/119.810/189 | +1,15%/+1,25%/+45 fork (không purge) |
+| div 05db TP/FP/FN | 0/0/3 | **1/2/2** | TP+1 · FN−1 |
+
+- Per-stem adjEJ v11→v12: 0113 0.8683→0.8680 · 0b24 0.9372→0.9353 · 05b6 0.9636→0.9621
+  (div FP 1→2) · 05db 0.8590→0.8559.
+- **VERDICT gate (tiêu chí adjEJ như thiết kế): HOLD** — 0.8985 < 0.9010 − 0.0005.
+  TENSION minh bạch: baseline 0.9010 là COMPOSITE v11 (divJ=0 nên adj=composite); LB
+  metric = adjEJ+0.1·divJ → so composite-với-composite thì v12 **+0.0118 TỐT HƠN**.
+  Không đổi semantics cổng sau khi thấy kết quả — user là trọng tài (F6).
+- **E1 knockout (0 GPU, CSV dựng local: v12 bỏ 1.563 node thêm)**: composite 0.9173
+  (adj 0.8973 · divJ 0.2000 · 05db 1/1/2). Division TP+1 KHÔNG phụ thuộc node thêm;
+  node thêm hại 3 stem thưa nhưng giúp stem dày 05db (+0.0039) — khớp hướng receipt
+  thtennant trên GT dày → trên LB khả năng DƯƠNG (hình phạt cửa sổ thưa khả năng artefact).
+- PRE-SUBMIT dry-run: INT PASS · DAG PASS (119.810 cạnh t→t+1) · CENSUS L12 PASS ·
+  TAG PASS (+5 counters mới) → **submit được luôn khi có lệnh** (persist ≥20' thoả).
+- **TRẠNG THÁI: CHỜ LỆNH SUBMIT CỦA USER.** Phương án (A) submit v12 nguyên bản
+  (khuyến nghị — xem worklog V12-RUN-1) hoặc (B) v12.1 knockout READMIT/GAPFILL
+  (env-gated · +0.75h GPU · kỳ vọng replica ≈ E1 0.9173) rồi mới submit.
+
 ## 🔍 REVIEW-3 (23/9 — receipt v11 = 0.947 + phân tích notebook andnyu 0948-repro)
 
 **v11 ref 56403231 = 0.947 (user xác nhận 21/9)** — bắng v10 banked, không vượt 0.948.
@@ -174,4 +211,5 @@ lớn nhất cần A/B (submit v12-divm2 rồi so v11; nếu thua → rebuild di
 | 20/9 (tích lũy) | ver-10/11 production + lab cũ | 15.1h/30h |
 | **21/9** | **viết ver12 + v12-lab 3 lớp + replica** | **0.0h** ✅ |
 | **23/9 (REVIEW-3)** | phân tích andnyu 0948-repro + validator-off + cổng replica | **0.0h** ✅ |
-| (dự phòng sau REVIEW-3) | biohub-ver12 production ×1 + iterate ×≤2 (~0.75h/run, validator đã tắt) | **≤2.5h** |
+| **21/9 RUN 1 (PAT mới)** | biohub-ver12 production ×1 COMPLETE ~53' (validator OFF) | **0.77h** (14.37→15.14) |
+| (dự phòng) | v12.1 iterate ×≤2 (~0.77h/run) | ≤1.6h |
