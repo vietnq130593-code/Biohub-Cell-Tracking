@@ -1,5 +1,27 @@
 # V12-DEPLOY — Triển khai ver-12 (portfolio 4 trục)
 
+## 🔍 REVIEW-3 (23/9 — receipt v11 = 0.947 + phân tích notebook andnyu 0948-repro)
+
+**v11 ref 56403231 = 0.947 (user xác nhận 21/9)** — bắng v10 banked, không vượt 0.948.
+
+Đối chiếu notebook `andnyu/biohub-density-adaptive-0-948-reproduction` (public 21/9,
+21m47s T4×2, **điểm thật 0.945 V1**) với kiến trúc v12:
+
+| Thành phần andnyu | Trạng thái trong v12 | Quyết định |
+|---|---|---|
+| DivNet 3D mitosis veto (p<0.50) | **DEAD CODE trong chính notebook họ** — `BIOHUB_OUTPUT_DIVISION_GEOMETRY_FILTER` không bao giờ set (mặc định 0) → `divnet_score_division()` có đúng 1 call-site trong block bị gate OFF; trùng receipt batch-A "haideptry DivNet = NO-OP" | KHÔNG port veto; giữ divnet RANK-ONLY như v11 |
+| Density-group overrides (tight 7.25/6.5/5.5 theo node/frame <120/<400) | Ta đã có per-prefix {44b6:5.5, 6bba:6.5} (E2 +0.0003) — reproduction đạt 0.945 < 0.947 | KHÔNG port mặc định; backlog A/B đơn-knob 05b6→7.25 |
+| GAP2 / GAP_DENSITY_ADAPTIVE / DC 0.25 / DC_TTA / bonus 1.0 | **đã có sẵn trong ver-10/11 của ta từ trước** (diff env ver-11 monolith) | không đổi |
+| reparent Phase D + mn_p85_div05 + p_div floor | **thiếu trong andnyu** (base cũ hơn cả ver-10 ta) — partly why 0.945 | lợi thế của ta |
+| **VALIDATOR_ENABLE=0 (Fast mode)** | ver-11/v12 ta: validator mặc định ON — nhưng `PP_CANDIDATES = {}` (rỗng) → sweep không bao giờ chọn/rewrite submission → **validator = ~90 phút GPU no-op mỗi run production** (receipt andnyu 21m47s end-to-end + thtennant precedent) | **PORT — đây là phát hiện đáng giá nhất: v12 giờ tắt validator, submission byte-identical** |
+| Dual T4 sharding, batch 8, CUDNN cap | Ta đã có dual-T4 sharding từ ver-11; batch 4→8 KHÔNG chắc byte-identical | giữ batch 4 (kỷ luật "submit được luôn"); runtime kỳ vọng 2.2h → **~0.5-0.75h** |
+
+→ Verdict: notebook không có kỹ thuật scoring nào đánh bại v12 (0.945 < 0.947, DivNet
+trang trí, density-group âm tính) — nhưng bày cho ta **cách tắt 90 phút GPU thừa**.
+Build v12 cập nhật: +1 dòng env `BIOHUB_VALIDATOR_ENABLE='0'` (diff toàn bộ monolith
+chỉ 1 env + 1 print — mọi đường submission giữ nguyên); selftest PASS; determinism
+PASS (md5 ổn định qua rebuild); notebook 355KB regenerate; final-env assertion 22 key.
+
 ## 🔍 REVIEW-2 (22/9 — pre-GPU rà soát toàn diện "submit được luôn")
 
 **Bối cảnh**: sandbox bị reset giữa chừng (repo local + ~/.kaggle + /home/z/v11-recovery mất)
@@ -53,7 +75,8 @@
 
 ## ⛽ GPU WASTE CHECK — bắt buộc (GPU-WASTE-PREVENTION.md §4)
 
-- **GPU ước tính: ≤6.6h** (tối đa 3 lần production × 2.2h) + **0h thí nghiệm** — toàn bộ
+- **GPU ước tính: ≤2.5h** (tối đa 3 lần production × ~0.75h — REVIEW-3 tắt validator
+  no-op ~90 phút/run; trước ước 6.6h) + **0h thí nghiệm** — toàn bộ
   thí nghiệm v12-lab đã chạy LOCAL CPU-only hôm nay (21/9): selftest + validator replay
   8 stems (198s/config) + hidden instrumented 4 phim (~90s/config) + replica — **0 GPU đã dùng**.
 - Cách CPU: trích env-block/constants/post-chain/scoring từ monolith v12 → exec namespace
@@ -66,7 +89,11 @@
   [x] guard _EXPECTED_NUMERIC 9 hằng đúng config.
 - PRE-SUBMIT (khi tới lượt — CHƯA tới): [ ] kernel COMPLETE + persist ≥20' [ ] INT/DAG
   [ ] census theo dataset (L12) [ ] run_stats tag + counters mới (readmitted_nodes,
-  gapfill_*, safe_division_orphan_*) [ ] quota 5/ngày [ ] v10 banked 0.947 còn selectable
+  gapfill_*, safe_division_orphan_*) [ ] **CỔNG REPLICA (REVIEW-3 mới — ý user:
+  "chạy thử xong so sánh, tốt hơn mới nộp"): `python3 kaggle/api/replica-gate.py --pull`
+  → verdict SUBMIT-ELIGIBLE mới được cân nhắc (adjEJ replica ≥ baseline v11 0.9010 +
+  margin, HOẶC division cửa sổ 05db TP>0; census forks ≥100 + nodes ±5%)** [ ] quota
+  5/ngày [ ] v10 banked 0.947 còn selectable
   [ ] **lệnh submit trực tiếp của user** (luật đứng — KHÔNG tự nộp).
 - Chính sách fork: KHÔNG purge (L6 = 0.911). Census kỳ vọng 144 → ~150+ (chỉ được thêm).
 - Rollback: v10 banked 0.947 (ref 56348119) luôn selectable — KHÔNG đụng.
@@ -91,12 +118,13 @@ exception sửa "tấm màn" gate divergence + floor p_div riêng; (1c') **SAFE_
 |---|---|
 | `build-ver12-monolith.py` | Builder 16 thay đổi từ ver-11 → cell-monolith.py (must_count mọi anchor + AST + py_compile) |
 | `ver-12-config.json` | Config draft-2 (portfolio_d2_divm2) + **lab_receipts đầy đủ** (mọi quyết định kèm chứng đo) |
-| `cell-monolith.py` | Monolith v12 đã build (5.541 dòng sau REVIEW-2 fix; ver-11: 5.107) |
+| `cell-monolith.py` | Monolith v12 đã build (5.542 dòng sau REVIEW-3 +validator-off; ver-11: 5.107) |
 | `make-ver12-ipynb.py` | Đóng gói notebook (23 mấu + guard 9 hằng) → download/ver12-cell-tracking.ipynb (355KB) |
 | `v12lab.py` | **V12-LAB CPU-ONLY** (Phòng lab 1 REVIEW-1 redesign): selftest / validator / hidden --flips / replica |
 | `V12-DEPLOY.md` | File này (kèm REVIEW-2 + 3 fix) |
 | `../api/ktool.py` | Push/watch/submit CLI — ver-12 support (REVIEW-2 fix) |
 | `../api/submit-v12.py` | Submit v12 + cổng PRE-SUBMIT tự động (REVIEW-2 mới) |
+| `../api/replica-gate.py` | **REVIEW-3 mới** — cổng replica pre-submit (pull output → restore GT → chấm → verdict SUBMIT/HOLD) |
 
 ## 3. Kết quả phòng lab hôm nay (21/9 — 0 GPU, ~35 phút CPU)
 
@@ -126,8 +154,15 @@ lớn nhất cần A/B (submit v12-divm2 rồi so v11; nếu thua → rebuild di
    rawgraphs/pdiv/dc từ git history hoặc chạy lại lớp validator trước khi grid)
 2. Chọn config thắng theo gates F1-F6 → ghi lại ver-12-config.json → python3 build-ver12-monolith.py
 3. python3 make-ver12-ipynb.py → push Kaggle kernel biohub-ver12 (ktool push --ver 12)
-4. Kernel ~2.2h GPU (READMIT/GAPFILL +CPU-phút) → poll ĐỒNG BỘ trong lệnh Bash (L9):
+4. Kernel **~0.5-0.75h GPU** (REVIEW-3: validator no-op đã tắt; READMIT/GAPFILL
+   +CPU-phút) → poll ĐỒNG BỘ trong lệnh Bash (L9):
    python3 kaggle/api/ktool.py watch --ver 12
+4b. **CỔNG REPLICA PRE-SUBMIT (REVIEW-3, ý user 21/9 — bắt buộc trước khi xin lệnh
+   submit)**: `python3 kaggle/api/replica-gate.py --pull` — tự khôi phục test-gt
+   (84 file GT từ competition files API — sandbox reset 21/9 đã mất /home/z/v11-recovery)
+   → chấm replica → so baseline v11 (0.9010): SỤT → giữ quota nghiên cứu tiếp;
+   TĂNG/division TP → SUBMIT-ELIGIBLE. (⚠ replica mù ngoài cửa sổ GT thưa 1.6% —
+   verdict là điều kiện CẦN; quyết định cuối thuộc user)
 5. PRE-SUBMIT TỰ ĐỘNG: python3 kaggle/api/submit-v12.py --dry-run (INT/DAG/census/tag)
    → CHỜ LỆNH SUBMIT CỦA USER (bỏ --dry-run)
 ```
@@ -137,5 +172,6 @@ lớn nhất cần A/B (submit v12-divm2 rồi so v11; nếu thua → rebuild di
 | Ngày | Hạng mục | GPU |
 |---|---|---|
 | 20/9 (tích lũy) | ver-10/11 production + lab cũ | 15.1h/30h |
-| **21/9 (hôm nay)** | **viết ver12 + v12-lab 3 lớp + replica** | **0.0h** ✅ |
-| (dự phòu) | biohub-ver12 production ×1 + iterate ×≤2 | ≤6.6h |
+| **21/9** | **viết ver12 + v12-lab 3 lớp + replica** | **0.0h** ✅ |
+| **23/9 (REVIEW-3)** | phân tích andnyu 0948-repro + validator-off + cổng replica | **0.0h** ✅ |
+| (dự phòng sau REVIEW-3) | biohub-ver12 production ×1 + iterate ×≤2 (~0.75h/run, validator đã tắt) | **≤2.5h** |

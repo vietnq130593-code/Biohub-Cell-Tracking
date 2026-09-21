@@ -113,6 +113,12 @@ def main() -> int:
     gf_frac = float(cfg.get('gapfill_max_added_frac', 0.03))
     sef_w = float(cfg.get('sef_tta_weight', 0.75))
     dc_thr = float(cfg.get('dc_safe_div_threshold', 0.20))
+    # [23/9] VALIDATOR_ENABLE=0 — andnyu 0948-reproduction receipt (21m47s T4x2 end-to-end)
+    # + thtennant family precedent. Trong monolith: PP_CANDIDATES = {} (rỗng) nên ppsweep
+    # không bao giờ chọn được candidate nào (selected_config rỗng → KHÔNG rewrite
+    # submission); write_test_submission("base") gọi ở dòng 4304/4339 ĐỘC LẬP với
+    # validator → tắt validator = submission byte-identical, tiết kiệm ~90 phút GPU/run.
+    val_en = int(cfg.get('validator_enable', 1))
 
     text = VER11.read_text()
 
@@ -166,7 +172,8 @@ def main() -> int:
         f"os.environ['BIOHUB_GAPFILL_MAX_ADDED_FRAC'] = '{gf_frac}'\n"
         f"os.environ['BIOHUB_SECONDARY_EDGE_FEATURE_TTA_WEIGHT'] = '{sef_w}'\n"
         f"os.environ['BIOHUB_DEEPCENTER_SAFE_DIV_THRESHOLD'] = '{dc_thr}'\n"
-        "print('[ver12] Phase H portfolio: reparent EP=" + fmt(rep_ep) + " | orphan-adopt=" + fmt(bool(orphan)) + " floor=" + fmt(orphan_pdiv) + " | READMIT r=" + fmt(radmit_r) + "um s>=" + fmt(radmit_s) + " | GAPFILL gap<=" + fmt(gf_gap) + " | lowdet>=" + fmt(lowdet) + " | SEF_TTA w=" + fmt(sef_w) + " | DC=" + fmt(dc_thr) + "'" + diverge_print + ")"
+        f"os.environ['BIOHUB_VALIDATOR_ENABLE'] = '{val_en}'\n"
+        "print('[ver12] Phase H portfolio: reparent EP=" + fmt(rep_ep) + " | orphan-adopt=" + fmt(bool(orphan)) + " floor=" + fmt(orphan_pdiv) + " | READMIT r=" + fmt(radmit_r) + "um s>=" + fmt(radmit_s) + " | GAPFILL gap<=" + fmt(gf_gap) + " | lowdet>=" + fmt(lowdet) + " | SEF_TTA w=" + fmt(sef_w) + " | DC=" + fmt(dc_thr) + " | validator=" + ('ON' if val_en else 'OFF (ppsweep no-op, save ~90min GPU)') + "'" + diverge_print + ")"
     )
     anchor2 = "os.environ['BIOHUB_DIAGNOSTIC_ARM'] = 'harmonic_association_production'"
     text = replace_once(text, anchor2, anchor2 + '\n' + env_new, 'env block [ver12] sau cùng')
@@ -732,6 +739,7 @@ print('[ver12] LOWDET dump stage installed (READMIT/GAPFILL pool from prediction
         'os.environ[\'BIOHUB_GAPFILL_MAX_GAP\']',
         'os.environ[\'BIOHUB_LOWDET_THRESHOLD\']',
         'os.environ[\'BIOHUB_LOWDET_DIR\']',
+        'os.environ[\'BIOHUB_VALIDATOR_ENABLE\']',
         'SAFE_DIV_ORPHAN_ADOPT = os.environ.get(',
         'READMIT_RADIUS_UM = float(os.environ.get(',
         'GAPFILL_MAX_GAP = int(os.environ.get(',
@@ -810,6 +818,7 @@ print('[ver12] LOWDET dump stage installed (READMIT/GAPFILL pool from prediction
         'BIOHUB_GAPFILL_MAX_ADDED_FRAC': gf_frac,
         'BIOHUB_SECONDARY_EDGE_FEATURE_TTA_WEIGHT': sef_w,
         'BIOHUB_DEEPCENTER_SAFE_DIV_THRESHOLD': dc_thr,
+        'BIOHUB_VALIDATOR_ENABLE': val_en,
     }
     if sd_diverge is not None:
         _expected_final_env['BIOHUB_SAFE_DIV_DIVERGE_UM'] = sd_diverge

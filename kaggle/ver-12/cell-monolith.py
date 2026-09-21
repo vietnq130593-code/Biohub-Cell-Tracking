@@ -175,7 +175,8 @@ os.environ['BIOHUB_GAPFILL_CONTEXT'] = '1'
 os.environ['BIOHUB_GAPFILL_MAX_ADDED_FRAC'] = '0.03'
 os.environ['BIOHUB_SECONDARY_EDGE_FEATURE_TTA_WEIGHT'] = '0.75'
 os.environ['BIOHUB_DEEPCENTER_SAFE_DIV_THRESHOLD'] = '0.2'
-print('[ver12] Phase H portfolio: reparent EP=0.4 | orphan-adopt=1 floor=0.5 | READMIT r=4.0um s>=0.965 | GAPFILL gap<=3 | lowdet>=0.5 | SEF_TTA w=0.75 | DC=0.2' + ' | diverge=-2.0')
+os.environ['BIOHUB_VALIDATOR_ENABLE'] = '0'
+print('[ver12] Phase H portfolio: reparent EP=0.4 | orphan-adopt=1 floor=0.5 | READMIT r=4.0um s>=0.965 | GAPFILL gap<=3 | lowdet>=0.5 | SEF_TTA w=0.75 | DC=0.2 | validator=OFF (ppsweep no-op, save ~90min GPU)' + ' | diverge=-2.0')
 print('BIOHUB_PRESET:', BIOHUB_PRESET)
 print('BIOHUB_SCORE_AXIS:', BIOHUB_SCORE_AXIS)
 

@@ -21,6 +21,7 @@
   "gapfill_max_added_frac": 0.03,
   "sef_tta_weight": 0.75,
   "dc_safe_div_threshold": 0.20,
+  "validator_enable": 0,
   "lab_receipts": {
     "safe_div_diverge_um_-2.0": {
       "discovery": "v12lab hidden instrumented 21/9: GT div 25000381 (t=24) bị chặn ở ĐO divergence (KHÔNG phải mồ-côi-không-successor như giả thuyết F1 ban đầu): mồ côi 20908 CÓ successor 21719; grandchild 10.90um - sister 12.69um = -1.79um < 0.5 → hai track con HỘI TỤ → gate từ chối. parent 20106→20908 = 7.96um ≤ 9.0 (đủ, không cần MAX_UM 10.5); symmetry 0.48 ≤ 0.6 (đủ)",
@@ -34,5 +35,5 @@
     "t52_t62_structural": "t=62: con 50875 bị cha sai 50137 bám 0.0um; t=52: 2 con 2 cha 1.25/1.41um — unrecoverable bằng post-chain trên graph hiện tại; cần sửa ở tầng detection (node spurious) — ngoài phạm vi v12",
     "readmit_gapfill": "code-verified (selftest PASS: readmit 1 node + gapfill 3 nodes + INT/DAG) + receipt thtennant hidden +1.014 node/+1.002 cạnh; không replay được local (thiếu dump lowdet hidden) — sẽ có counters trong run_stats production"
   },
-  "notes": "DRAFT-2 (lab-measured 21/9): diverge -2.0 theo receipt replica +0.0067 (trọng tài trong cửa sổ) — TENSION với validator replay -0.0006/+4FP đã ghi đầy đủ ở lab_receipts; A/B cuối trên LB theo F6. SEF_TTA/DC giữ nguyên chờ A/B v12-lab lượt sau."
+  "notes": "DRAFT-2 (lab-measured 21/9): diverge -2.0 theo receipt replica +0.0067 (trọng tài trong cửa sổ) — TENSION với validator replay -0.0006/+4FP đã ghi đầy đủ ở lab_receipts; A/B cuối trên LB theo F6. SEF_TTA/DC giữ nguyên chờ A/B v12-lab lượt sau. validator_enable=0 (23/9, receipt andnyu 0948-repro 21m47s + thtennant family precedent): PP_CANDIDATES={} trong monolith nên sweep KHÔNG BAO GIỜ chọn/rewrite submission — validator là ~90 phút GPU no-op trong production; tắt = tiết kiệm GPU, submission byte-identical."
 }
