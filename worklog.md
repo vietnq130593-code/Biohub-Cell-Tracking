@@ -1787,3 +1787,45 @@ Stage Summary:
 - ★ E1 knockout tách được 2 hiệu ứng: division-axis (tốt, độc lập node thêm) vs node-addition (hại cửa sổ thưa / giúp GT dày — hướng LB khả năng dương).
 - Decision pending user — 2 phương án: (A) submit v12 nguyên bản (khuyến nghị: composite track LB +0.0118, TP+1 chuyển giao, rủi ro bị chặn vì 0.947 banked selectable, quota 5/ngày còn nguyên, deadline 29/9 còn 8 ngày); (B) v12.1 knockout READMIT/GAPFILL (env-gated, +0.75h GPU, kỳ vọng replica ≈ E1 0.9173) rồi mới submit. KHÔNG submit khi chưa có lệnh trực tiếp.
 - Sổ GPU: 15.14h/30h tiêu thụ (14.86h còn ≈ 19 run × 0.77h).
+
+---
+Task ID: V12-RUN-2
+Agent: main (Bio — AI engineer / system architect / algorithm expert)
+Task: User: "Tiếp tục công việc đang làm dở" — quyết điểm treo V12-RUN-1 (phương án B: v12.1 knockout READMIT/GAPFILL) → build → GPU production RUN 2 → replica-gate → FP anatomy → bảng so sánh cuối + khuyến nghị, CHỜ lệnh submit.
+
+Work Log:
+- Môi trường kiểm: token OK (submissions list qua), test-gt 4 stem khôi phục NGUYÊN VẸN, E1 CSV + output v12 RUN 1 còn, quota hôm nay 5/5 (submit cuối 20/9).
+- v12.1 config DRAFT-3 `portfolio_d2_divm2_ko`: READMIT=0 · GAPFILL=0 · LOWDET=0 (3 env-gated sẵn có — KHÔNG đụng code; monolith line 3123 pool early-return + 3178/3949 readmit gate + 3224 gapfill gate + predict dump `_LOWDET_THRESHOLD>0`). Giữ: reparent EP=0.4 · orphan=1 floor=0.5 · diverge=−2.0 · SEF_TTA 0.75 · DC=0.2 · validator=0. Config RUN 1 lưu ver-12-config.run1.json.
+- Build receipt (0 GPU): diff monolith RUN1↔RUN2 = đúng 6 dòng (3 env + tag + guard-report + receipt print) — submission-path byte-identical · determinism 3× md5 8ee517bcdae7c4ea92aa88f70afa9f7b · v12lab selftest PASS (selftest tự override env 4/3 nên vẫn đo hàm readmit/gapfill/orphan) · notebook 355KB regenerate · commit 4ea0dbf + push GitHub.
+- PUSH biohub-ver12 version 2 → poll ĐỒNG BỘ L9 → COMPLETE ~37' wall · GPU 15.14h → 15.85h = **0.71h** (không dump lowdet + validator OFF). Receipt log: `READMIT r=0.0 · GAPFILL gap<=0 · lowdet>=0.0 · readmitted=0/gapfill=0 4 dataset · lowdet dir VẮNG` · tag `…_v12_portfolio_d2_divm2_ko` · 241.201 dòng.
+- REPLICA-GATE (GT 84 file): **adjEJ 0.8998 (−0.0012) · divJ 0.1429 · COMPOSITE 0.9141 (+0.0131)** · div 1/4/2 · census 122.808n/118.393e/184f (fork guard ≥100 PASS). Per-stem: 0113 0.8683 + 0b24 0.9372 = CHÍNH XÁC v11 (node thêm là thủ phạm hại 2 stem thưa RUN 1) · 05b6 0.9625 (−0.0011) · 05db 0.8577 (−0.0013). VERDICT cổng adjEJ: HOLD (giữ nguyên semantics — F6); composite +0.0131 = lớn nhất từ trước tới nay.
+- E1 hứa 0.9173 nhưng kernel-level về 0.9141 — hiệu ứng bậc 2 ăn 70% (node thêm từng hiện diện trong safe-div/reparent processing của RUN 1).
+- FP ANATOMY (0 GPU, fp-anatomy2.py — semantics chính thức evaluate_divisions): 4 FP = 05b6 t=28 (2168, safe-div mới — node 2232 từng bị v11 PRUNE) · 05b6 t=37 (2750, **pre-existing v11** — trong banked 0.947) · 05db t=55 (44876, divergence n/a = chữ ký orphan) · 05db t=75 (59486, khả nghi DC 0.25→0.2). TP t=24 (20106, GT-div thật, diverge −2.0 cứu — F1 receipt). Không có separator hình học sạch (TP symmetry CAO NHẤT 0.634 — ngược trực giác; post-hoc ≠ gate-time: TP đo sau +2.52 nhưng gate-time −1.79).
+- **PHÁT HIỆN LỚN (run_stats đối chiếu)**: reparent EP 0.4 = **NO-OP trên production** — reparent_added GIỐNG HỆT 12/19/3/43 hai bản (trục 1b không làm gì; đoán "FP t=28 do reparent" SAI — nó do safe-div). +40 fork deltas = toàn trục safe-div: divergence_rejected 2.812→365, safe_divisions_added 82→123.
+- pdiv/dc dumps (v11_lab_cache) MẤT theo sandbox reset → replay toàn-gate không thể; attribution bằng cấu trúc (in-edge di chuyển / node bị prune) + counters.
+- PRE-SUBMIT dry-run: INT PASS 241.201 · DAG PASS 118.393 cạnh · CENSUS L12 PASS · TAG PASS (+5 counters) → **submit được NGAY khi có lệnh**.
+- Commit + push GitHub. 0 GPU ngoài RUN 2 production (0.71h — đúng luật GPU-chỉ-production; E1 CSV không submit được trực tiếp).
+
+Stage Summary:
+- ★ v12.1 RUN 2 hoàn tất: composite replica 0.9141 (+0.0131 vs baseline) — ứng viên submit mạnh nhất; 0113/0b24 hồi phục exact v11; census gần baseline, không purge.
+- ★ Trục 1b reparent EP 0.4 = no-op (counters giống hệt) — gạch khỏi danh sách lever; mọi fork delta do safe-div (diverge −2.0 + orphan + DC).
+- ★ Không có separator FP/TP hình học — diệt FP = đe doạ TP; thông tin divJ-transfer CHỈ học được từ LB.
+- ★ KHUYẾN NGHỊ trình user: SUBMIT v12.1 (rủi ro downside bị chặn bởi 0.947 banked selectable; quota 5/ngày; deadline 8 ngày). Nếu LB < 0.947: v12.2 ứng viên orphan-OFF + DC 0.25. Nếu ≥ 0.948: mở rộng division recall (FN 2/3 cửa sổ).
+- Trạng thái: CHỜ LỆNH SUBMIT TRỰC TIẾP của user (luật đứng). Sổ GPU 15.85h/30h (14.15h còn).
+
+---
+Task ID: V12.1-SUBMIT
+Agent: main (Bio — AI engineer / system architect / algorithm expert)
+Task: User: "Vậy tiến hành push và nộp bài Run 2 cho tôi" — lệnh trực tiếp submit v12.1 RUN 2 (biohub-ver12 v2, config portfolio_d2_divm2_ko).
+
+Work Log:
+- Verify môi trường: token OK, kernel biohub-ver12 v2 COMPLETE, state.json version=2, output/latest/submission.csv 241.202 dòng (241.201 data), run_stats tag v12_portfolio_d2_divm2_ko.
+- PRE-SUBMIT gate FULL PASS: [INT] 241.201 dòng toàn số nguyên · [DAG] 118.393 cạnh t→t+1 node tham chiếu đủ · [CENS] 122.808n/118.393e/184f per-dataset (0113: 25643/24830/45 · 0b24: 20704/19387/31 · 05b6: 6160/5945/13 · 05db: 70301/68231/95) · [TAG] secondary_deepcenter_tta_0947_reparent_hoct_v12_portfolio_d2_divm2_ko + counters knockout live (readmitted=0, gapfill=0, orphan_exempted=55, adopted=3).
+- SUBMIT 20:24:00 UTC 21/9: kagglesdk create_code_submission biohub-ver12 v2 → HTTP 200 → **ref 56442903**; Kaggle tạo kèm entry 56442908 (9s sau, không description — shadow verify entry).
+- Poll đồng bộ L9 31+ phút: cả 2 PENDING (code submission chấm 30-60' là bình thường; output kernel đã persist nhiều giờ).
+- Message submission: mô tả đầy đủ v12.1 knockout + replica-gate composite 0.9141 (+0.0131, lớn nhất từ trước tới nay) + census + receipt.
+
+Stage Summary:
+- ★ v12.1 RUN 2 ĐÃ NỘP Kaggle ref 56442903 (20:24 UTC 21/9) — submit được ngay khi có lệnh đúng cam kết.
+- Điểm PENDING — sẽ poll và cập nhật; kỳ vọng từ replica: composite ≈ 0.914+ (LB metric), downside bảo vệ bởi 0.947 banked selectable.
+- Quota hôm nay 21/9: 2 entries (56442903 + 56442908 shadow).
