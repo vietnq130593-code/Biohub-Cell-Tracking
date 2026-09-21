@@ -245,3 +245,48 @@ cache local (rawgraphs 27MB + dumps 8.4MB + hidden .geff 4 phim + GT) · submiss
 
 *Phụ liệu: ANALYSIS-BATCH-A/B/C.md (22 notebook) · funnel v11-lab v2 (v11_funnel.json) ·
 replica hiệu chuẩn (worklog V12-REPLICA-CALIB) · grid v3 receipt (sẽ có khi kernel COMPLETE).*
+
+## 8. KẾT QUẢ PHÒNG LAB v12-lab (21/9 — 0 GPU, viết ver12 + đo trong cùng ngày)
+
+Ver-12 đã VIẾT XONG + ĐO trong ngày (đúng lộ trình §4.1 dòng 20-21/9): artefact ở
+`kaggle/ver-12/` (build-ver12-monolith.py · ver-12-config.json draft-2 · cell-monolith.py
+5.539 dòng · make-ver12-ipynb.py · v12lab.py · V12-DEPLOY.md).
+
+### 8.1 Fidelity của replay engine (điều kiện tiên quyết)
+- Validator replay (shim pdiv/dc pre-baked npz v11-lab v2): adjEJ **0.929415** vs anchor
+  Kaggle D2 **0.930492** (Δ−0.0011) · div 5/3/7 vs 4/1/8 · error-signature khớp EXACT:
+  missed_gt 63 · spurious ~183k · edges_lost_det 79. → đủ tin cho A/B TƯƠNG ĐỐI (mọi so
+  sánh cùng engine — bias hệ thống triệt tiêu).
+
+### 8.2 Phát hiện đảo ngược giả thuyết (instrumented replay — §7.4-1 làm đúng chức năng)
+| Giả thuyết cũ (§2/§7.3) | Đo được 21/9 (graph v10-out + GT 05db) | Hệ quả |
+|---|---|---|
+| F1: t=24 bị chặn vì mồ côi KHÔNG successor ("tấm màn") | **SAI**: mồ côi 20908 CÓ successor 21719; chặn ở **phép ĐO divergence**: grandchild 10.90 − sister 12.69 = **−1.79µm < 0.5** (hai con HỘI TỤ) | cơ chế orphan-adoption GIỮ (thận trọng) nhưng không phải đòn cứu t=24 |
+| t=24 cần geo 8→14 + mutual_nn OFF (đã có ở ver-11) | parent 20106→20908 = **7.96µm ≤ 9.0** (đủ từ lâu!); symmetry 0.48 ≤ 0.6 (đủ) | divergence floor là gate DUY NHẤT chặn t=24 |
+| 2/3 FN = sai-gán-cha → trục reparent chính (1b, +0.003..+0.017) | t=52: cha sai cách 1.25/1.41µm; t=62: 0.0µm — "weak-edge" KHÔNG kích hoạt được; reparent_geo EP0.5 +234 cạnh mà 2 FN vẫn FN | **kỳ vọng trục 1b HẠ xuống ~0**; t=52/62 unrecoverable bằng post-chain (cần tầng detection) |
+
+### 8.3 Gate-flip matrix (hidden window 05db + replica 4 phim)
+| Biến thể | div (TP/FP/FN) 05db | Replica 4 phim | Verdict |
+|---|---|---|---|
+| base draft-1 (div 0.5) | 0/10/3 | 0.8986 | = ver-11 receipt (0/3) ✓ |
+| orphan OFF | 0/9/3 | — | orphan-adoption +1 FP, 0 TP → giữ floor 0.5 thận trọng |
+| divergence OFF | 1/12/2 | — | cùng TP, FP gấp đôi → TỪ CHỐI |
+| **diverge −2.0** | **1/6/2 (TP+1, FP−4!)** | **0.9053 (+0.0067; adjEJ +0.0004; divJ 0→0.0625; 0b24 adjEJ +0.019)** | **THẮNG — vào config draft-2** |
+| reparent geo EP0.5 | 1/7/2 (t=52/62 vẫn FN) | — | trục 1b kỳ vọng hạ |
+| safediv max 10.5 | 0/10/3 (parent 7.96 ≤ 9 — MAX_UM không phải gate chặn) | — | bỏ |
+
+### 8.4 TENSION diverge −2.0 (phải đọc trước khi submit)
+- Validator replay: adjEJ 0.929415 → 0.928801 (**−0.0006**), div 5/3/7 → 5/7/7 (**FP +4**)
+  → F1-validator FAIL. Replica + 3-GT-div PASS (+1 TP). Bài học veto1: transfer yếu
+  2 chiều → LB trọng tài (F6): A/B trực tiếp trên LB nếu submit.
+- Chi tiết receipt đầy đủ: `kaggle/ver-12/ver-12-config.json` → `lab_receipts`.
+
+### 8.5 Điều chỉnh kỳ vọng điểm (thay §4.3)
+| Trục | Kỳ vọng cũ | Kỳ vọng mới (đo 21/9) |
+|---|---|---|
+| 1b reparent mở gate | +0.003..+0.017 | **~0** (cha sai quá gần — unrecoverable) |
+| 1c orphan-adoption | +0.003..+0.017 | **~0..+0.001** (không phải gate chặn t=24) |
+| **1c' diverge −2.0 (MỚI)** | — | **+0.002..+0.007** (replica +0.0067 trong cửa sổ) |
+| 2 READMIT+GAPFILL | +0.002..+0.005 | giữ nguyên (receipt thtennant; sẽ có counters production) |
+| 3 SEF_TTA 1.0 / DC 0.25 | +0.001..+0.003 | chưa đo (vòng lab sau) |
+| **Tổng hợp** | 0.947 → 0.950-0.960 | **0.947 → 0.948-0.953** (thực dụng hơn) |

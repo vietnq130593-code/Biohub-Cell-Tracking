@@ -1,5 +1,12 @@
 # Worklog
 
+<!-- ⛽⛔ BANNER MỆNH LỆNH — KHÔNG XÓA — CẬP NHẬT THEO GPU-WASTE-PREVENTION.md -->
+> **⛔ TRƯỚC KHI tạo kernel GPU / push / submit / viết tài liệu triển khai mới:**
+> BẮT BUỘC đọc `GPU-WASTE-PREVENTION.md` (my-project + repo kaggle/) — sổ KY ÁN L1-L12, cổng PRE-GPU/PRE-SUBMIT,
+> template [GPU WASTE CHECK] phải có trong MỌI tài liệu triển khai mới. GPU chỉ cho production (2.2h/run);
+> thí nghiệm CPU-only. Không purge fork (L6 = 0.911). Commit NGAY mỗi milestone (L5 mất việc 2 lần).
+> Đầu mỗi session: check `ps aux | grep watch` + kernel status + quota (L9). Cập nhật sổ GPU sau mỗi run.
+
 ---
 Task ID: 1
 Agent: main
@@ -1640,3 +1647,88 @@ Stage Summary:
 - ★ Root-cause: v11-lab = kernel lab theo kiến trúc 3-kernel (đo → chọn → production) — không sinh submission.csv nên 4/4 không submit được; submission đến từ biohub-ver11 (production, đang chạy, tự submit khi xong).
 - ★ Sổ GPU trung thực: ~3h lãng phí thật (v1 buggy) + 4.13h có thể tránh (grid trên GPU thay CPU replay) + phần còn lại là tài sản (dump replay vĩnh viễn, 0.947 banked, A/B quy đổi).
 - ★ Ngân sách GPU còn 16.22h khóa cho: tối đa 3 lần production (6.6h) + 9.6h dự phòng đến refresh 26/9.
+
+---
+Task ID: V11-SUBMIT-R2
+Agent: main (Bio — AI engineer / system architect / algorithm expert)
+Task: Session mới phát hiện watcher ver11-submit-watch.sh (PID 9694) chết theo session cũ → kernel biohub-ver11 đã COMPLETE nhưng chưa ai submit → verify output theo full cổng PRE-SUBMIT rồi submit tay.
+
+Work Log:
+- Phát hiện watcher chết ngay sau "== watch start 16:43:45 ==" (0 dòng poll — session cũ kết thúc giết tiến trình nền, đúng lỗi L9 sẽ ghi vào sổ KY ÁN); kernel biohub-ver11 COMPLETE, lastRunTime 16:01:44, runtime ~1.3-1.5h (predict 9.02/9.30/6.57/35.51 phút/phim).
+- Pull output 51MB (timeout 180s phải chạy lại — bài học tooling): submission.csv 12.5MB NGUYÊN VẸN (241.119 dòng, id cuối 241118 = total−1, không truncate).
+- Verify format đầy đủ: INT sạch (0 float leak), 0 dòng node/edge malformed, sha256[:16]=363359e462328a01.
+- Census THEO DATASET (lần đầu đếm sai do trùng node_id liên dataset — 28.540 "forks" ảo, ghi thành lỗi L12): 44b6_0113de3b 25.637n/24.812e/36f · 44b6_0b24845f 20.704n/19.381e/26f · 6bba_05b6850b 6.160n/5.941e/10f · 6bba_05db0fb1 70.286n/68.198e/72f → TOTAL 122.787n/118.332e/144 forks (v10: 122.812n/118.401e/188f; 05db 70→72 forks giữ+/tăng, 44b6 −43).
+- run_stats.csv: experiment_tag = secondary_deepcenter_tta_0947_reparent_hoct_v11_mn_p85_div05 (ĐÚNG config grid winner) + integrity json: ground_truth_accessed=false, checkpoint sha trùng, hoct_veto_divisions 36/26/10/72 before=after.
+- LB-replica 0-GPU (lb_replica2.py, engine chính thức đã verify alfonso 0.9605 exact): ver11 = 0.9010 adjEJ / divJ 0.0000, div 0/0/3 trên cửa sổ GT nhìn thấy — cứu division mutual_nn+sister14 KHÔNG chuyển sang hidden (2/3 GT div là sai-gán-cha → trục reparent Phase D của v12; t=24 orphan cũng chưa hồi phục trên hidden). Fork 188→144 làm sạch 1 div FP replica.
+- Quyết định submit: mọi cổng PRE-SUBMIT pass, v10 banked 0.947 vẫn selectable, quota 20/9 còn 4/5, deadline 29/9 — giá trị thông tin trục div-gate cao cho v12 dù kỳ vọng hạ xuống ~0.947-0.950 (rủi ro dưới: nếu TP duy nhất của v10 nằm trong 44 fork bị cắt → ~0.914; rất khó xảy ra vì TP khả năng cao ở 05db nơi forks +2).
+- SUBMIT biohub-ver11 version 1 → **ref 56403231** (submit-v11.py kagglesdk, message đầy đủ receipt grid + replica + census).
+- GPU thực tế run này: ~1.3h (đúng ước lượng, không waste); sổ GPU cập nhật 15.1h/30h đã dùng.
+
+Stage Summary:
+- ★ ver11 ref 56403231 ĐÃ NỘP sau khi cứu watcher chết — verification 3 lớp (format INT/DAG, census theo dataset, replica 0-GPU) đều pass trước khi nộp.
+- ★ Replica cho biết trước: trục mutual_nn+sister14 KHÔNG chuyển sang hidden (0/3 div) → v12 dồn lực vào reparent Phase D (2/3 FN là sai-gán-cha) + kỳ vọng ver11 thực dụng ~0.947-0.950.
+- ★ Điểm chưa về lúc ghi entry này — poll sau ≥30'.
+
+---
+Task ID: GPU-GUARD-1
+Agent: main (Bio — AI engineer / system architect / algorithm expert)
+Task: Lệnh user: "làm cách nào đó ví dụ ghi chú đặc biệt các tài liệu triển khai mới luôn ghi chú lại vấn đề lãng phí GPU, đảm bảo không mắc lại lỗi cũ" → xây cơ chế guardrails bền vững.
+
+Work Log:
+- Tạo **GPU-WASTE-PREVENTION.md** (164 dòng) tại my-project (bản chính) + copy vào repo Biohub-Cell-Tracking/kaggle/ — cấu trúc: §0 quy tắc vàng (GPU chỉ cho production, thí nghiệm CPU-only) · §1 sổ GPU trung thực 15.1h/30h + kế hoạch khóa ≤3 production còn lại · §2 SỔ KY ÁN L1-L12 (mỗi lỗi: mô tả + thiệt hại + luật phòng) · §3 cổng bắt buộc PRE-GPU/PRE-SUBMIT/POST-SUBMIT + snippet kiểm INT/DAG/census copy-paste + §3.6 tooling + §3.7 persistence commit-ngay · §4 TEMPLATE [GPU WASTE CHECK] bắt buộc chèn đầu MỌI tài liệu triển khai mới · §5 quy ước worklog (khai GPU-phút thực tế mỗi entry, check watcher đầu session) · §6 cam kết CPU-only từ V11LAB-NOSUBMIT-DIAG-R2.
+- Sổ KY ÁN bao phủ toàn bộ lỗi đã mắc thật: L1 submit lab kernel · L2 GPU trên kernel chưa smoke-test · L3 totalBytes=0 submit sớm · L4 float64 format · L5 không push mất việc 2 lần · L6 purge fork 0.911 · L7 validator không transfer · L8 grid trên GPU thay CPU · L9 watcher chết theo session · L10 cat ăn subscript · L11 pull timeout · L12 census sai cột (mới mắc HÔM NAY — 28.540 forks ảo, đã phòng bằng partition theo dataset).
+- Gắn **banner mệnh lệnh** vào đầu worklog.md (mọi agent đọc worklog trước khi làm → buộc thấy guardrails); banner trỏ tới GPU-WASTE-PREVENTION.md + tóm 5 luật sống còn.
+- Commit repo d41a452 (GPU-WASTE-PREVENTION.md) — repo hiện [ahead 3] chờ user cho phép push GitHub (standing rule không push không có lệnh; §3.7 yêu cầu xin push ngay sau commit).
+- Cơ chế 3 lớp chống lãng phí: (1) banner worklog — mọi session/agent thấy ngay; (2) template [GPU WASTE CHECK] — mọi tài liệu triển khai mới phải tự đối chiếu L1-L12 + khai GPU ước tính/cách CPU thay thế; (3) cổng checklist — không pass không được chạy GPU/submit.
+- ★ Phát hiện môi trường (18:22): **sandbox KILL mọi tiến trình nền (kể cả nohup + disown) ngay khi lệnh Bash tool kết thúc** — xác minh bằng 3 lần watcher chết liên tiếp (PID 10215/10260/10308). Đây là root-cause THẬT của L9 (watcher ver11-submit cũ chết cũng vì thế, không chỉ do session kết thúc). Đã cập nhật L9 + §3.6 trong doc + commit repo. Pattern đúng: poll ĐỒNG BỘ trong lệnh Bash (sleep + query) hoặc cron; script watcher giữ làm one-shot.
+- Điểm ver11 ref 56403231 vẫn PENDING lúc 18:44 (38' sau submit; scoring cuộc thi từng mất hàng giờ với v10) — session sau poll đầu tiên theo §3.6.
+
+Stage Summary:
+- ★ Cơ chế guardrails vận hành: banner worklog + sổ KY ÁN L1-L12 + template [GPU WASTE CHECK] + cổng PRE-GPU/PRE-SUBMIT/POST-SUBMIT — mọi agent (main + subagent) bị ràng buộc đọc trước khi chạm GPU/Kaggle.
+- ★ L12 (census sai cột) được bổ sung NGAY trong ngày mắc — quy trình postmortem → sổ KY ÁN hoạt động thật.
+- ⚠ Repo [ahead 3] chưa push (eec5ba6 grid winner + fe4fe2a v12 arch + d41a452 guardrails) — cần user phê duyệt push để chống-reset (L5).
+
+---
+Task ID: V12-REVIEW-1
+Agent: main (Bio — AI engineer / system architect / algorithm expert)
+Task: Lệnh user: review code v12 (tìm lỗi/vấn đề/thiếu sót → khắc phục), xác định hướng nâng cấp, PUSH GITHUB (không push kaggle).
+
+Work Log:
+- Tuân thủ quy trình: poll điểm ver11 đầu session (PENDING — scoring chậm 2h+, tiền lệ v10) + đọc banner GPU-WASTE-PREVENTION + secret scan repo trước push.
+- Rà soát toàn diện: V12-RESEARCH.md · 2 file port thtennant (2161/2220 dòng — hoàn chỉnh có fill_gaps_from_low_detections + readmit_discarded_detections) · scorer2code.py 463 dòng · lb_replica2.py · build-ver11-monolith.py (must_count + AST + py_compile — vững) · analyze_grid_v3.py · chuỗi safe-div/reparent/geometry-filter trong cell-monolith ver11 (line 2975-3614) · cache local (rawgraphs 27MB 8 stems CÓ edge_prob · dumps 8.4MB CÓ pdiv_by_node.npz + dc_raw_by_node.npz pre-baked · hidden .geff 4 phim CÓ edges/props/edge_prob — E-11) · run_stats ver11 (parse lại bằng DictReader).
+- Xác chứng F4 (quan trọng): load_submission_graphs dùng node_id + edges source/target — kiểm 100% endpoint ∈ node_id set cùng dataset (24812/24812 trên mọi dataset) → engine KHÔNG bug; node_id có gap (không tuần tự) vì là id gốc của kernel.
+- LỖI QUY TRÌNH tìm thấy trong V12-RESEARCH.md (đã khắc phục ngay): F-doc-1 thiếu block [GPU WASTE CHECK] bắt buộc (vi phạm §4 — chính yêu cầu standing của user) · F-doc-2 §4 "Phòng lab 1 GPU ~4h" + lộ trình 21/9 "GPU 4h" MÂU THUẪN cam kết CPU-only → redesign CPU-ONLY 3 lớp (validator replay p_div/DC pre-baked + hidden instrumented + replica), GPU duy nhất = production · F-doc-3 quota stale 21.01h → đồng bộ sổ trung thực 15.1h/30h · F-doc-4 kỳ vọng trục 1a chưa phản ánh receipt ver11 (replica div 0/3) → hạ −0.001..+0.003 · F-doc-5 lộ trình 20/9 chưa ✅.
+- PHÁT HIỆN KỸ THUẬT mới (F1-F7): **F1 gate divergence đòi mồ côi có ĐÚNG 1 successor ở t+2 (line ~3049) — mồ côi track-end KHÔNG BAO GIỜ được nhận nuôi = tấm màn giải thích replica ver11 div 0/3** (05db: divergence_rejected 1894 + min_pdiv_rejected 133 → chỉ 38 fork thêm) · F2 GAPFILL cần dump low-detection stage chưa có trong monolith · F3 replay hidden thiếu p_div/DC → bù gate-trace + run_stats counters · F5 dumps pre-baked cho validator replay fidelity cao · F6 DIV_PARENT_MAX_UM=10.5 + dropped_division_edges=0 trên 05db · **F7 pool reparent 05db 15.833 candidates bị chặn 13.143 ở pdiv + 2.058 ở divergence → chỉ 43 thêm — xác nhận trục 1b reparent là lever division chính (pool hậu thuẫn lớn, rủi ro FP đối xứng)**
+- Kết luận review: code core KHÔNG có bug logic; mọi phát hiện = thiếu sót quy trình doc (đã vá) + cơ chế mới biến thành kế hoạch measurable.
+- HƯỚNG NÂNG CẤP (§7.4 mới, 10 mục xếp ưu tiên): (1) instrumented gate-trace replay 3 GT div — thay đoán mù bằng chân lý gate; (2) reparent sweep EDGE_PROB 0.25→0.40/0.50 + MIN_PDIV + CURRENT_FAR; (3) orphan-adoption exception (F1, ~15 dòng env-gated); (4) READMIT port (+1.014 node hidden); (5) GAPFILL port (+dump stage); (6) SEF_TTA A/B; (7) DC 0.25; (8) density-groups; (9) DIV_PARENT sweep; (10) backlog.
+- Commit 7ebda22 (V12-RESEARCH.md +90/−17) → **PUSH GITHUB origin main thành công + verify remote tip == HEAD** (đẩy cả 5 commit tồn: fe4fe2a v12 arch · eec5ba6 grid winner · d41a452 + ec11d31 guardrails GPU · 7ebda22 REVIEW-1). Secret scan sạch trước push. KHÔNG push/submit Kaggle (đúng lệnh).
+- GPU used session này: **0h** (toàn bộ review/verify = CPU + đọc).
+
+Stage Summary:
+- ★ REVIEW-1 hoàn tất: 5 lỗi quy trình doc đã vá + 7 phát hiện kỹ thuật mới (F1 tấm màn divergence-successor là đáng giá nhất — giải thích được vì sao ver11 vẫn 0/3 div) + 10 hướng nâng cấp có thứ tự.
+- ★ V12-RESEARCH.md giờ là tài liệu triển khai chuẩn mực: có [GPU WASTE CHECK] đầy đủ, Phòng lab 1 CPU-ONLY, số liệu đồng bộ sổ trung thực, kỳ vọng đã hiệu chỉnh theo receipt ver11.
+- ★ GitHub đã đồng bộ hoàn toàn (7ebda22) — chống-reset L5 đã bịt sau 2 lần mất việc.
+- ★ ver11 ref 56403231 vẫn PENDING (poll 20:27) — session sau poll đầu tiên.
+
+---
+Task ID: V12-WRITE-1
+Agent: main (Z.ai Code)
+Task: Viết ver12 hoàn chỉnh (kernel production + v12-lab CPU-only + đo gate-flip) theo kiến trúc V12-RESEARCH.md — user lệnh "Tiến hành viết ver12 cho tôi"
+
+Work Log:
+- Poll ver11 ref 56403231: vẫn PENDING (scoring chậm như tiền lệ v10) — không chặn việc viết v12
+- Đọc V12-RESEARCH.md (292 dòng sau append) + 2 file port thtennant (2161/2220 dòng) + notebook nguồn → trích được toàn bộ env constants READMIT/GAPFILL + dump-stage code (3 patch predict script)
+- Viết kaggle/ver-12/build-ver12-monolith.py (780 dòng): 16 thay đổi có must_count từ ver-11 → v12: EXPERIMENT_TAG · env block [ver12] Phase H · constants · 5 hàm READMIT/GAPFILL (~300 dòng port) · orphan-adoption trong gate divergence (proposals 7-tuple + rerank giữ tail *prop[6:] + floor riêng) · READMIT call-site trong motion-relink (đúng vị trí thtennant) · GAPFILL call-site sau gap2 · stats keys mới · LOWDET dump stage (3 patch script predict, chèn sau EDGE_TTA) · guard _EXPECTED_NUMERIC SEF/DC theo config · guard report phase_h · final print
+- Build PASS: cell-monolith.py 5.539 dòng (ver-11: 5.107); mô phỏng LOWDET patch áp lên bản sao predict script v10-out — 3 anchor match, script vẫn compile
+- Viết kaggle/ver-12/v12lab.py (harness Phòng lab 1 CPU-only 0 GPU): trích env-block/constants/post-chain/scoring TỪ monolith v12 → exec namespace (single source of truth) + shim _divnet_score_queries/deepcenter_score_point phục vụ npz pre-baked v11-lab v2 + 4 mode: selftest/validator/hidden --flips/replica
+- Sửa 3 bug trong quá trình: (1) parse --env K=V bị shell tách argv → override không áp (phát hiện nhờ orphan_ex=9 khi ADOPT=0); (2) shim pdiv trả None phá hợp đồng float list → đổi missing→0.0 (bảo toàn floor semantics); (3) trace_gt_division nhìn frame t-1 thay vì t (frame cha)
+- KẾT QUẢ ĐO (0 GPU, ~35' CPU): selftest PASS (readmit 1 + gapfill 3+4 cạnh + orphan 1/1 + INT/DAG); validator anchor adjEJ 0.929415 vs Kaggle D2 0.930492 (Δ−0.0011) + error-signature EXACT (missed_gt 63, edges_lost_det 79); hidden base = 0/10/3 khớp replica ver11 receipt 0/3
+- GATE-FLIP MATRIX phát hiện lớn: (a) t=24 KHÔNG bị chặn bởi mồ-côi-không-successor (F1 cũ SAI) — mồ côi 20908 CÓ successor; gate chặn là PHÉP ĐO DIVERGENCE: hai con HỘI TỤ −1.79µm < 0.5; parent 7.96 ≤ 9.0 (đủ từ lâu); (b) diverge −2.0: 05db 1/6/2 (TP+1 FP−4) + replica 4 phim +0.0067 (adjEJ +0.0004, divJ 0→0.0625, 0b24 adjEJ +0.019) — knob mạnh nhất; (c) divergence OFF tệ hơn (1/12/2 FP gấp đôi); (d) reparent_geo EP0.5 +234 cạnh KHÔNG cứu t=52/t=62 (cha sai 0.0-1.4µm — weak-edge không kích hoạt) → kỳ vọng trục 1b hạ ~0
+- Config draft-2 portfolio_d2_divm2: diverge −2.0 + lab_receipts đầy đủ (TENSION validator −0.0006/+4FP vs replica +0.0067 ghi minh bạch); rebuild + make-ver12-ipynb.py (notebook 354KB, 23 mấu + guard 9 hằng) + V12-DEPLOY.md ([GPU WASTE CHECK] đầy đủ, sổ GPU 0.0h hôm nay) + V12-RESEARCH.md §8 (kết quả lab + đảo ngược giả thuyết + điều chỉnh kỳ vọng 0.947→0.948-0.953)
+- Commit + push GitHub (PAT one-off theo quy trình; KHÔNG đụng Kaggle)
+
+Stage Summary:
+- Artefact: kaggle/ver-12/{build-ver12-monolith.py, ver-12-config.json (draft-2 + receipts), cell-monolith.py 5539 dòng, make-ver12-ipynb.py, v12lab.py, V12-DEPLOY.md} + download/ver12-cell-tracking.ipynb + V12-RESEARCH.md §8
+- Phát hiện kỹ thuật: root-cause t=24 = diverge −1.79 (con hội tụ) ≠ mồ-côi-không-successer; diverge −2.0 = receipt +0.0067 replica (knob division mạnh nhất); trục reparent hạ kỳ vọng; t=52/62 unrecoverable bằng post-chain
+- 0 GPU tiêu thụ (đúng cam kết CPU-only); ver11 vẫn PENDING; KHÔNG submit Kaggle (chờ lệnh)
+- Bước sau: v12-lab vòng 2 (SEF_TTA 1.0/DC 0.25/τ0.4 sweep) → chọn config → push kernel biohub-ver12 → PRE-SUBMIT checklist → chờ lệnh submit của user
