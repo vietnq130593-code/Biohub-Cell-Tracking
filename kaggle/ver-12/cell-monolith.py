@@ -103,32 +103,6 @@ os.environ['BIOHUB_SAFE_DIV_DIVERGE_UM'] = '0.5'
 os.environ['BIOHUB_DIV_SISTER_MAX_UM'] = '14.0'
 print('[ver11] mutual_nn=False · MIN_PDIV=0.85' + ('' if False else ' · diverge=0.5') + ('' if False else ' · div_sister=14.0'))
 
-# [ver12] Phase H — PORTFOLIO 4 TRỤC (V12-RESEARCH.md §4, REVIEW-1 §7): mỗi trục
-# env-gated nên v12-lab A/B được từng cái (F3: stack tối đa 2 trục mới/lượt submit).
-os.environ['BIOHUB_REPARENT_EDGE_PROB'] = '0.4'
-os.environ['BIOHUB_REPARENT_MIN_PDIV'] = '0.5'
-os.environ['BIOHUB_REPARENT_CURRENT_FAR_UM'] = '7.5'
-os.environ['BIOHUB_REPARENT_DIVERGE_UM'] = '2.25'
-os.environ['BIOHUB_DIV_PARENT_MAX_UM'] = '10.5'
-os.environ['BIOHUB_SAFE_DIV_DIVERGE_UM'] = '-2.0'
-os.environ['BIOHUB_SAFE_DIV_ORPHAN_ADOPT'] = '1'
-os.environ['BIOHUB_SAFE_DIV_ORPHAN_MIN_PDIV'] = '0.5'
-os.environ['BIOHUB_LOWDET_THRESHOLD'] = '0.5'
-os.environ['BIOHUB_LOWDET_DIR'] = '/kaggle/working/lowdet'
-os.environ['BIOHUB_READMIT_RADIUS_UM'] = '4.0'
-os.environ['BIOHUB_READMIT_MIN_SCORE'] = '0.965'
-os.environ['BIOHUB_GAPFILL_MAX_GAP'] = '3'
-os.environ['BIOHUB_GAPFILL_MIN_SCORE'] = '0.5'
-os.environ['BIOHUB_GAPFILL_STEP_UM'] = '5.0'
-os.environ['BIOHUB_GAPFILL_PEAK_RADIUS_UM'] = '3.5'
-os.environ['BIOHUB_GAPFILL_EXCLUDE_UM'] = '2.0'
-os.environ['BIOHUB_GAPFILL_ALLOW_SYNTHETIC'] = '0'
-os.environ['BIOHUB_GAPFILL_CONTEXT'] = '1'
-os.environ['BIOHUB_GAPFILL_MAX_ADDED_FRAC'] = '0.03'
-os.environ['BIOHUB_SECONDARY_EDGE_FEATURE_TTA_WEIGHT'] = '0.75'
-os.environ['BIOHUB_DEEPCENTER_SAFE_DIV_THRESHOLD'] = '0.2'
-print('[ver12] Phase H portfolio: reparent EP=0.4 | orphan-adopt=1 floor=0.5 | READMIT r=4.0um s>=0.965 | GAPFILL gap<=3 | lowdet>=0.5 | SEF_TTA w=0.75 | DC=0.2' + ' | diverge=-2.0')
-
 # [ver8] RE-PARENTING division recovery — cơ chế mới (VER8-REPARENT-DESIGN.md):
 # con thứ 2 KHÔNG mồ côi (đã có cạnh Y→D2) nhưng bằng chứng chỉ về mẹ thật M:
 #   tháo cạnh yếu Y→D2 + nối M→D2. Chỉ chạy khi DivNet + DeepCenter + geometry đồng thuận.
@@ -174,6 +148,34 @@ os.environ['BIOHUB_PPSWEEP_SELECT_MARGIN'] = '0.001'
 os.environ['BIOHUB_PPSWEEP_MAX_ADJ_LOSS'] = '0.0005'
 os.environ['BIOHUB_DUAL_SEED_MIN_CANDIDATE_RETENTION'] = '0.90'
 os.environ['BIOHUB_DIAGNOSTIC_ARM'] = 'harmonic_association_production'
+
+# [ver12] Phase H — PORTFOLIO 4 TRỤC (V12-RESEARCH.md §4, REVIEW-1 §7): mỗi trục
+# env-gated nên v12-lab A/B được từng cái (F3: stack tối đa 2 trục mới/lượt submit).
+# REVIEW-2: block này CHẠY SAU CÙNG mọi block env legacy (Phase D/E/F/G) để giá trị
+# config v12 thắng tuyệt đối — không bị [ver8] reparent hay block nào ghi đè.
+os.environ['BIOHUB_REPARENT_EDGE_PROB'] = '0.4'
+os.environ['BIOHUB_REPARENT_MIN_PDIV'] = '0.5'
+os.environ['BIOHUB_REPARENT_CURRENT_FAR_UM'] = '7.5'
+os.environ['BIOHUB_REPARENT_DIVERGE_UM'] = '2.25'
+os.environ['BIOHUB_DIV_PARENT_MAX_UM'] = '10.5'
+os.environ['BIOHUB_SAFE_DIV_DIVERGE_UM'] = '-2.0'
+os.environ['BIOHUB_SAFE_DIV_ORPHAN_ADOPT'] = '1'
+os.environ['BIOHUB_SAFE_DIV_ORPHAN_MIN_PDIV'] = '0.5'
+os.environ['BIOHUB_LOWDET_THRESHOLD'] = '0.5'
+os.environ['BIOHUB_LOWDET_DIR'] = '/kaggle/working/lowdet'
+os.environ['BIOHUB_READMIT_RADIUS_UM'] = '4.0'
+os.environ['BIOHUB_READMIT_MIN_SCORE'] = '0.965'
+os.environ['BIOHUB_GAPFILL_MAX_GAP'] = '3'
+os.environ['BIOHUB_GAPFILL_MIN_SCORE'] = '0.5'
+os.environ['BIOHUB_GAPFILL_STEP_UM'] = '5.0'
+os.environ['BIOHUB_GAPFILL_PEAK_RADIUS_UM'] = '3.5'
+os.environ['BIOHUB_GAPFILL_EXCLUDE_UM'] = '2.0'
+os.environ['BIOHUB_GAPFILL_ALLOW_SYNTHETIC'] = '0'
+os.environ['BIOHUB_GAPFILL_CONTEXT'] = '1'
+os.environ['BIOHUB_GAPFILL_MAX_ADDED_FRAC'] = '0.03'
+os.environ['BIOHUB_SECONDARY_EDGE_FEATURE_TTA_WEIGHT'] = '0.75'
+os.environ['BIOHUB_DEEPCENTER_SAFE_DIV_THRESHOLD'] = '0.2'
+print('[ver12] Phase H portfolio: reparent EP=0.4 | orphan-adopt=1 floor=0.5 | READMIT r=4.0um s>=0.965 | GAPFILL gap<=3 | lowdet>=0.5 | SEF_TTA w=0.75 | DC=0.2' + ' | diverge=-2.0')
 print('BIOHUB_PRESET:', BIOHUB_PRESET)
 print('BIOHUB_SCORE_AXIS:', BIOHUB_SCORE_AXIS)
 

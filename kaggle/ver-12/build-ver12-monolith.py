@@ -30,7 +30,11 @@ ver-11-config.json → build → submit).
 
 16 thay đổi trên ver-11/cell-monolith.py (mỗi thay đổi must_count/replace_once):
   1. EXPERIMENT_TAG v11 → v12 (2 chỗ: const + guard report)
-  2. env block [ver12] (Phase H) — sau print [ver11]
+  2. env block [ver12] (Phase H) — SAU CÙNG mọi block env legacy (sau
+     BIOHUB_DIAGNOSTIC_ARM, trước guard) — REVIEW-2 FIX: chèn sau print [ver11]
+     khiến block [ver8] reparent (chạy sau) GHI ĐÈ REPARENT_EDGE_PROB 0.4→0.25 —
+     trục 1b bị vô hiệu âm thầm; giờ block v12 luôn là assignment CUỐI CÙNG nên
+     config thắng mọi block cũ + builder assert final-env-value từng key
   3. hằng số [ver12] (orphan/readmit/gapfill/lowdet) — sau REPARENT_GLOBAL_FRAC_CAP
   4. 4 hàm READMIT/GAPFILL + _gapfill_bump — trước add_safe_divisions_postlink
   5. orphan-adoption trong gate divergence (add_safe_divisions_postlink)
@@ -127,13 +131,19 @@ def main() -> int:
         'EXPERIMENT_TAG v12',
     )
 
-    # ---- 2. env block [ver12] (Phase H) — sau print [ver11] ----
+    # ---- 2. env block [ver12] (Phase H) — SAU CÙNG mọi block env legacy ----
+    # REVIEW-2 FIX (22/9): trước đây chèn sau print [ver11] → block [ver8] reparent
+    # (dòng sau đó) ghi đè REPARENT_EDGE_PROB 0.4→0.25 — trục 1b tắt âm thầm. Chèn
+    # sau env legacy CUỐI CÙNG (BIOHUB_DIAGNOSTIC_ARM) để mọi key v12 là assignment
+    # cuối; guard (chạy sau đó) đọc đúng giá trị config; assert cuối build khóa lại.
     diverge_line = f"os.environ['BIOHUB_SAFE_DIV_DIVERGE_UM'] = '{sd_diverge}'\n" if sd_diverge is not None else ''
     diverge_print = (" + ' | diverge=" + fmt(sd_diverge) + "'") if sd_diverge is not None else ''
     env_new = (
         '\n'
         "# [ver12] Phase H — PORTFOLIO 4 TRỤC (V12-RESEARCH.md §4, REVIEW-1 §7): mỗi trục\n"
         "# env-gated nên v12-lab A/B được từng cái (F3: stack tối đa 2 trục mới/lượt submit).\n"
+        "# REVIEW-2: block này CHẠY SAU CÙNG mọi block env legacy (Phase D/E/F/G) để giá trị\n"
+        "# config v12 thắng tuyệt đối — không bị [ver8] reparent hay block nào ghi đè.\n"
         f"os.environ['BIOHUB_REPARENT_EDGE_PROB'] = '{rep_ep}'\n"
         f"os.environ['BIOHUB_REPARENT_MIN_PDIV'] = '{rep_pdiv}'\n"
         f"os.environ['BIOHUB_REPARENT_CURRENT_FAR_UM'] = '{rep_far}'\n"
@@ -158,8 +168,8 @@ def main() -> int:
         f"os.environ['BIOHUB_DEEPCENTER_SAFE_DIV_THRESHOLD'] = '{dc_thr}'\n"
         "print('[ver12] Phase H portfolio: reparent EP=" + fmt(rep_ep) + " | orphan-adopt=" + fmt(bool(orphan)) + " floor=" + fmt(orphan_pdiv) + " | READMIT r=" + fmt(radmit_r) + "um s>=" + fmt(radmit_s) + " | GAPFILL gap<=" + fmt(gf_gap) + " | lowdet>=" + fmt(lowdet) + " | SEF_TTA w=" + fmt(sef_w) + " | DC=" + fmt(dc_thr) + "'" + diverge_print + ")"
     )
-    anchor2 = "print('[ver11] mutual_nn=False · MIN_PDIV=0.85' + ('' if False else ' · diverge=0.5') + ('' if False else ' · div_sister=14.0'))"
-    text = replace_once(text, anchor2, anchor2 + '\n' + env_new, 'env block [ver12]')
+    anchor2 = "os.environ['BIOHUB_DIAGNOSTIC_ARM'] = 'harmonic_association_production'"
+    text = replace_once(text, anchor2, anchor2 + '\n' + env_new, 'env block [ver12] sau cùng')
 
     # ---- 3. hằng số [ver12] ----
     anchor3 = "REPARENT_GLOBAL_FRAC_CAP = float(os.environ.get('BIOHUB_REPARENT_GLOBAL_FRAC_CAP', '0.00375'))"
@@ -768,6 +778,48 @@ print('[ver12] LOWDET dump stage installed (READMIT/GAPFILL pool from prediction
         f"'BIOHUB_SECONDARY_EDGE_FEATURE_TTA_WEIGHT': {sef_w}",
     ):
         must_count(text, guard_pair, 1, f'guard {guard_pair}')
+
+    # ---- 17-bis. REVIEW-2: final-env-value assertion (chống ghi đè thứ tự env) ----
+    # Mọi key v12: assignment os.environ[KEY] = 'V' CUỐI CÙNG trong file phải là
+    # giá trị config (block [ver12] chạy sau cùng mọi block legacy). Bài học: lần
+    # build đầu chèn sau print [ver11] → [ver8] reparent ghi đè EP 0.4→0.25 âm thầm.
+    import re as _re
+
+    def _final_env(src: str, key: str) -> str | None:
+        vals = _re.findall(rf"os\.environ\['{key}'\] = '([^']*)'", src)
+        return vals[-1] if vals else None
+
+    _expected_final_env = {
+        'BIOHUB_REPARENT_EDGE_PROB': rep_ep,
+        'BIOHUB_REPARENT_MIN_PDIV': rep_pdiv,
+        'BIOHUB_REPARENT_CURRENT_FAR_UM': rep_far,
+        'BIOHUB_REPARENT_DIVERGE_UM': rep_div,
+        'BIOHUB_DIV_PARENT_MAX_UM': div_parent,
+        'BIOHUB_SAFE_DIV_ORPHAN_ADOPT': orphan,
+        'BIOHUB_SAFE_DIV_ORPHAN_MIN_PDIV': orphan_pdiv,
+        'BIOHUB_LOWDET_THRESHOLD': lowdet,
+        'BIOHUB_READMIT_RADIUS_UM': radmit_r,
+        'BIOHUB_READMIT_MIN_SCORE': radmit_s,
+        'BIOHUB_GAPFILL_MAX_GAP': gf_gap,
+        'BIOHUB_GAPFILL_MIN_SCORE': gf_min,
+        'BIOHUB_GAPFILL_STEP_UM': gf_step,
+        'BIOHUB_GAPFILL_PEAK_RADIUS_UM': gf_prad,
+        'BIOHUB_GAPFILL_EXCLUDE_UM': gf_excl,
+        'BIOHUB_GAPFILL_ALLOW_SYNTHETIC': gf_syn,
+        'BIOHUB_GAPFILL_CONTEXT': gf_ctx,
+        'BIOHUB_GAPFILL_MAX_ADDED_FRAC': gf_frac,
+        'BIOHUB_SECONDARY_EDGE_FEATURE_TTA_WEIGHT': sef_w,
+        'BIOHUB_DEEPCENTER_SAFE_DIV_THRESHOLD': dc_thr,
+    }
+    if sd_diverge is not None:
+        _expected_final_env['BIOHUB_SAFE_DIV_DIVERGE_UM'] = sd_diverge
+
+    for _key, _want in _expected_final_env.items():
+        _got = _final_env(text, _key)
+        _want_str = str(_want)
+        if _got != _want_str:
+            sys.exit(f'[build12] THẤT BẠI final-env: {_key} cuối cùng = {_got!r} (cần {_want_str!r}) — có block legacy ghi đè SAU block [ver12]')
+    print(f'[build12] final-env-value PASS: {len(_expected_final_env)} key v12 đều là assignment cuối cùng (không bị legacy ghi đè)')
 
     # ---- 18. AST + py_compile ----
     ast.parse(text)
