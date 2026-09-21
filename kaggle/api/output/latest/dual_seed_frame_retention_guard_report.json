@@ -58,7 +58,7 @@
     "fallback_frames": 65,
     "rows": 400
   },
-  "experiment": "secondary_deepcenter_tta_0947_reparent_hoct_v12_portfolio_d2_divm2",
+  "experiment": "secondary_deepcenter_tta_0947_reparent_hoct_v12_portfolio_d2_divm2_ko",
   "hardware": {
     "visible_gpu_count": 2
   },
@@ -68,7 +68,7 @@
   "organizer_labels_used_for_configuration": false,
   "parent_experiment": "edge_feature_tta_0946_v1",
   "phase_c": {
-    "divnet_mode": "RANK-ONLY (v12 gates: reparent EP=0.4 \u00b7 orphan-adopt=ON floor=0.5 \u00b7 READMIT r=4.0 \u00b7 GAPFILL gap<=3 \u00b7 SEF_TTA w=0.75 \u00b7 DC=0.2)",
+    "divnet_mode": "RANK-ONLY (v12 gates: reparent EP=0.4 \u00b7 orphan-adopt=ON floor=0.5 \u00b7 READMIT r=0.0 \u00b7 GAPFILL gap<=0 \u00b7 SEF_TTA w=0.75 \u00b7 DC=0.2)",
     "divnet_rank": true,
     "divnet_rank_w_um": 15.0
   },
@@ -107,15 +107,15 @@
     "source": "v11-lab v3 grid (kernel v4, 2026-09-20)"
   },
   "phase_h": {
-    "config_label": "portfolio_d2_divm2",
+    "config_label": "portfolio_d2_divm2_ko",
     "dc_safe_div_threshold": 0.2,
     "gapfill_max_added_frac": 0.03,
-    "gapfill_max_gap": 3,
-    "lowdet_threshold": 0.5,
+    "gapfill_max_gap": 0,
+    "lowdet_threshold": 0.0,
     "orphan_adopt": true,
     "orphan_min_pdiv": 0.5,
     "readmit_min_score": 0.965,
-    "readmit_radius_um": 4.0,
+    "readmit_radius_um": 0.0,
     "reparent_current_far_um": 7.5,
     "reparent_edge_prob": 0.4,
     "reparent_min_pdiv": 0.5,
@@ -138,37 +138,37 @@
       "6bba_05b6850b",
       "6bba_05db0fb1"
     ],
-    "rows": 244004,
-    "sha256": "ef3cb91ede31ad738e5831b0074aa3f77fe869935bac440c80f021c862b08f47"
+    "rows": 241201,
+    "sha256": "81adc98e84da53d9a96e0fabad4879c7cd8329738527c717d3222e75eb47bd57"
   },
   "topology": {
     "44b6_0113de3b": {
       "division_parents": 45,
-      "edges": 24915,
+      "edges": 24830,
       "max_indegree": 1,
       "max_outdegree": 2,
-      "nodes": 25733
+      "nodes": 25643
     },
     "44b6_0b24845f": {
-      "division_parents": 34,
-      "edges": 20063,
+      "division_parents": 31,
+      "edges": 19387,
       "max_indegree": 1,
       "max_outdegree": 2,
-      "nodes": 21367
+      "nodes": 20704
     },
     "6bba_05b6850b": {
       "division_parents": 13,
-      "edges": 6044,
+      "edges": 5945,
       "max_indegree": 1,
       "max_outdegree": 2,
-      "nodes": 6261
+      "nodes": 6160
     },
     "6bba_05db0fb1": {
-      "division_parents": 97,
-      "edges": 68788,
+      "division_parents": 95,
+      "edges": 68231,
       "max_indegree": 1,
       "max_outdegree": 2,
-      "nodes": 70833
+      "nodes": 70301
     }
   }
 }

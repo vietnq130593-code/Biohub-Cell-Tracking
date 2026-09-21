@@ -45,6 +45,77 @@ dump hidden) → cấu hình này đã đo 0.8990/0.9053 — không thông tin m
 **TRẠNG THÁI: push v2 → poll đồng bộ → pull → replica-gate → bảng so sánh cuối
 v11/v12/v12.1 → CHỜ LỆNH SUBMIT TRỰC TIẾP.**
 
+### ✅ KẾT QUẢ RUN 2 — COMPLETE ~37' wall · GPU 15.14h → 15.85h = 0.71h
+
+Config live (receipt log): `READMIT r=0.0um · GAPFILL gap<=0 · lowdet>=0.0 ·
+readmitted=0/gapfill=0 trên 4 dataset · lowdet dir VẮNG (dump off) · diverge=-2.0 ·
+orphan-adopt=1 · DC=0.2 · validator=OFF` · 241.201 dòng (v11: 241.119 · v12 RUN 1:
+244.004).
+
+### Bảng so sánh cuối (cổng replica GT khôi phục — engine verify 100% alfonso)
+
+| chỉ số | v11 (0.947 LB) | v12 RUN 1 | **v12.1 RUN 2** | E1 (CSV surgery) |
+|---|---|---|---|---|
+| replica adjEJ | 0.9010 | 0.8985 | **0.8998** | 0.8973 |
+| replica divJ | 0.0000 | 0.1429 | **0.1429** | 0.2000 |
+| **COMPOSITE (metric LB)** | 0.9010 | 0.9128 | **0.9141** | 0.9173 |
+| div cửa sổ TP/FP/FN | 0/1/3 | 1/4/2 | **1/4/2** | 1/2/3 |
+| census n/e/fork | 122.787/118.332/144 | 124.194/119.810/189 | **122.808/118.393/184** | — |
+| per-stem adjEJ | .8683/.9372/.9636/.8590 | .8680/.9353/.9621/.8559 | **.8683/.9372/.9625/.8577** | — |
+
+- Knockout hiệu quả đúng hướng: 0113 + 0b24 hồi phục CHÍNH XÁC bằng v11 (0.8683/
+  0.9372) — node thêm là nguyên nhân hại 2 stem thưa của RUN 1. v12.1 = +0.0013
+  composite so RUN 1 (0.9128→0.9141), nhưng E1 hứa +0.0045 → **hiệu ứng bậc 2 ăn
+  70% kỳ vọng** (node thêm từng hiện diện trong processing của RUN 1).
+- VERDICT cổng (tiêu chí adjEJ nguyên văn): HOLD — 0.8998 < 0.9010 − 0.0005.
+  Composite-với-composite: **+0.0131**. Cổng giữ nguyên semantics (không đổi sau khi
+  thấy kết quả — F6, user trọng tài). Deficit adjEJ tập trung 05b6 (−0.0011) +
+  05db (−0.0013) = tác dụng phụ division FP.
+
+### 🔬 FP ANATOMY (0 GPU — fp-anatomy2.py, semantics chính thức evaluate_divisions)
+
+4 division FP của v12.1 (05b6 t=28/37 · 05db t=55/75) + 1 TP (t=24 05db):
+
+| sự kiện | p1/p2 (µm) | sister | sym | divergence | GT nói | nguồn gốc |
+|---|---|---|---|---|---|---|
+| **TP t=24** 05db fork 20106 | 2.96/5.70 | 8.38 | 0.634 | +2.52 (gate-time −1.79) | CHIA (GT div) | **diverge −2.0** (F1 receipt) |
+| FP t=37 05b6 fork 2750 | 4.00/2.87 | 6.76 | 0.328 | +2.93 | tuyến tính | **pre-existing v11** (banked 0.947) |
+| FP t=28 05b6 fork 2168 | 4.16/5.17 | 9.31 | 0.216 | +1.24 | tuyến tính | safe-div mới (node 2232 v11 bị prune) |
+| FP t=55 05db fork 44876 | 2.60/3.83 | 3.98 | 0.383 | n/a (con hết track) | tuyến tính | mới (orphan-adopt khả nghi nhất) |
+| FP t=75 05db fork 59486 | 4.89/5.34 | 10.03 | 0.088 | +1.75 | tuyến tính | mới (DC 0.25→0.2 khả nghi) |
+
+Phát hiện quan trọng (run_stats đối chiếu v11 ↔ v12.1):
+1. **reparent EP 0.4 = NO-OP trên production**: reparent_added GIỐNG HỆT 12/19/3/43
+   ở cả 2 bản — trục 1b không tạo tác dụng gì (candidates 1634→1648 nhưng added
+   không đổi). Fork t=28 KHÔNG phải từ reparent (đoán đầu sai) — từ safe-div.
+2. **+40 fork deltas = toàn bộ trục safe-div** (diverge −2.0 + orphan + DC):
+   divergence_rejected 2.812 (v11) → 365 (v12.1); safe_divisions_added 82 → 123.
+3. **Không có separator hình học sạch**: TP có symmetry CAO NHẤT (0.634) — ngược
+  trực giác; sister/divergence FP trộn lẫn với TP. Mọi ngưỡng diệt FP đều đe doạ TP
+   hoặc mù (post-hoc ≠ gate-time — divergence TP đo sau là +2.52 nhưng gate-time
+   là −1.79 vì đồ thị đổi sau khi gate chạy).
+4. pdiv/dc dumps (v11_lab_cache) MẤT theo sandbox reset → replay toàn gate không
+   thể — attribution chỉ còn cấu trúc + counters (đã làm ở trên).
+
+### 💡 Quyết định đề xuất (user là trọng tài)
+
+- **Khuyến nghị: SUBMIT v12.1** khi user ra lệnh. Lý do: (a) composite +0.0131 —
+  lớn nhất từ trước tới nay; (b) TP t=24 là GT THẬT trong phim test → chuyển giao
+  LB chắc chắn; (c) census lành (không purge, gần baseline); (d) thông tin LB
+  (divJ transfer) CHỈ có thể học bằng cách nộp — replica mù ngoài cửa sổ 1.6%;
+  (e) 0.947 banked vẫn selectable — rủi ro downside bị chặn; (f) quota 5/ngày,
+  deadline còn 8 ngày — submission không khan hiếm.
+- Nếu LB về < 0.947 (divJ transfer yếu/FP-heavy): bài học = FP:TP ratio trên GT
+  dày tệ hơn cửa sổ thưa → v12.2 ứng viên đã có tên: orphan-adopt OFF (−3 fork
+  05db, khả năng giết t=55) + DC 0.25 (khả năng giết t=75) + giữ diverge −2.0.
+- Nếu LB về ≥ 0.948+: xác nhận cơ chế division hoạt động — hướng tiếp theo là mở
+  rộng recall division (FN còn 2/3 cửa sổ).
+
+**PRE-SUBMIT dry-run: INT PASS (241.201 dòng) · DAG PASS (118.393 cạnh t→t+1) ·
+CENSUS L12 PASS (122.808n/118.393e/184f — fork ≥100 guard PASS) · TAG PASS
+(+5 counters mới) → submit được NGAY khi có lệnh.** KHÔNG submit khi chưa có
+lệnh trực tiếp (luật đứng).
+
 ## 🚀 RUN 1 — production biohub-ver12 v1 (21/9 — PAT mới của user, lệnh "triển khai v12 lên GPU")
 
 **COMPLETE ~53 phút wall · GPU sổ 14.37h → 15.14h = 0.77h/run** — VALIDATOR=OFF (port
@@ -257,4 +328,5 @@ lớn nhất cần A/B (submit v12-divm2 rồi so v11; nếu thua → rebuild di
 | **21/9** | **viết ver12 + v12-lab 3 lớp + replica** | **0.0h** ✅ |
 | **23/9 (REVIEW-3)** | phân tích andnyu 0948-repro + validator-off + cổng replica | **0.0h** ✅ |
 | **21/9 RUN 1 (PAT mới)** | biohub-ver12 production ×1 COMPLETE ~53' (validator OFF) | **0.77h** (14.37→15.14) |
-| (dự phòng) | v12.1 iterate ×≤2 (~0.77h/run) | ≤1.6h |
+| **21/9 RUN 2 (v12.1 knockout)** | biohub-ver12 v2 COMPLETE ~37' (validator OFF + không dump lowdet) + FP anatomy 0 GPU | **0.71h** (15.14→15.85) |
+| (dự phòng) | v12.2 iterate ×≤1 (~0.71h/run) — chỉ khi LB dạy điều gì đó mới | ≤0.71h |
