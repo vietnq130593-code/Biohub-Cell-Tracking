@@ -96,8 +96,13 @@ def run_kaggle(args: list[str], check: bool = True) -> subprocess.CompletedProce
 # GT restore — 84 file zarr v3 của 4 stem test từ competition files API
 # --------------------------------------------------------------------------
 def _list_all_files() -> list[str]:
-    """Paging toàn bộ manifest file competition (~9.400 file, 200/page)."""
+    """Paging toàn bộ manifest file competition (~9.400 file, 200/page).
+
+    LƯU Ý CLI 2.x: token trang nằm ở DÒNG HEADER "Next Page Token = …" TRƯỚC mảng
+    JSON (không phải field JSON) — fix 24/9 sau khi chạy thật chỉ thấy 200 file/page-1.
+    """
     names: list[str] = []
+    seen: set[str] = set()
     page_token: str | None = None
     while True:
         args = ["competitions", "files", COMP, "--page-size", "200", "--format", "json"]
@@ -105,29 +110,34 @@ def _list_all_files() -> list[str]:
             args += ["--page-token", page_token]
         proc = run_kaggle(args)
         raw = (proc.stdout or "").strip()
-        try:
-            payload = json.loads(raw)
-        except json.JSONDecodeError:
-            # format khác — thử bọc mảng thô
-            m = re.search(r"\[.*\]", raw, re.S)
-            payload = json.loads(m.group(0)) if m else []
-        items = payload.get("data", payload) if isinstance(payload, dict) else payload
+        # 1) token trang từ dòng header trước mảng JSON
+        m_tok = re.match(r"Next Page Token\s*=\s*(\S+)", raw)
+        nxt = m_tok.group(1) if m_tok else None
+        # 2) mảng JSON tên file (ưu tiên), fallback payload dict
+        items: list = []
+        m_arr = re.search(r"\[.*\]", raw, re.S)
+        if m_arr:
+            try:
+                items = json.loads(m_arr.group(0))
+            except json.JSONDecodeError:
+                items = []
+        else:
+            try:
+                payload = json.loads(raw)
+                items = payload.get("data", payload) if isinstance(payload, dict) else payload
+            except json.JSONDecodeError:
+                items = []
         for it in items or []:
             if isinstance(it, dict):
                 nm = it.get("name") or it.get("ref") or ""
             else:
                 nm = str(it)
-            if nm:
+            if nm and nm not in seen:
+                seen.add(nm)
                 names.append(nm)
-        nxt = None
-        if isinstance(payload, dict):
-            for k in ("nextPageToken", "next_page_token", "nextPage", "page_token"):
-                if payload.get(k):
-                    nxt = payload[k]
-                    break
         if not nxt or len(names) > 12_000:
             break
-        page_token = str(nxt)
+        page_token = nxt
     return names
 
 
