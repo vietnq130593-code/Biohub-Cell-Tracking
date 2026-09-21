@@ -1829,3 +1829,18 @@ Stage Summary:
 - ★ v12.1 RUN 2 ĐÃ NỘP Kaggle ref 56442903 (20:24 UTC 21/9) — submit được ngay khi có lệnh đúng cam kết.
 - Điểm PENDING — sẽ poll và cập nhật; kỳ vọng từ replica: composite ≈ 0.914+ (LB metric), downside bảo vệ bởi 0.947 banked selectable.
 - Quota hôm nay 21/9: 2 entries (56442903 + 56442908 shadow).
+
+---
+Task ID: V12.1-SUBMIT-POLL
+Agent: main (Bio — AI engineer / system architect / algorithm expert)
+Task: Poll điểm submission v12.1 ref 56442903 (kèm shadow 56442908) — cập nhật trạng thái.
+
+Work Log:
+- Poll đồng bộ L9 liên tục 20:24→22:05 (100 phút, ~60 vòng): cả 2 entries PENDING — KHÔNG có lỗi/fail nào hiển thị.
+- kagglesdk list_submissions chi tiết: cả 2 entries totalBytes=0 (file chưa attach — trong khi 56403231 COMPLETE có 207.536.089 bytes). Kernel session API 404 (re-run submission diễn ra nội bộ Kaggle, không hiện ngoài kernels status — kernel interactive vẫn COMPLETE).
+- Diễn giải: cuộc thi notebooks-only (code competition) → submission cần kernel re-run reproducible (T4x2 ~37') + queue chấm metric adjEJ+divJ trên 4 dataset (12.477 entrants, giờ cao điểm). 100' PENDING chưa phải dấu hiệu lỗi — KHÁC với fail totalBytes=0 28s-ngay-sau-COMPLETE ngày 19/9 (những cái đó fail gần như ngay, không treo PENDING thuần).
+- Entry 56442908 (9 giây sau 56442903, không description): shadow/scoring entry Kaggle tự sinh khi xử lý code submission — 1 lệnh POST duy nhất từ phía mình.
+
+Stage Summary:
+- Submission ref 56442903 AN TOÀN trên server Kaggle (200 OK + ref trả về), đang chờ chấm — không có action nào khả thi từ phía sandbox ngoài chờ.
+- Điểm sẽ về trong phiên làm việc kế tiếp; khi COMPLETE cần: đọc publicScore, đối chiếu replica-gate dự báo (composite 0.9141 ±, adjEJ 0.8998, divJ 0.1429), quyết định bước tiếp theo theo cây quyết định RUN 2 (LB < 0.947 → v12.2 orphan-OFF+DC 0.25; ≥ 0.948 → mở rộng division recall).
