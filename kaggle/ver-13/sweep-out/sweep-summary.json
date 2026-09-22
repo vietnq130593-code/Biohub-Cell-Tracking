@@ -1,0 +1,18 @@
+{
+  "summary": {
+    "F_v13div225": {
+      "csv": "/home/z/Biohub-Cell-Tracking/kaggle/ver-13/sweep-out/sub-F_v13div225.csv",
+      "rows": 241805,
+      "nodes": 122950,
+      "edges": 118855,
+      "forks": 481,
+      "div": [
+        0,
+        0,
+        0
+      ],
+      "leaf": 72
+    }
+  },
+  "mode": "census-only"
+}

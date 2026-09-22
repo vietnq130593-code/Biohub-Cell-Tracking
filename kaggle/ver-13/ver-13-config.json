@@ -1,0 +1,30 @@
+{
+  "label": "p1rev_p2vel025_p3leaf030_p4divwide",
+  "base": "ver-12/cell-monolith.py (d2divm2_ko — RUN 2 knockout, LB 0.946 ref 56442903)",
+  "p1_safe_div_diverge_um": 0.5,
+  "p1_orphan_adopt": 0,
+  "p2_motion_relink_velocity_weight": 0.25,
+  "p3_leaf_prune_min_edge_prob": 0.3,
+  "p4_safe_div_max_um": 11.0,
+  "p4_safe_div_sister_max_um": 16.0,
+  "p4_safe_div_existing_child_max_um": 12.0,
+  "p4_dc_safe_div_threshold": 0.15,
+  "reparent_edge_prob": 0.4,
+  "reparent_min_pdiv": 0.5,
+  "sef_tta_weight": 0.75,
+  "validator_enable": 0,
+  "readmit_radius_um": 0,
+  "gapfill_max_gap": 0,
+  "lowdet_threshold": 0,
+  "receipts": {
+    "p1_diverge_revert": "SAFE_DIV_DIVERGE_UM −2.0 → 0.5. ĐÍNH CHÍNH vs V13-ADJEJ-RESEARCH §5 P1 (ghi 2.25): v11 production THẬT dùng 0.5 — env ver-11 dòng 64 set 2.25 nhưng dòng 102 (block v11 grid mn_p85_div05) GHI ĐÈ thành 0.5; guard phase_g cũng ghi 0.5; config ver-11 label=mn_p85_div05. Revert đúng baseline 0.947 = 0.5. amanatar dùng 2.25 — sweep offline arm F đo riêng 2.25 để so.",
+    "p1_orphan_off": "SAFE_DIV_ORPHAN_ADOPT 1→0: tắt nguồn +23 fork 05db (kèm diverge âm). Với orphan=0 + diverge=0.5, gate safe-div hành xử NGUYÊN VẸN như v11 (code v12 chỉ chạy khi flag bật).",
+    "p2_velocity": "MOTION_RELINK_VELOCITY_WEIGHT 0.5→0.25 — sweep amanatar vel025 +0.0014 adj / vel075 −0.0007 (dose-response rõ); combo thắng 0.948 gồm vel025. Cơ chế B4: W cao làm predicted position OVERSHOOT (tế bào phôi không quán tính) → relink nối nhầm node láng giềng → FP cạnh.",
+    "p3_leaf_prune": "LEAF_PRUNE_MIN_EDGE_PROB 0.30 — port nguyên văn prune_weak_leaf_nodes của amanatar v4 (~60 dòng): cắt node lá (out-degree 0, không phải frame cuối, đúng 1 cạnh vào, learned prob < 0.30); MIỄN TRỪ con division (edge_prob None); single-pass không cascade. Sweep: leaf030 +0.0003, t55_leaf030 +0.0004; census họ −71 cạnh yếu. Call-site: sau short-track filter, trước linefit.",
+    "p4_divwide_dcsd": "SAFE_DIV_MAX 9→11 · SISTER 14→16 · EXISTING_CHILD 10→12 · DC 0.2→0.15 — recall division qua cổng 'hình học đẹp + model xác nhận', GIỮ divergence 0.5 nghiêm ngặt. Sweep amanatar: divwide/dcsd giữ adj NGUYÊN VẸN + divJ nguyên; census họ fork tăng phim thưa (+28/+12) giảm phim dày (−21); DC-rejected 536 vs mình 3177 → cổng DC đang thắt ruột nhất.",
+    "knockout_kept": "Giữ nguyên v12.1 knockout: READMIT=0 · GAPFILL=0 · LOWDET=0 (E1+RUN2: node thêm hại 2 stem thưa −0.0013 adj, TP division KHÔNG phụ thuộc node thêm). Reparent EP=0.4 giữ (NO-OP production đã chứng minh 12/19/3/43).",
+    "dead_axis": "KHÔNG quay lại diverge-relax: 2 nguồn độc lập cùng dấu thất bại — v12.1 LB −0.001 (+23 fork 05db) + amanatar diverge150 FP nổ 1→6 (divJ 0.2308→0.1667).",
+    "lb_target": "Kỳ vọng LB = v11 0.947 + P2 (+0.0014) + P3 (+0.0004) ≈ 0.948–0.949 (P1 trả về baseline, P4 divJ-recall không tốn adj). Cổng sweep offline: ΔadjEJ(arm C vs arm A) ≥ +0.0008; cổng replica production: adjEJ > 0.9010 (v11)."
+  },
+  "notes": "V13 = v12.1 knockout base + P1-P4 (V13-ADJEJ-RESEARCH.md §5). Tag: secondary_deepcenter_tta_0947_reparent_hoct_v13_p1rev_p2vel025_p3leaf030_p4divwide. GPU RUN ước 0.71h (validator OFF như v12.1 RUN 2). Build từ monolith v12 (battle-tested LB 0.946) bằng delta-patch 9 thay đổi — KHÔNG rebuild từ ver-11. KHÔNG submit/push Kaggle — chờ lệnh trực tiếp user."
+}

@@ -1,0 +1,234 @@
+{
+  "mode": "census-only (GT ch\u01b0a kh\u00f4i ph\u1ee5c \u2014 \u0394 \u0111i\u1ec3m ch\u1edd restore-gt)",
+  "leaf_pruned": {
+    "A_v11geo": 0,
+    "B_v121geo": 0,
+    "C_v13full": 72,
+    "D_v13noP4": 72,
+    "E_v13vel": 0,
+    "F_v13div225": 72
+  },
+  "arms": {
+    "A_v11geo": {
+      "total": {
+        "nodes": 123041,
+        "edges": 119050,
+        "forks": 591
+      },
+      "per": {
+        "44b6_0113de3b": {
+          "nodes": 25628,
+          "edges": 24970,
+          "forks": 120
+        },
+        "44b6_0b24845f": {
+          "nodes": 20882,
+          "edges": 19682,
+          "forks": 144
+        },
+        "6bba_05b6850b": {
+          "nodes": 6164,
+          "edges": 5972,
+          "forks": 21
+        },
+        "6bba_05db0fb1": {
+          "nodes": 70367,
+          "edges": 68426,
+          "forks": 306
+        }
+      }
+    },
+    "B_v121geo": {
+      "total": {
+        "nodes": 123104,
+        "edges": 119173,
+        "forks": 669
+      },
+      "per": {
+        "44b6_0113de3b": {
+          "nodes": 25622,
+          "edges": 24964,
+          "forks": 120
+        },
+        "44b6_0b24845f": {
+          "nodes": 20879,
+          "edges": 19679,
+          "forks": 142
+        },
+        "6bba_05b6850b": {
+          "nodes": 6169,
+          "edges": 5982,
+          "forks": 27
+        },
+        "6bba_05db0fb1": {
+          "nodes": 70434,
+          "edges": 68548,
+          "forks": 380
+        }
+      }
+    },
+    "C_v13full": {
+      "total": {
+        "nodes": 122988,
+        "edges": 119002,
+        "forks": 598
+      },
+      "per": {
+        "44b6_0113de3b": {
+          "nodes": 25607,
+          "edges": 24953,
+          "forks": 121
+        },
+        "44b6_0b24845f": {
+          "nodes": 20902,
+          "edges": 19696,
+          "forks": 144
+        },
+        "6bba_05b6850b": {
+          "nodes": 6164,
+          "edges": 5973,
+          "forks": 22
+        },
+        "6bba_05db0fb1": {
+          "nodes": 70315,
+          "edges": 68380,
+          "forks": 311
+        }
+      }
+    },
+    "D_v13noP4": {
+      "total": {
+        "nodes": 122977,
+        "edges": 118991,
+        "forks": 595
+      },
+      "per": {
+        "44b6_0113de3b": {
+          "nodes": 25611,
+          "edges": 24957,
+          "forks": 121
+        },
+        "44b6_0b24845f": {
+          "nodes": 20887,
+          "edges": 19684,
+          "forks": 144
+        },
+        "6bba_05b6850b": {
+          "nodes": 6164,
+          "edges": 5972,
+          "forks": 21
+        },
+        "6bba_05db0fb1": {
+          "nodes": 70315,
+          "edges": 68378,
+          "forks": 309
+        }
+      }
+    },
+    "E_v13vel": {
+      "total": {
+        "nodes": 123049,
+        "edges": 119063,
+        "forks": 595
+      },
+      "per": {
+        "44b6_0113de3b": {
+          "nodes": 25621,
+          "edges": 24967,
+          "forks": 121
+        },
+        "44b6_0b24845f": {
+          "nodes": 20897,
+          "edges": 19694,
+          "forks": 144
+        },
+        "6bba_05b6850b": {
+          "nodes": 6164,
+          "edges": 5972,
+          "forks": 21
+        },
+        "6bba_05db0fb1": {
+          "nodes": 70367,
+          "edges": 68430,
+          "forks": 309
+        }
+      }
+    },
+    "F_v13div225": {
+      "total": {
+        "nodes": 122950,
+        "edges": 118855,
+        "forks": 481
+      },
+      "per": {
+        "44b6_0113de3b": {
+          "nodes": 25626,
+          "edges": 24946,
+          "forks": 99
+        },
+        "44b6_0b24845f": {
+          "nodes": 20877,
+          "edges": 19663,
+          "forks": 131
+        },
+        "6bba_05b6850b": {
+          "nodes": 6153,
+          "edges": 5959,
+          "forks": 16
+        },
+        "6bba_05db0fb1": {
+          "nodes": 70294,
+          "edges": 68287,
+          "forks": 235
+        }
+      }
+    }
+  },
+  "delta_vs_A": {
+    "A_v11geo": {
+      "nodes": 0,
+      "edges": 0,
+      "forks": 0
+    },
+    "B_v121geo": {
+      "nodes": 63,
+      "edges": 123,
+      "forks": 78
+    },
+    "C_v13full": {
+      "nodes": -53,
+      "edges": -48,
+      "forks": 7
+    },
+    "D_v13noP4": {
+      "nodes": -64,
+      "edges": -59,
+      "forks": 4
+    },
+    "E_v13vel": {
+      "nodes": 8,
+      "edges": 13,
+      "forks": 4
+    },
+    "F_v13div225": {
+      "nodes": -91,
+      "edges": -195,
+      "forks": -110
+    }
+  },
+  "delta_C_minus_D": {
+    "P4a_divwide": {
+      "nodes": 11,
+      "edges": 11,
+      "forks": 3
+    }
+  },
+  "note": "F3: fork replay inflated ~4x (DC-off) \u2014 ch\u1ec9 \u0394 gi\u1eefa arm \u0111\u00e1ng tin",
+  "delta_F_minus_C": {
+    "diverge_2.25_vs_0.5": {
+      "nodes": -38,
+      "edges": -147,
+      "forks": -117
+    }
+  }
+}

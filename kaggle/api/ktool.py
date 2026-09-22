@@ -105,6 +105,14 @@ VER11_SLUG = "biohub-ver11"
 VER12_NOTEBOOK = PROJECT / "download" / "ver12-cell-tracking.ipynb"
 VER12_DATASETS = VER11_DATASETS
 VER12_SLUG = "biohub-ver12"
+# ver-13: Phase I — trọng tâm adjEJ (V13-ADJEJ-RESEARCH.md §5): P1 revert diverge
+# 0.5 (đúng grid v11 — đính chính research ghi 2.25) + orphan OFF · P2 velocity
+# 0.5→0.25 (sweep amanatar +0.0014 adj) · P3 leaf-prune 0.30 (port nguyên văn
+# ~60 dòng) · P4 divwide 11/16/12 + dcsd 0.15 (recall division không tốn adj).
+# Base v12.1-knockout (LB 0.946) — READMIT/GAPFILL/LOWDET tiếp tục off.
+VER13_NOTEBOOK = PROJECT / "download" / "ver13-cell-tracking.ipynb"
+VER13_DATASETS = VER12_DATASETS
+VER13_SLUG = "biohub-ver13"
 ACCELERATOR = "NvidiaTeslaT4"   # GPU T4 × 2 (giống notebook gốc 0.945) — enum theo kagglesdk
 DEFAULT_SLUG = "biohub-ver6"
 POLL_SECONDS = 60
@@ -132,6 +140,8 @@ def version_config(ver) -> tuple[Path, list[str], str]:
         return VER11_NOTEBOOK, VER11_DATASETS, VER11_SLUG
     if ver == "12":
         return VER12_NOTEBOOK, VER12_DATASETS, VER12_SLUG
+    if ver == "13":
+        return VER13_NOTEBOOK, VER13_DATASETS, VER13_SLUG
     return NOTEBOOK, DATASETS, DEFAULT_SLUG
 
 
@@ -424,7 +434,7 @@ def cmd_submit(args: argparse.Namespace) -> None:
     version = args.version or state.get("version")
     if not version:
         raise SystemExit("Không biết version — chạy `push` trước hoặc chỉ định `submit --version N`.")
-    ver = "12" if "ver12" in ref else ("11" if "ver11" in ref else ("7b" if "ver7b" in ref else ("7" if "ver7" in ref else "6")))
+    ver = "13" if "ver13" in ref else ("12" if "ver12" in ref else ("11" if "ver11" in ref else ("7b" if "ver7b" in ref else ("7" if "ver7" in ref else ("6")))))
     message = args.message or f"ver-{ver} T4x2 (API push) v{version}"
     proc = run_kaggle([
         "competitions", "submit",
@@ -480,7 +490,7 @@ def main() -> int:
     p.set_defaults(func=cmd_token)
 
     p = sub.add_parser("verify", help="kiểm tra token + input + quota")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10", "11", "12"], default="6",
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10", "11", "12", "13"], default="6",
                    help="6: 3 dataset; 7: 6 dataset; 7b: 7 dataset; 8w1: 5 dataset CPU mini-kernel; 12: portfolio 4 trục (9 dataset)")
     p.set_defaults(func=cmd_verify)
 
@@ -488,27 +498,27 @@ def main() -> int:
     p.add_argument("--username", help="username Kaggle (tự phát hiện nếu có thể)")
     p.add_argument("--slug")
     p.add_argument("--public", action="store_true", help="để public (mặc định private)")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10", "11", "12"], default="6",
-                   help="6: ver-6; 7: ver-7 port 0.947; 7b: + divnet; 8w1: wave1 CPU (E0-E3); 12: ver-12 portfolio 4 trục")
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10", "11", "12", "13"], default="6",
+                   help="6: ver-6; 7: ver-7 port 0.947; 7b: + divnet; 8w1: wave1 CPU (E0-E3); 12: ver-12 portfolio 4 trục; 13: ver-13 adjEJ P1-P4")
     p.set_defaults(func=cmd_push)
 
     p = sub.add_parser("status", help="xem trạng thái run hiện tại")
     p.add_argument("--username")
     p.add_argument("--slug")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10", "11", "12"], default="6")
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10", "11", "12", "13"], default="6")
     p.set_defaults(func=cmd_status)
 
     p = sub.add_parser("watch", help="đợi chạy xong rồi tải output")
     p.add_argument("--username")
     p.add_argument("--slug")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10", "11", "12"], default="6")
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10", "11", "12", "13"], default="6")
     p.add_argument("--poll", type=int, default=POLL_SECONDS)
     p.set_defaults(func=cmd_watch)
 
     p = sub.add_parser("output", help="tải output của run gần nhất")
     p.add_argument("--username")
     p.add_argument("--slug")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10", "11", "12"], default="6")
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10", "11", "12", "13"], default="6")
     p.set_defaults(func=cmd_output)
 
     p = sub.add_parser("submit", help="nộp notebook version vào competition")
@@ -516,7 +526,7 @@ def main() -> int:
     p.add_argument("--slug")
     p.add_argument("--version", type=int)
     p.add_argument("--message")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10", "11", "12"], default="6",
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10", "11", "12", "13"], default="6",
                    help="dùng khi không có --slug và chưa có state push")
     p.set_defaults(func=cmd_submit)
 
@@ -530,7 +540,7 @@ def main() -> int:
     p.add_argument("--username")
     p.add_argument("--slug")
     p.add_argument("--public", action="store_true")
-    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10", "11", "12"], default="6")
+    p.add_argument("--ver", choices=["6", "7", "7b", "8w1", "8", "9", "10", "11", "12", "13"], default="6")
     p.add_argument("--poll", type=int, default=POLL_SECONDS)
     p.add_argument("--version", type=int)
     p.add_argument("--message")
