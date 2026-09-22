@@ -1884,3 +1884,26 @@ Stage Summary:
 - Trả lời hoàn chỉnh: "không chuyển hóa" = suy luận quy hồi (a) thắng (b); adjEJ −0.0012 chuyển hóa đúng tỷ lệ, divJ +0.0143 chỉ còn ~+0.0002 (≈1-2%); nguyên nhân chính = all-or-nothing của lợi ích đơn-sự kiện trước split + chi phí rải rộng luôn chuyển hóa + FP offset + trọng số 0.1.
 - 0 hành động Kaggle/GPU (không submit/push/GPU) — thuần giải đáp + kiểm tra sẵn sàng.
 - Bước kế tiếp khi user xác nhận: port leaf-prune + builder v13 + offline replica sweep 5 arm (cổng adjEJ > 0.9010) — 0 GPU.
+
+---
+Task ID: V13-PORT-CODE
+Agent: main (Bio — AI engineer / system architect / algorithm expert)
+Task: User chỉ thị "tiến hành triển khai viết code cho ver 13" + muốn đọc lại kiến trúc v13 trước khi quyết định tiếp + đề xuất các bước triển khai kế tiếp (không push/submit Kaggle).
+
+Work Log:
+- Nghiên cứu nền trước khi code: builder v12 (845 dòng, 16 patch, kỉ luật env-ordering REVIEW-2) · config d2divm2_ko · leaf-prune amanatar (notebook cell 5 dòng 1365-1421 + call-site 1635-1639) · ppsweep_selected combo thắng (vel025+leaf030+divwide+dcsd015) · v12lab machinery (extract_regions/load_ns/replay/replica).
+- ★ ĐÍNH CHÍNH P1 khi đọc code ver-11: SAFE_DIV_DIVERGE_UM production v11 = 0.5 (env dòng 102 block grid mn_p85_div05 GHI ĐÈ dòng 64 set 2.25; guard phase_g + config label xác nhận) — research §5 ghi 2.25 là SAI. P1 revert về 0.5; thêm arm F sweep đo 2.25 riêng.
+- Verify .geff output v12.1 = RAW pre-postprocess (0113: 25.822n raw vs 25.637n production; edge_prob có sẵn) → sweep offline replay khả thi trên 4 phim thật.
+- Viết kaggle/ver-13/: ver-13-config.json (P1-P4 + receipts + đính chính) · build-ver13-monolith.py (9 delta-patch từ monolith v12 battle-tested — KHÔNG rebuild từ ver-11: env [ver13] sau print [ver12] · hằng LEAF_PRUNE sau LOWDET_DIR (neo mở rộng 2 dòng vì trùng string patch script) · hàm prune_weak_leaf_nodes NGUYÊN VĂN amanatar · call-site sau short-track trước linefit · stats keys · guard _EXPECTED_NUMERIC 13 hằng · guard report phase_i_v13_adjEJ · final print) · cell-monolith.py 5.637 dòng · v13lab.py (selftest UNIT+INTEGRATION+hồi quy v12+CSV INT · sweep 6 arm BASE_SWEEP_ENV F3 · replica · CSV writer mirror production sorted-node/max(0,round)/INT) · make-ver13-ipynb.py (25 mấu + 13 guard hằng).
+- Selftest v3 lần thiết kế (2 lần đầu fail vì đồ thị tổng hợp xung đột stage trước: node lá thành max_t sau khi short-track cắt — tái cấu trúc UNIT gọi trực tiếp hàm + INTEGRATION track dài không fork).
+- ktool.py +ver-13: hằng VER13 (9 dataset, slug biohub-ver13) + version_config + 7 choices + auto-detect ver13 (sửa 2 lỗi tự gây: dup block MultiEdit + sai ngoặc lồng — xây bằng vòng lặp). submit-v13.py: cổng INT/DAG/CENS (v11+v12.1 đối chiếu) + TAG v13 + counters leaf_prune_nodes/edges.
+- Sweep census-only 6 arm × 4 phim (~193s/arm CPU; background nohup bị kill khi bash end — chạy foreground từng arm): A 123.041n/119.050e/591f · B +63n/+123e/+78f · C 122.988n/119.002e/598f leaf=72 · D −64n/−59e/+4f leaf=72 · E +8n/+13e/+4f · F −91n/−195e/−110f leaf=72. P4a (C−D) +11e/+3f · diverge2.25 (F−C) −117f. G3/G5 PASS. Δ điểm CHƯA đo (GT mất theo sandbox reset — cần restore-gt).
+- Viết V13-ARCHITECTURE.md (10 section: TL;DR · dòng dõi · kiến trúc tổng thể · P1-P4 chi tiết + đính chính · bảng env diff 8 key · post-chain 10 stage đánh dấu · guard 3 lớp · v13lab sweep + độ tin cậy F3 · kế hoạch 7 bước + ngân sách · rủi ro ×6) + V13-DEPLOY.md runbook.
+- Build verify: py_compile/AST PASS · determinism md5 f35ae16f (build==build) · final-env 14 key PASS · guard 13 hằng PASS · notebook 362KB cell==monolith · ktool resolve PASS · selftest PASS.
+- Commit ee8bcdd (19 file: 6 code + docs + 6 CSV arm receipts + census-table.json). KHÔNG push GitHub (đợi gộp worklog), KHÔNG Kaggle action, 0 GPU.
+
+Stage Summary:
+- ★ V13 code HOÀN CHỈNH sẵn sàng: port leaf-prune nguyên văn amanatar hoạt động đúng trên dữ liệu thật (leaf_pruned 72 ≈ 71 của họ) — bằng chứng mạnh nhất port P3 thành công.
+- ★ Đích chính P1 đã đính chính thành diverge 0.5 (không phải 2.25) — sweep arm F sẽ cho số liệu so trực tiếp.
+- Kỳ vọng giữ nguyên: LB 0.948 (v11 + P2 +0.0014 + P3 +0.0004); mọi cổng lên GPU/submit chờ user.
+- Bước kế tiếp đề xuất: (2) restore-gt read-only → (3) sweep full Δ điểm G1/G2 → user đọc → (5) GPU 0.71h khi duyệt → (6) replica-gate adjEJ > 0.9010 → (7) submit khi có lệnh.
