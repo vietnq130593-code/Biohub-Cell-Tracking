@@ -1866,3 +1866,21 @@ Stage Summary:
 - ★ Đề xuất V13 = P1 revert diverge→2.25 + P2 velocity 0.5→0.25 (+0.0014) + P3 port leaf-prune 0.30 (+0.0004) + P4 divwide+dcsd015 (division recall không tốn adj) → kỳ vọng LB 0.948-0.949.
 - ★ Phát hiện giá trị nhất: vel025 là lever adjEJ lớn chưa dùng (knob có sẵn dòng 495/2442); diverge-relax bị 2 nguồn độc lập xác nhận là hướng sai.
 - Kế hoạch: port code 0 GPU → replica sweep offline 5 arm trên .geff cache → cổng adjEJ > 0.9010 → GPU 0.7h → submit chờ lệnh. GPU sổ 15.85h/30h.
+
+---
+Task ID: V13-QA-DIVJ
+Agent: main (Bio — AI engineer / system architect / algorithm expert)
+Task: User hỏi giải thích chi tiết nhận định "divJ +0.0143 không chuyển hóa sang public LB" (lượt giải đáp, không phải lệnh triển khai) + khẳng định giữ ưu thế v12 (nhanh, ít GPU, metric phụ tốt).
+
+Work Log:
+- Tổng hợp bằng chứng từ V13-ADJEJ-RESEARCH §2.2 + git ff5ab84: LB = adjEJ + 0.1×divJ; replica v12.1 adjEJ −0.0012 / divJ +0.0143 (= 0.1×0.1429) / composite +0.0131; LB v11 0.947 → v12.1 0.946 (2 entry 56442903/56442908, bytes khác do GPU nondeterminism, cùng điểm).
+- Quy hồi 2 giả thuyết: (a) adjEJ chuyển hóa 1:1 (−0.0012 → −0.001, khớp 0.9458→0.946 sau rounding) + divJ_LB ≈ +0.0002 ≈ 0 — nhất quán; (b) divJ chuyển hóa đủ +0.0143 đòi adjEJ_LB −0.0153 — vô lý với census chỉ +61e và adjEJ replica đã đúng 2 lần (v10/v11 cùng 0.9010 → cùng 0.947).
+- 4 cơ chế: (1) lợi ích divJ = 1 sự kiện đơn (TP t=24 05db) — all-or-nothing theo public/private split, trong khi thiệt hại adjEJ rải +61e/4 phim nên luôn có phần rơi vào public (bất đối xứng chi phí–lợi ích); (2) FP offset: +40 fork (144f→184f) là FP division tiềm năng bị Jaccard phạt ngang TP (amanatar diverge150 độc lập cùng dấu: FP 1→6); (3) trọng số 0.1 + LB 3 chữ số — cần ΔdivJ ≥ +0.01 mới nổi 1 tick; (4) mẫu nhỏ (5 GT div đo được) → divJ replica là estimator phương sai lớn.
+- Làm rõ: replica = chính 4 phim hidden test (census production khớp tổng 4 dataset, GT khôi phục từ train) → KHÔNG distribution shift; lệch absolute 0.9010 vs 0.947 vì public chấm tập con dễ hơn của cùng 4 phim — delta adjEJ rải rộng vẫn chuyển hóa ổn định.
+- Verify sẵn sàng V13 0-GPU local: artifacts amanatar-geofusion/ 5 file ✓ · output v12.1 (tracking_repo cache) ✓ · engine cell-eval-official.py ✓ · /tmp/v11out ✓ · kế hoạch 5-arm sweep §6 V13-ADJEJ-RESEARCH.md.
+- Đồng bộ worklog sandbox ← repo (thiếu 2 entry V12.1-SUBMIT-POLL + V13-ADJEJ-RESEARCH) + append entry này cả hai nơi.
+
+Stage Summary:
+- Trả lời hoàn chỉnh: "không chuyển hóa" = suy luận quy hồi (a) thắng (b); adjEJ −0.0012 chuyển hóa đúng tỷ lệ, divJ +0.0143 chỉ còn ~+0.0002 (≈1-2%); nguyên nhân chính = all-or-nothing của lợi ích đơn-sự kiện trước split + chi phí rải rộng luôn chuyển hóa + FP offset + trọng số 0.1.
+- 0 hành động Kaggle/GPU (không submit/push/GPU) — thuần giải đáp + kiểm tra sẵn sàng.
+- Bước kế tiếp khi user xác nhận: port leaf-prune + builder v13 + offline replica sweep 5 arm (cổng adjEJ > 0.9010) — 0 GPU.
