@@ -1844,3 +1844,25 @@ Work Log:
 Stage Summary:
 - Submission ref 56442903 AN TOÀN trên server Kaggle (200 OK + ref trả về), đang chờ chấm — không có action nào khả thi từ phía sandbox ngoài chờ.
 - Điểm sẽ về trong phiên làm việc kế tiếp; khi COMPLETE cần: đọc publicScore, đối chiếu replica-gate dự báo (composite 0.9141 ±, adjEJ 0.8998, divJ 0.1429), quyết định bước tiếp theo theo cây quyết định RUN 2 (LB < 0.947 → v12.2 orphan-OFF+DC 0.25; ≥ 0.948 → mở rộng division recall).
+
+---
+Task ID: V13-ADJEJ-RESEARCH
+Agent: main (Bio — AI engineer / system architect / algorithm expert)
+Task: User báo điểm v12 cả 2 entry = 0.946 (dưới kỳ vọng, mọi replica metric tốt hơn v11 trừ adjEJ) + chỉ thị nghiên cứu V13 trên nền v12 + amanatar/biohub-geometric-fusion, yêu cầu adjEJ > v11, liệt kê thuật toán liên quan adjEJ + đề xuất nâng cao.
+
+Work Log:
+- Khôi phục sandbox (reset mất repo+venv+token): git clone GitHub PAT → repo đầy đủ; cài kaggle CLI+kagglesdk vào venv; token Kaggle cũ vẫn hoạt động.
+- Xác minh điểm qua SDK: 56442903 + shadow 56442908 = 0.946 COMPLETE (v11 56403231 = 0.947). 2 entry cùng kernel v2, bytes khác (207.5MB vs 209.4MB — GPU re-run nondeterminism), cùng điểm.
+- Pull + giải phẫu amanatar/biohub-geometric-fusion: notebook 234KB 12 cells + output đầy đủ (log 237' runtime, submission 241.311 dòng, run_stats, validator_results 8 stem × 26 configs, ppsweep_selected). LB: Aman Atar hạng 244 = 0.948 (108 subs).
+- Đối chiếu env 49 knobs: ~40 trùng khớp dòng dõi V1290 (dual-seed harmonic, density-adaptive gap, short-track rescue đều MÌNH CÓ SẴN); diff thật: LEAF_PRUNE (code mới ~60 dòng), PPSWEEP_EXTENDED/PREFIX_GUARD (sweep infra), giá trị selected combo.
+- Phân tích sweep bảng: tight55 +0.0020 (mình đã có trong 0.947), vel025 +0.0014 ⭐ (mình đang 0.5), leaf030 +0.0004, divwide/dcsd015 adj nguyên vẹn (divJ recall thuần), diverge150 FP nổ 6× (CÙNG DẤU v12.1 mình — bằng chứng độc lập).
+- Census 3 chiều per-dataset (pull v11 output): v12.1 +61e tập trung 05db dày (+23f) vs amanatar +215e ở phim thưa −15e/−21f ở dày — chiến lược ngược nhau, LB phán amanatar thắng.
+- Phân rã cơ chế run_stats: safe_div 82/123/163, DC-rejected 1576/3177/536, leaf_prune 0/0/71n/71e.
+- Quy hồi điểm 0.946: divJ_LB ≈ 0 (public split không thấy TP t=24) + adjEJ −0.0012 chuyển hóa đúng replica — adjEJ là trục thật.
+- Viết V13-ADJEJ-RESEARCH.md (§0-§6 + phụ lục): cơ chế metric adjEJ từng bước · danh mục 20 thuật toán 4 lớp (A node / B cạnh / C division / D vệ sinh) với cơ chế-config-ảnh hưởng · giải phẫu amanatar · 7 đề xuất P1-P7 · kế hoạch replica sweep offline 0 GPU → 1 run 0.7h.
+- Lưu artifacts: kaggle/api/research/amanatar-geofusion/ (5 file).
+
+Stage Summary:
+- ★ Đề xuất V13 = P1 revert diverge→2.25 + P2 velocity 0.5→0.25 (+0.0014) + P3 port leaf-prune 0.30 (+0.0004) + P4 divwide+dcsd015 (division recall không tốn adj) → kỳ vọng LB 0.948-0.949.
+- ★ Phát hiện giá trị nhất: vel025 là lever adjEJ lớn chưa dùng (knob có sẵn dòng 495/2442); diverge-relax bị 2 nguồn độc lập xác nhận là hướng sai.
+- Kế hoạch: port code 0 GPU → replica sweep offline 5 arm trên .geff cache → cổng adjEJ > 0.9010 → GPU 0.7h → submit chờ lệnh. GPU sổ 15.85h/30h.
