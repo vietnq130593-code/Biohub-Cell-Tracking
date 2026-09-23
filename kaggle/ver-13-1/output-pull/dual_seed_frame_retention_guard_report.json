@@ -1,0 +1,186 @@
+{
+  "configuration": {
+    "bidirectional_primary_weight": 0.15,
+    "deepcenter_gap_confirm_min_span_um": 8.5,
+    "deepcenter_gap_threshold": 0.25,
+    "deepcenter_safe_div_threshold": 0.2,
+    "deepcenter_tta": true,
+    "detector_threshold": 0.965,
+    "edge_candidate_threshold": 0.48,
+    "fallback_scope": "individual_frame",
+    "gap_close_um": 3.0,
+    "ilp_appearance_weight": 0.0,
+    "ilp_disappearance_weight": 2.0,
+    "minimum_candidate_retention": 0.9,
+    "reparent": {
+      "edge_prob": 0.4,
+      "max_um": 12.0,
+      "min_pdiv": 0.5,
+      "tau": 1.0
+    },
+    "safe_div_max_um": 9.0,
+    "safe_div_sister_max_um": 14.0,
+    "safe_div_sister_symmetry_tau": 0.6,
+    "secondary_detection_weight": 0.8,
+    "secondary_edge_feature_tta": true,
+    "secondary_edge_feature_tta_weight": 0.75,
+    "secondary_edge_weight": 0.15,
+    "secondary_link_mode": "low_margin_consensus",
+    "secondary_low_margin_max": 0.35
+  },
+  "diagnostics": {
+    "by_movie": {
+      "44b6_0113de3b": {
+        "fallback_frames": 0,
+        "frames": 100,
+        "median_retention": 1.0118578927634045,
+        "minimum_retention": 0.9926739926739927
+      },
+      "44b6_0b24845f": {
+        "fallback_frames": 64,
+        "frames": 100,
+        "median_retention": 0.8618514846811123,
+        "minimum_retention": 0.45307443365695793
+      },
+      "6bba_05b6850b": {
+        "fallback_frames": 1,
+        "frames": 100,
+        "median_retention": 1.0137012012012012,
+        "minimum_retention": 0.8918918918918919
+      },
+      "6bba_05db0fb1": {
+        "fallback_frames": 0,
+        "frames": 100,
+        "median_retention": 1.0110725229826354,
+        "minimum_retention": 0.9715142428785607
+      }
+    },
+    "fallback_frames": 65,
+    "rows": 400
+  },
+  "experiment": "secondary_deepcenter_tta_0947_reparent_hoct_v131_sr0gc3_nodiv_gap3",
+  "hardware": {
+    "visible_gpu_count": 2
+  },
+  "leaderboard_feedback_used_for_configuration": true,
+  "method_attribution": "0.933 fixed-90 dual-seed baseline -> 0.934 harmonic mutual-support fusion -> 0.939 wider divisions and calmer fusion -> 0.941 repair-threshold adaptation -> 0.946 primary edge-feature TTA + held-out post-process selection -> 0.947 secondary feature TTA + DeepCenter TTA",
+  "metric_hack_used": false,
+  "organizer_labels_used_for_configuration": false,
+  "parent_experiment": "edge_feature_tta_0946_v1",
+  "phase_c": {
+    "divnet_mode": "RANK-ONLY INERT (v131 SR0: safe-divisions + reparent OFF \u2014 m\u00e1y division 0 TP m\u1ecdi c\u1ea5p; P1 diverge=0.5 orphan=0 \u00b7 P2 vel=0.5 \u00b7 P3 leaf>=0.3 \u00b7 GC3 gap=3.0 \u00b7 SEF_TTA w=0.75)",
+    "divnet_rank": true,
+    "divnet_rank_w_um": 15.0
+  },
+  "phase_d": {
+    "reparent_current_far_um": 7.5,
+    "reparent_diverge_um": 2.25,
+    "reparent_edge_prob": 0.4,
+    "reparent_enable": false,
+    "reparent_frame_frac_cap": 0.0076,
+    "reparent_global_frac_cap": 0.00375,
+    "reparent_max_um": 12.0,
+    "reparent_min_pdiv": 0.5,
+    "reparent_sister_um": 16.0,
+    "reparent_tau": 1.0,
+    "reparent_w_um": 15.0
+  },
+  "phase_f": {
+    "hoct_deadline_h": 7.5,
+    "hoct_est_model": "k*n*d_max + 50s, 3x above 550 nodes/frame (V10-LAB 17/9)",
+    "hoct_max_video_s": 300.0,
+    "hoct_veto_mode": 1,
+    "no_gate_replay": true,
+    "no_rlf": true,
+    "tight_hardcode": {
+      "44b6": 5.5,
+      "6bba": 6.5,
+      "fallback_um": 5.5
+    }
+  },
+  "phase_g": {
+    "div_sister_max_um": 14.0,
+    "grid_label": "mn_p85_div05",
+    "mutual_nn_required": false,
+    "safe_div_diverge_um": 0.5,
+    "safe_div_min_pdiv": 0.85,
+    "source": "v11-lab v3 grid (kernel v4, 2026-09-20)"
+  },
+  "phase_h": {
+    "config_label": "portfolio_d2_divm2_ko",
+    "dc_safe_div_threshold": 0.2,
+    "gapfill_max_added_frac": 0.03,
+    "gapfill_max_gap": 0,
+    "lowdet_threshold": 0.0,
+    "orphan_adopt": false,
+    "orphan_min_pdiv": 0.5,
+    "readmit_min_score": 0.965,
+    "readmit_radius_um": 0.0,
+    "reparent_current_far_um": 7.5,
+    "reparent_edge_prob": 0.4,
+    "reparent_min_pdiv": 0.5,
+    "sef_tta_weight": 0.75,
+    "source": "V12-RESEARCH.md 4-truc portfolio (build-ver12-monolith.py, 2026-09-21)"
+  },
+  "phase_j": {
+    "config_label": "sr0gc3_nodiv_gap3",
+    "gc3_gap_close_um": 3.0,
+    "knockout_kept": "READMIT/GAPFILL/LOWDET off (v12.1)",
+    "p1_orphan_adopt": false,
+    "p1_safe_div_diverge_um": 0.5,
+    "p2_motion_relink_velocity_weight": 0.5,
+    "p3_leaf_prune_min_edge_prob": 0.3,
+    "source": "autopsy.py 22/9 (ver-13-1-config.json receipts)",
+    "sr0_output_safe_divisions": false,
+    "sr0_reparent_enable": false
+  },
+  "public_output_used": false,
+  "quality_promotion": {
+    "required_condition": "none",
+    "status": "verified_public_lb_0947",
+    "validated_receipt_sha256": null
+  },
+  "source_kernel": "raykkretzschmar/biohub-bidirectional-primary-union13-diagnostic-v1",
+  "source_notebook_sha256": "3e65ca691941949196bf417030ea84fccafe16baaec174b2a63540451bb937e8",
+  "status": "phase_j_v131_adjEJ_autopsy",
+  "submission": {
+    "datasets": [
+      "44b6_0113de3b",
+      "44b6_0b24845f",
+      "6bba_05b6850b",
+      "6bba_05db0fb1"
+    ],
+    "rows": 240084,
+    "sha256": "da3255b69469301d689ed51dcb48ea40365ae479d2d5bec92bdddd00c18ff532"
+  },
+  "topology": {
+    "44b6_0113de3b": {
+      "division_parents": 0,
+      "edges": 24740,
+      "max_indegree": 1,
+      "max_outdegree": 1,
+      "nodes": 25590
+    },
+    "44b6_0b24845f": {
+      "division_parents": 0,
+      "edges": 19152,
+      "max_indegree": 1,
+      "max_outdegree": 1,
+      "nodes": 20540
+    },
+    "6bba_05b6850b": {
+      "division_parents": 0,
+      "edges": 5908,
+      "max_indegree": 1,
+      "max_outdegree": 1,
+      "nodes": 6138
+    },
+    "6bba_05db0fb1": {
+      "division_parents": 0,
+      "edges": 67921,
+      "max_indegree": 1,
+      "max_outdegree": 1,
+      "nodes": 70095
+    }
+  }
+}
