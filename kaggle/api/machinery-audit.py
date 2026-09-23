@@ -93,6 +93,12 @@ class Audit:
     def warns(self) -> int:
         return sum(1 for r in self.rows if r["status"] == "WARN")
 
+    def acked(self) -> int:
+        return sum(1 for r in self.rows if r["status"] == "ACKED")
+
+    def passes(self) -> int:
+        return sum(1 for r in self.rows if r["status"] == "PASS")
+
 
 def audit_config(monolith: Path, ledger: dict, ack: set[str], audit: Audit) -> dict[str, str]:
     ref_env = ledger["banked_reference"]["env_effective"]
@@ -133,7 +139,9 @@ def audit_config(monolith: Path, ledger: dict, ack: set[str], audit: Audit) -> d
         in_allowed = allowed is None or any(norm(x) == nb for x in allowed)
         if cls == "hypothesis":
             if k in ack:
-                audit.add("CONFIG", f"R2 {k}", "WARN",
+                # acked → status riêng ACKED: KHÔNG đếm vào warns() → không chặn
+                # submit-gate (V132-ACKFIX: trước đây vẫn ghi WARN → exit 1 bất chấp ack)
+                audit.add("CONFIG", f"R2 {k}", "ACKED",
                           f"banked={a} → build={b} [ACKED hypothesis: {p['evidence']}]")
             elif in_allowed:
                 audit.add("CONFIG", f"R2 {k}", "WARN",
@@ -250,14 +258,14 @@ def audit_census(submission: Path, ledger: dict, audit: Audit) -> None:
 
 
 def report(audit: Audit, submit_gate: bool) -> int:
-    icons = {"PASS": "✅", "WARN": "🟡", "FAIL": "🔴"}
+    icons = {"PASS": "✅", "WARN": "🟡", "FAIL": "🔴", "ACKED": "🟦"}
     print("=" * 78)
     print("MACHINERY AUDIT — phát hiện lỗi trước submit (L13)")
     print("=" * 78)
     for r in audit.rows:
         print(f"{icons.get(r['status'], '?')} [{r['layer']:7}] {r['rule']}")
         print(f"          {r['detail']}")
-    nf, nw = audit.fails(), audit.warns()
+    nf, nw, na = audit.fails(), audit.warns(), audit.acked()
     print("-" * 78)
     if nf:
         verdict = "FAIL"
@@ -268,8 +276,8 @@ def report(audit: Audit, submit_gate: bool) -> int:
         print(f"KẾT LUẬN: 🟡 HOLD — {nw} cảnh báo chưa ack (--ack <KNOB,...>).")
     else:
         verdict = "PASS"
-        print(f"KẾT LUẬN: ✅ PASS — {nw} cảnh báo đã ack/không dấu hiệu lỗi.")
-    print(f"Chi tiết: PASS={len(audit.rows)-nf-nw} WARN={nw} FAIL={nf}")
+        print(f"KẾT LUẬN: ✅ PASS — {na} hypothesis đã ack, {nw} WARN (không chặn).")
+    print(f"Chi tiết: PASS={audit.passes()} ACKED={na} WARN={nw} FAIL={nf}")
     return 1 if (nf or (submit_gate and nw)) else 0
 
 
@@ -320,7 +328,7 @@ def main() -> None:
     if args.json:
         Path(args.json).write_text(json.dumps(
             {"verdict": "FAIL" if audit.fails() else ("HOLD" if (args.submit_gate and audit.warns()) else "PASS"),
-             "fails": audit.fails(), "warns": audit.warns(), "rows": audit.rows}, indent=1))
+             "fails": audit.fails(), "warns": audit.warns(), "acked": audit.acked(), "rows": audit.rows}, indent=1))
     sys.exit(code)
 
 
