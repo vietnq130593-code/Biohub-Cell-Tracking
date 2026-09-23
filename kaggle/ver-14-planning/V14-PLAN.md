@@ -1,9 +1,11 @@
 # V14-PLAN.md — Đẩy adjEJ vượt trần 0.947 (Phase K)
 
-> Ngày draft: 2026-09-23 (khi v13.2 đang chạy kernel biohub-ver132 v1).
-> Trạng thái: **DRAFT — chờ (1) điểm LB v13.2 xác nhận carrier, (2) phê duyệt user**
-> cho GPU spend (E1 là lever KHÔNG replay offline được — override luật replay-proof
-> cần lệnh trực tiếp).
+> Ngày draft: 2026-09-23 (sáng, khi v13.2 đang chạy kernel). Cập nhật 18:30 UTC sau khi submit v13.2.
+> **Kiến trúc chi tiết: `V14-ARCHITECTURE.md` (cùng thư mục) — đã REVIEW §5.5 đĩnh chính
+> guard-placement/env-ordering; plan này giữ vai trò menu lever + GO/NO-GO.**
+> Trạng thái: **DRAFT — chờ (1) điểm LB v13.2 (ref 56492596 — SUBMITTED 12:06 UTC 23/9,
+> PENDING 6h+ do queue metric Kaggle chậm), (2) phê duyệt user** cho GPU spend (E1 là
+> lever KHÔNG replay offline được — override luật replay-proof cần lệnh trực tiếp).
 
 ## 0. Điều kiện tiên quyết (không thương lượng)
 
@@ -26,23 +28,30 @@
 đọc được ngay: cạnh tăng giúp hay hại). P2/P4 chỉ sau khi có GT-replica tự đo
 (replica-gate --pull khôi phục test-gt 84 file — đã có tool).
 
-## 2. Build spec v14 (1 patch, pattern giống ver-13-2)
+## 2. Build spec v14 (3 delta-patch — chi tiết V14-ARCHITECTURE §4 + §5.5)
 
 - Base: `kaggle/ver-13-2/cell-monolith.py` (md5 9a0e872a…).
-- Patch: env-block `BIOHUB_DUAL_SEED_EDGE_THRESHOLD = '0.48'` → `'0.40'`
-  (monolith line ~1163) + thêm vào `_EXPECTED_NUMERIC` guard (crash nếu drift)
-  + print `[ver14]` marker + `_guard_report` phase_k.
+- **(A)** Block `[ver14]` (marker print + set E1='0.40') chèn sau block [ver132]
+  TRƯỚC guard — bắt buộc set-trước-guard (REVIEW §5.5-1).
+- **(B)** `_EXPECTED_NUMERIC` thêm `'BIOHUB_DUAL_SEED_EDGE_THRESHOLD': 0.4`.
+- **(C)** Line ~1173 `'0.48'` → `'0.40'` — bắt buộc đổi (env-ordering: block sau
+  thắng; bỏ qua = E1 chết im lặng — REVIEW §5.5-2).
+- `_guard_report` phase_k + EXPERIMENT_TAG `v132_restore_division_gc3_leaf_e1_edge040`.
 - Notebook: make-ver14-ipynb.py — cell == monolith byte-exact (L1/L2).
 - ktool: VER14_NOTEBOOK/SLUG `biohub-ver14`, datasets = VER132_DATASETS.
-- submit-v14.py: copy submit-v132 + ack mặc định `BIOHUB_DUAL_SEED_EDGE_THRESHOLD`.
+- submit-v14.py: kagglesdk **create_code_submission** (route ĐÃ CHỨNG MINH — ref
+  56492596; route CLI file-submit bị 400 từ chối — code competition) + ack mặc định
+  `BIOHUB_DUAL_SEED_EDGE_THRESHOLD`.
 
-## 3. Cổng receipt kỳ vọng v14 (điều chỉnh từ ledger)
+## 3. Cổng receipt kỳ vọng v14 (điều chỉnh từ ledger — chi tiết ARCHITECTURE §5)
 
-- Máy division: GIỮ NGUYÊN v13.2 — safe_divisions_added Σ ∈ [40,160] (kỳ vọng ~82)
-  · reparent ~77 · forks ∈ [100,200].
-- **Cạnh**: edges sẽ TĂNG theo thiết kế (đó là toàn bộ điểm của E1). R5 ±5%
-  (tối đa ~124.2k) đủ rộng cho +1-3% cạnh; nếu edges vượt +5% → cảnh báo
+- Máy division: GIỮ NGUYÊN v13.2 — safe_divisions_added Σ ∈ [40,160] (kỳ vọng ~85-100)
+  · reparent ~71 · forks ∈ [100,200] (kỳ vọng 141-165).
+- **Cạnh**: edges sẽ TĂNG theo thiết kế (đó là toàn bộ điểm của E1). Audit R5 phán
+  theo banked 118,332 ±5% = [112,215, 124,248]; nếu edges vượt max → cảnh báo
   "E1 mở quá rộng" → xem FP-risk trước khi submit.
+- Leaf-prune KHÔNG chặn cạnh E1 (≥0.40 > ngưỡng prune 0.3 — REVIEW §5.5-3):
+  receipt leaf_pruned kỳ vọng GIỮ ~81 ± vài.
 - Tag: `v132_restore_division_gc3_leaf_e1_edge040`.
 
 ## 4. Rủi ro & giới hạn
@@ -53,8 +62,10 @@
 - **Instrument**: replica chỉ đo được adjEJ delta giữa 2 build CÙNG máy BẬT —
   v14 vs v13.2 là cặp so sánh HỢP LỆ (L13c). Chạy replica-gate trên output v14
   TRƯỚC submit nếu thời gian cho phép (verdict = điều kiện cần, không đủ).
-- E1 = 0.40 là mũi probe đơn điểm (không sweep được offline); nếuadjEJ replica
+- E1 = 0.40 là mũi probe đơn điểm (không sweep được offline); nếu adjEJ replica
   v14 < v13.2 → quay lại 0.44 làm bước trung gian.
+- **Lưới an toàn thật của E1** (REVIEW đĩnh chính): chỉ caps max_children/max_parents
+  + census gates — leaf-prune và MIN_CANDIDATE_RETENTION đều không chặn E1.
 
 ## 5. Kịch bản sau v14
 
