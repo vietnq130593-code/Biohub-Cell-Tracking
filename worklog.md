@@ -1975,3 +1975,27 @@ Stage Summary:
 - ★ Replica-gate bị hạ cấp đúng chỗ: adjEJ-only instrument. divJ public + cấu trúc fork = mù. Fork census = hard gate.
 - Banked giữ nguyên v11 = 0.947 (ref 56403231). GPU sổ 16.53h/30h (13.47h còn, refresh 26/9). 0 GPU/Kaggle action trong postmortem này.
 - Cần user: (1) token Kaggle mới (verify điểm + pull kernel biohub-ver131 tái audit độc lập + restore GT); (2) chọn option (a)/(b)/(c).
+
+---
+Task ID: V132-GUARDS-AND-FIX
+Agent: main (Bio — AI engineer / system architect / algorithm expert)
+Task: User (sau 0.911): "lỗi kiểu SR0-tắt-máy vớ vẩn — trước khi nộp phải xác định được tất cả các lỗi kiểu này; xử lý lỗi mới tìm thấy; rà soát v13 còn lỗi nào; ghi chú để không lặp lại; logs các phiên bản có giúp so sánh chất lượng không" + PAT Kaggle mới.
+
+Work Log:
+- Cài PAT mới KGAT_fefd… → ~/.kaggle/access_token; `ktool.py score` verify: **ref 56473159 v13.1 = 0.911 CONFIRMED qua API** + full LB history (v6 0.945 · v7/v8fb/v10 0.947 · v11 0.947 banked · v12/v12.1 0.946 · variantA 0.911 · v13.1 0.911).
+- Pull kernel biohub-ver131 (source+output): monolith md5 c21e82f2 byte-exact bản ghi → TÁI AUDIT ĐỘC LẬP PASS; receipts: safe_divisions_added=0/0/0/0 · reparent=0 · readmitted/gapfill=0 · leaf_prune 10/12/0/52 · HOCT before/after=0; census file thật 122.363n/117.721e/**0 forks** (khớp 100%).
+- Pull kernel biohub-ver11 (source+output) → **receipts v11 banked phục hồi: safe_divisions_added 27/10/7/38 (Σ82) · reparent_added 12/19/3/43 (Σ77) · div_rejected 2812 · divnet 391 · HOCT 144/144 · census 122.787n/118.332e/144f** — tham chiếu chuẩn cho ledger.
+- Audit env-diff TOÀN DIỆN v11↔v13.1 (effective env, áp read-defaults): 23 diff → chỉ **2 sát thủ: OUTPUT_SAFE_DIVISIONS 1→0 + REPARENT_ENABLE 1→0** (cặp SR0); còn lại GC3 5.0→3.0 + leaf 0→0.3 (hypothesis), EP 0.25→0.4 (no-op receipts 77=77), knockout inert, 0.20/0.2 string-cosmetic, DIV_PARENT/VELOCITY default-trùng.
+- **XÂY HỆ THỐNG PHÁT HIỆN LỖI TRƯỚC-SUBMIT (yêu cầu chính user)**: `machinery-ledger.json` (sinh từ artifact v11 thật — không sao chép tay, md5 e7d9fb95) + `build-machinery-ledger.py` + `machinery-audit.py` — 3 LỚP (CONFIG env-vs-ledger · RECEIPT máy-có-FIRED · CENSUS luật-fork/DAG/INT), HARD-rule không ack được, hypothesis phải --ack tường minh, exit-code cơ học.
+- VALIDATE công cụ trên 3 phiên bản thật: **v11 ✅PASS 18/18 · v12.1 🟡HOLD 2-WARN-hypothesis (diverge −2.0/orphan 1 — đúng thực tế) · v13.1 🔴FAIL 11-hard-rule (R1 division-OFF ×2 + 5 tầng receipt chết + forks=0)** — phân biệt đúng 100%; exit=1 → submit-script tự hủy. Nếu tool tồn tại 22/9 → 0.911 không thể tới Kaggle.
+- **ERRORS-LEDGER.md** (sổ lỗi đọc đầu mỗi session): L13a tắt-máy-vì-autopsy-cửa-sổ-nhỏ (p(0/3)=6-26%) · L13b override-guard-by-đối-thoại (lần 2 cùng chữ ký) · L13c replica = adjEJ-only + division phải BẬT · L13d knob-diff phải phân loại trước submit · L14a-d instrument khác (replay-inflation, stem-concentrated, ước-lượng-3-mẫu, lever-ngoài-không-transfer) · giao thức trước-submit v2 (audit → ack → persist → submit).
+- **version-log-compare.py + VERSION-LOG-REPORT.md** (trả lời câu hỏi logs): 5 phiên bản — bảng LB×census×máy-division; luật fork mở rộng **5 điểm dữ liệu (v8 188f→0.947 · v10 188f→0.947 · v11 144f→0.947 · v12.1 184f→0.946 · 0f→0.911×2)**; fingerprint receipts đầy đủ (dose-response diverge gate hiện rõ: 4147(v8)→2812(v11)→365(v12.1)→0(v13.1)); hướng dẫn 6 họ log + độ tin cậy.
+- **V13.2 BUILD-READY (vá lỗi SR0, 0 GPU, CHƯA PUSH chờ lệnh)**: ver-13-2/ — build-ver132-monolith.py (8 patch deterministic từ base c21e82f2) → cell-monolith.py md5 9a0e872a 5.643 dòng py_compile PASS · make-ver132-ipynb → download/ver132-cell-tracking.ipynb 365KB cell==monolith BYTE-EXACT · restore: OUTPUT_SAFE_DIVISIONS=1 + REPARENT_ENABLE=1 + EP=0.25 (v11-exact) giữ GC3+leaf · guard in-kernel khóa 2 knob must_on vào _EXPECTED_TEXT (crash nếu drift) · audit v13.2: R1 ✅✅ 0-FAIL 2-WARN(GC3/leaf) · ktool --ver 132 (+131 phục hồi) · submit-v132.py gate-cứng-cơ-học · V132-DEPLOY.md runbook (GPU ~0.7h, kỳ vọng 0.946-0.947).
+
+Stage Summary:
+- ★ Điểm 0.911 xác nhận API; chuỗi tái-audit độc lập khép kín (md5→receipts→census→LB); env-diff 23 khóa định án 2 knob SR0.
+- ★ Hệ thống phát hiện lỗi trước-submit vận hành: machinery-audit 3 lớp + ledger từ artifact thật — bắt chính xác thảm họa v13.1 ở 11 hard-rule, PASS sạch v11, HOLD đúng v12.1. Lỗi lớp "tắt máy" giờ phát hiện được CƠ HỌC trước Kaggle.
+- ★ ERRORS-LEDGER.md ghi toàn bộ lỗi L13-L14 + giao thức submit v2 — không lặp lại trong session sau.
+- ★ Logs cross-version CÓ đánh giá được chất lượng: receipts nói máy sống/chết, census fork đoán khoảng LB (luật 5 điểm), LB lịch sử chốt. Tool version-log-compare.py gộp cả 3.
+- v13.2 build-ready chờ lệnh user: push --ver 132 (~0.7h GPU) → watch → submit-v132 (ack GC3+leaf) → kỳ vọng 0.946-0.947, banked 0.947 không đổi. GPU 16.53/30h.
+- Commit本次: tools + docs + v13.2 + pull artifacts (kernel-pull ipynb + run_stats).
